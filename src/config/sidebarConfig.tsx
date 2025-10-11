@@ -7,6 +7,7 @@ import {
   Assessment,
   AttachMoney,
   Settings,
+  Receipt,
 } from "@mui/icons-material";
 import { SvgIconComponent } from "@mui/icons-material";
 import { UserRole } from "@/types/auth.types";
@@ -31,6 +32,12 @@ export const sidebarItems: SidebarItem[] = [
     label: "Sales",
     path: "/sales",
     icon: ShoppingCart,
+  },
+  {
+    id: "sales-history",
+    label: "Sales History",
+    path: "/sales/history",
+    icon: Receipt,
   },
   {
     id: "products",

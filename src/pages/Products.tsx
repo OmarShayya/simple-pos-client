@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -15,17 +15,40 @@ import {
   MenuItem,
   Grid,
   Tooltip,
+  CircularProgress,
+  CardContent,
+  CardMedia,
+  CardActions,
+  Avatar,
+  ToggleButtonGroup,
+  ToggleButton,
 } from "@mui/material";
-
-import { Add, Search, Edit, Delete, Warning } from "@mui/icons-material";
+import {
+  Add,
+  Search,
+  Edit,
+  Delete,
+  Warning,
+  Upload,
+  ViewList,
+  ViewModule,
+  Inventory,
+} from "@mui/icons-material";
 import { DataGrid, GridColDef } from "@mui/x-data-grid";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { productsApi } from "@/api/products.api";
 import { categoriesApi } from "@/api/categories.api";
-import { Product, CreateProductRequest } from "@/types/product.types";
+import { exchangeRateApi } from "@/api/exchangeRate.api";
+import {
+  Product,
+  CreateProductRequest,
+  UpdateProductRequest,
+} from "@/types/product.types";
+import { Category } from "@/types/category.types";
 import { toast } from "react-toastify";
 import { handleApiError } from "@/utils/errorHandler";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
+import { uploadImageToFirebase } from "@/utils/firebaseUpload";
 
 const Products: React.FC = () => {
   const queryClient = useQueryClient();
@@ -34,6 +57,9 @@ const Products: React.FC = () => {
   const [lowStockOnly, setLowStockOnly] = useState(false);
   const [openDialog, setOpenDialog] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [viewMode, setViewMode] = useState<"grid" | "card">("grid");
   const [paginationModel, setPaginationModel] = useState({
     page: 0,
     pageSize: 10,
@@ -46,13 +72,73 @@ const Products: React.FC = () => {
     category: "",
     pricing: { usd: 0, lbp: 0 },
     inventory: { quantity: 0, minStockLevel: 10 },
-    image: undefined,
+    image: "",
   });
+
+  const [isEditingUsd, setIsEditingUsd] = useState(false);
+  const [isEditingLbp, setIsEditingLbp] = useState(false);
+  const [lastEditedField, setLastEditedField] = useState<"usd" | "lbp" | null>(
+    null
+  );
+
+  const { data: exchangeRate } = useQuery({
+    queryKey: ["exchange-rate"],
+    queryFn: exchangeRateApi.getCurrentRate,
+  });
+
+  const { data: categories = [] } = useQuery<Category[]>({
+    queryKey: ["categories"],
+    queryFn: () => categoriesApi.getAll(),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  useEffect(() => {
+    if (
+      exchangeRate &&
+      formData.pricing.usd > 0 &&
+      lastEditedField === "usd" &&
+      !isEditingLbp
+    ) {
+      const lbpValue = Math.round(formData.pricing.usd * exchangeRate.rate);
+      if (Math.abs(lbpValue - formData.pricing.lbp) > 1) {
+        setFormData((prev) => ({
+          ...prev,
+          pricing: {
+            ...prev.pricing,
+            lbp: lbpValue,
+          },
+        }));
+      }
+    }
+  }, [formData.pricing.usd, exchangeRate, lastEditedField, isEditingLbp]);
+
+  useEffect(() => {
+    if (
+      exchangeRate &&
+      formData.pricing.lbp > 0 &&
+      lastEditedField === "lbp" &&
+      !isEditingUsd
+    ) {
+      const usdValue = Number(
+        (formData.pricing.lbp / exchangeRate.rate).toFixed(2)
+      );
+      if (Math.abs(usdValue - formData.pricing.usd) > 0.01) {
+        setFormData((prev) => ({
+          ...prev,
+          pricing: {
+            ...prev.pricing,
+            usd: usdValue,
+          },
+        }));
+      }
+    }
+  }, [formData.pricing.lbp, exchangeRate, lastEditedField, isEditingUsd]);
 
   const { data: productsData, isLoading } = useQuery({
     queryKey: [
       "products",
       paginationModel.page + 1,
+      paginationModel.pageSize,
       searchQuery,
       categoryFilter,
       lowStockOnly,
@@ -65,29 +151,27 @@ const Products: React.FC = () => {
         category: categoryFilter || undefined,
         lowStock: lowStockOnly || undefined,
       }),
-  });
-
-  const { data: categories } = useQuery({
-    queryKey: ["categories"],
-    queryFn: categoriesApi.getAll as any,
+    placeholderData: (previousData) => previousData,
   });
 
   const createMutation = useMutation({
     mutationFn: productsApi.create,
     onSuccess: () => {
       toast.success("Product created successfully");
-      queryClient.invalidateQueries({ queryKey: ["products"] });
       handleCloseDialog();
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
     },
     onError: (error) => toast.error(handleApiError(error)),
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: any }) =>
+    mutationFn: ({ id, data }: { id: string; data: UpdateProductRequest }) =>
       productsApi.update(id, data),
     onSuccess: () => {
       toast.success("Product updated successfully");
       queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       handleCloseDialog();
     },
     onError: (error) => toast.error(handleApiError(error)),
@@ -98,6 +182,7 @@ const Products: React.FC = () => {
     onSuccess: () => {
       toast.success("Product deleted successfully");
       queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
     },
     onError: (error) => toast.error(handleApiError(error)),
   });
@@ -107,12 +192,15 @@ const Products: React.FC = () => {
       setEditingProduct(product);
       setFormData({
         name: product.name,
-        description: product.description,
+        description: product.description || "",
         sku: product.sku,
         category: product.category.id,
         pricing: product.pricing,
-        inventory: product.inventory,
-        image: product.image,
+        inventory: {
+          quantity: product.inventory.quantity,
+          minStockLevel: product.inventory.minStockLevel,
+        },
+        image: product.image || "",
       });
     } else {
       setEditingProduct(null);
@@ -126,23 +214,65 @@ const Products: React.FC = () => {
         image: "",
       });
     }
+    setImageFile(null);
+    setIsEditingUsd(false);
+    setIsEditingLbp(false);
+    setLastEditedField(null);
     setOpenDialog(true);
   };
 
   const handleCloseDialog = () => {
     setOpenDialog(false);
     setEditingProduct(null);
+    setImageFile(null);
+  };
+
+  const handleImageSelect = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select an image file");
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Image size must be less than 5MB");
+      return;
+    }
+
+    setImageFile(file);
+    setUploadingImage(true);
+
+    try {
+      const imageUrl = await uploadImageToFirebase(file, "products");
+      setFormData((prev) => ({ ...prev, image: imageUrl }));
+      toast.success("Image uploaded successfully");
+    } catch (error) {
+      toast.error("Failed to upload image");
+      setImageFile(null);
+    } finally {
+      setUploadingImage(false);
+    }
   };
 
   const handleSubmit = () => {
     if (editingProduct) {
-      const { sku, ...updateData } = formData;
+      // For update, exclude SKU and only send changed fields
+      const updateData: UpdateProductRequest = {
+        name: formData.name,
+        description: formData.description || undefined,
+        category: formData.category,
+        pricing: formData.pricing,
+        inventory: formData.inventory,
+        image: formData.image || undefined,
+      };
 
-      updateMutation.mutate({
-        id: editingProduct.id,
-        data: updateData,
-      });
+      updateMutation.mutate({ id: editingProduct.id, data: updateData });
     } else {
+      // For create, send all fields including SKU
       createMutation.mutate(formData);
     }
   };
@@ -154,6 +284,21 @@ const Products: React.FC = () => {
   };
 
   const columns: GridColDef[] = [
+    {
+      field: "image",
+      headerName: "Image",
+      width: 80,
+      renderCell: (params) => (
+        <Avatar
+          src={params.row.image}
+          alt={params.row.name}
+          variant="rounded"
+          sx={{ width: 50, height: 50 }}
+        >
+          <Inventory />
+        </Avatar>
+      ),
+    },
     {
       field: "name",
       headerName: "Product Name",
@@ -239,9 +384,8 @@ const Products: React.FC = () => {
         </Button>
       </Box>
 
-      {/* Filters */}
       <Card sx={{ p: 2, mb: 3 }}>
-        <Grid container spacing={2}>
+        <Grid container spacing={2} alignItems="center">
           <Grid size={{ xs: 12, sm: 6, md: 4 }}>
             <TextField
               fullWidth
@@ -266,7 +410,7 @@ const Products: React.FC = () => {
               onChange={(e) => setCategoryFilter(e.target.value)}
             >
               <MenuItem value="">All Categories</MenuItem>
-              {categories?.map((cat: any) => (
+              {categories.map((cat) => (
                 <MenuItem key={cat.id} value={cat.id}>
                   {cat.name}
                 </MenuItem>
@@ -284,25 +428,129 @@ const Products: React.FC = () => {
               Low Stock Only
             </Button>
           </Grid>
+          <Grid size={{ xs: 12, sm: 6, md: 2 }}>
+            <ToggleButtonGroup
+              value={viewMode}
+              exclusive
+              onChange={(_, newMode) => newMode && setViewMode(newMode)}
+              fullWidth
+            >
+              <ToggleButton value="grid">
+                <ViewList />
+              </ToggleButton>
+              <ToggleButton value="card">
+                <ViewModule />
+              </ToggleButton>
+            </ToggleButtonGroup>
+          </Grid>
         </Grid>
       </Card>
 
-      {/* Products Table */}
-      <Card>
-        <DataGrid
-          rows={productsData?.data || []}
-          columns={columns}
-          paginationModel={paginationModel}
-          onPaginationModelChange={setPaginationModel}
-          rowCount={productsData?.pagination.total || 0}
-          pageSizeOptions={[5, 10, 25, 50]}
-          paginationMode="server"
-          autoHeight
-          disableRowSelectionOnClick
-        />
-      </Card>
+      {viewMode === "grid" ? (
+        <Card>
+          <DataGrid
+            rows={productsData?.data || []}
+            columns={columns}
+            paginationModel={paginationModel}
+            onPaginationModelChange={setPaginationModel}
+            rowCount={productsData?.pagination.total || 0}
+            pageSizeOptions={[5, 10, 25, 50]}
+            paginationMode="server"
+            autoHeight
+            disableRowSelectionOnClick
+            loading={isLoading}
+            getRowHeight={() => 70}
+          />
+        </Card>
+      ) : (
+        <Grid container spacing={3}>
+          {productsData?.data.map((product: Product) => (
+            <Grid size={{ xs: 12, sm: 6, md: 4, lg: 3 }} key={product.id}>
+              <Card
+                sx={{
+                  height: "100%",
+                  display: "flex",
+                  flexDirection: "column",
+                }}
+              >
+                <CardMedia
+                  component="img"
+                  height="200"
+                  image={product.image || "/placeholder-product.png"}
+                  alt={product.name}
+                  sx={{ objectFit: "cover" }}
+                  onError={(e: any) => {
+                    e.target.src = "/placeholder-product.png";
+                  }}
+                />
+                <CardContent sx={{ flexGrow: 1 }}>
+                  <Typography variant="h6" gutterBottom noWrap>
+                    {product.name}
+                  </Typography>
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    gutterBottom
+                  >
+                    SKU: {product.sku}
+                  </Typography>
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{
+                      display: "-webkit-box",
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: "vertical",
+                      overflow: "hidden",
+                      mb: 2,
+                      minHeight: 40,
+                    }}
+                  >
+                    {product.description || "No description"}
+                  </Typography>
+                  <Chip
+                    label={product.category.name}
+                    size="small"
+                    sx={{ mb: 1 }}
+                  />
+                  <Box sx={{ mt: 2 }}>
+                    <Typography variant="h6" color="primary">
+                      ${product.pricing.usd.toFixed(2)}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {product.pricing.lbp.toLocaleString()} LBP
+                    </Typography>
+                  </Box>
+                  <Chip
+                    label={`Stock: ${product.inventory.quantity}`}
+                    color={product.inventory.isLowStock ? "error" : "success"}
+                    size="small"
+                    sx={{ mt: 1 }}
+                  />
+                </CardContent>
+                <CardActions>
+                  <Button
+                    size="small"
+                    startIcon={<Edit />}
+                    onClick={() => handleOpenDialog(product)}
+                  >
+                    Edit
+                  </Button>
+                  <Button
+                    size="small"
+                    color="error"
+                    startIcon={<Delete />}
+                    onClick={() => handleDelete(product.id)}
+                  >
+                    Delete
+                  </Button>
+                </CardActions>
+              </Card>
+            </Grid>
+          ))}
+        </Grid>
+      )}
 
-      {/* Add/Edit Dialog */}
       <Dialog
         open={openDialog}
         onClose={handleCloseDialog}
@@ -335,6 +583,7 @@ const Products: React.FC = () => {
                 }
                 required
                 disabled={!!editingProduct}
+                helperText={editingProduct ? "SKU cannot be changed" : ""}
               />
             </Grid>
             <Grid size={12}>
@@ -360,7 +609,7 @@ const Products: React.FC = () => {
                 }
                 required
               >
-                {categories?.map((cat) => (
+                {categories.map((cat) => (
                   <MenuItem key={cat.id} value={cat.id}>
                     {cat.name}
                   </MenuItem>
@@ -368,31 +617,65 @@ const Products: React.FC = () => {
               </TextField>
             </Grid>
             <Grid size={{ xs: 12, md: 6 }}>
-              <TextField
+              <Button
                 fullWidth
-                label="Image URL"
-                value={formData.image}
-                onChange={(e) =>
-                  setFormData({ ...formData, image: e.target.value })
+                variant="outlined"
+                component="label"
+                startIcon={
+                  uploadingImage ? <CircularProgress size={20} /> : <Upload />
                 }
-              />
+                disabled={uploadingImage}
+                sx={{ height: "56px" }}
+              >
+                {imageFile ? imageFile.name : "Upload Image"}
+                <input
+                  type="file"
+                  hidden
+                  accept="image/*"
+                  onChange={handleImageSelect}
+                />
+              </Button>
             </Grid>
+            {formData.image && (
+              <Grid size={12}>
+                <Card sx={{ p: 2 }}>
+                  <img
+                    src={formData.image}
+                    alt="Product preview"
+                    style={{ maxWidth: "200px", maxHeight: "200px" }}
+                  />
+                </Card>
+              </Grid>
+            )}
             <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
                 type="number"
                 label="Price (USD)"
                 value={formData.pricing.usd}
-                onChange={(e) =>
+                onFocus={(e) => {
+                  setIsEditingUsd(true);
+                  setLastEditedField("usd");
+                  if (formData.pricing.usd === 0) {
+                    e.target.select();
+                  }
+                }}
+                onBlur={() => setIsEditingUsd(false)}
+                onChange={(e) => {
+                  const value =
+                    e.target.value === "" ? 0 : Number(e.target.value);
                   setFormData({
                     ...formData,
-                    pricing: {
-                      ...formData.pricing,
-                      usd: Number(e.target.value),
-                    },
-                  })
-                }
+                    pricing: { ...formData.pricing, usd: value },
+                  });
+                  setLastEditedField("usd");
+                }}
                 required
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">$</InputAdornment>
+                  ),
+                }}
               />
             </Grid>
             <Grid size={{ xs: 12, md: 6 }}>
@@ -401,17 +684,35 @@ const Products: React.FC = () => {
                 type="number"
                 label="Price (LBP)"
                 value={formData.pricing.lbp}
-                onChange={(e) =>
+                onFocus={(e) => {
+                  setIsEditingLbp(true);
+                  setLastEditedField("lbp");
+                  if (formData.pricing.lbp === 0) {
+                    e.target.select();
+                  }
+                }}
+                onBlur={() => setIsEditingLbp(false)}
+                onChange={(e) => {
+                  const value =
+                    e.target.value === "" ? 0 : Number(e.target.value);
                   setFormData({
                     ...formData,
-                    pricing: {
-                      ...formData.pricing,
-                      lbp: Number(e.target.value),
-                    },
-                  })
-                }
+                    pricing: { ...formData.pricing, lbp: value },
+                  });
+                  setLastEditedField("lbp");
+                }}
                 required
+                InputProps={{
+                  endAdornment: (
+                    <InputAdornment position="end">LBP</InputAdornment>
+                  ),
+                }}
               />
+            </Grid>
+            <Grid size={12}>
+              <Typography variant="caption" color="text.secondary">
+                Exchange Rate: 1 USD = {exchangeRate?.rate.toLocaleString()} LBP
+              </Typography>
             </Grid>
             <Grid size={{ xs: 12, md: 6 }}>
               <TextField
@@ -419,12 +720,18 @@ const Products: React.FC = () => {
                 type="number"
                 label="Quantity"
                 value={formData.inventory.quantity}
+                onFocus={(e) => {
+                  if (formData.inventory.quantity === 0) {
+                    e.target.select();
+                  }
+                }}
                 onChange={(e) =>
                   setFormData({
                     ...formData,
                     inventory: {
                       ...formData.inventory,
-                      quantity: Number(e.target.value),
+                      quantity:
+                        e.target.value === "" ? 0 : Number(e.target.value),
                     },
                   })
                 }
@@ -455,7 +762,11 @@ const Products: React.FC = () => {
           <Button
             variant="contained"
             onClick={handleSubmit}
-            disabled={createMutation.isPending || updateMutation.isPending}
+            disabled={
+              createMutation.isPending ||
+              updateMutation.isPending ||
+              uploadingImage
+            }
           >
             {editingProduct ? "Update" : "Create"}
           </Button>

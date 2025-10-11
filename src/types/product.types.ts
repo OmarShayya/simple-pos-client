@@ -21,6 +21,11 @@ export interface Product {
   updatedAt?: string;
 }
 
+export interface ProductInventoryInput {
+  quantity: number;
+  minStockLevel?: number;
+}
+
 export interface CreateProductRequest {
   name: string;
   description?: string;
@@ -30,10 +35,7 @@ export interface CreateProductRequest {
     usd: number;
     lbp: number;
   };
-  inventory: {
-    quantity: number;
-    minStockLevel?: number;
-  };
+  inventory: ProductInventoryInput;
   image?: string;
 }
 
@@ -45,9 +47,6 @@ export interface UpdateProductRequest {
     usd: number;
     lbp: number;
   };
-  inventory?: {
-    quantity: number;
-    minStockLevel?: number;
-  };
+  inventory?: ProductInventoryInput;
   image?: string;
 }

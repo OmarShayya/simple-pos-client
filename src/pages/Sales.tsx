@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -12,6 +12,16 @@ import {
   Chip,
   Grid,
   Alert,
+  CircularProgress,
+  Badge,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemSecondaryAction,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from "@mui/material";
 import {
   Add,
@@ -19,14 +29,18 @@ import {
   Delete,
   ShoppingCart,
   Receipt,
+  PendingActions,
+  Edit,
+  Refresh,
 } from "@mui/icons-material";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { productsApi } from "@/api/products.api";
 import { customersApi } from "@/api/customers.api";
 import { salesApi } from "@/api/sales.api";
+import { exchangeRateApi } from "@/api/exchangeRate.api";
 import { Product } from "@/types/product.types";
 import { Customer } from "@/types/customer.types";
-import { PaymentMethod, Currency, SaleItem } from "@/types/sale.types";
+import { SaleItem, SaleStatus } from "@/types/sale.types";
 import { toast } from "react-toastify";
 import { handleApiError } from "@/utils/errorHandler";
 
@@ -36,22 +50,52 @@ const Sales: React.FC = () => {
     null
   );
   const [cartItems, setCartItems] = useState<SaleItem[]>([]);
-  const [openPaymentDialog, setOpenPaymentDialog] = useState(false);
-  const [paymentData, setPaymentData] = useState({
-    method: PaymentMethod.CASH,
-    currency: Currency.USD,
-    amount: 0,
+  const [productSearch, setProductSearch] = useState("");
+  const [openPendingDialog, setOpenPendingDialog] = useState(false);
+
+  const { data: exchangeRate, isLoading: loadingRate } = useQuery({
+    queryKey: ["exchange-rate"],
+    queryFn: exchangeRateApi.getCurrentRate,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    refetchInterval: 5 * 60 * 1000, // Auto-refresh every 5 minutes
   });
 
-  const { data: products } = useQuery({
+  const { data: products, isLoading: loadingProducts } = useQuery({
     queryKey: ["products-all"],
     queryFn: () => productsApi.getAll({ limit: 1000 }),
+    staleTime: 60 * 1000,
   });
 
-  const { data: customers } = useQuery({
+  const { data: customers, isLoading: loadingCustomers } = useQuery({
     queryKey: ["customers-all"],
     queryFn: () => customersApi.getAll({ limit: 1000 }),
+    staleTime: 60 * 1000,
   });
+
+  const { data: pendingSales, isLoading: loadingPending } = useQuery({
+    queryKey: ["pending-sales"],
+    queryFn: () => salesApi.getAll({ status: SaleStatus.PENDING, limit: 100 }),
+    staleTime: 10 * 1000,
+  });
+
+  // Recalculate LBP prices when exchange rate changes
+  useEffect(() => {
+    if (exchangeRate && cartItems.length > 0) {
+      setCartItems((prevItems) =>
+        prevItems.map((item) => ({
+          ...item,
+          unitPrice: {
+            ...item.unitPrice,
+            lbp: Math.round(item.unitPrice.usd * exchangeRate.rate),
+          },
+          subtotal: {
+            usd: item.subtotal.usd,
+            lbp: Math.round(item.subtotal.usd * exchangeRate.rate),
+          },
+        }))
+      );
+    }
+  }, [exchangeRate?.rate]);
 
   const createSaleMutation = useMutation({
     mutationFn: salesApi.create,
@@ -60,26 +104,45 @@ const Sales: React.FC = () => {
       setCartItems([]);
       setSelectedCustomer(null);
       queryClient.invalidateQueries({ queryKey: ["sales"] });
+      queryClient.invalidateQueries({ queryKey: ["pending-sales"] });
       queryClient.invalidateQueries({ queryKey: ["products"] });
-      setOpenPaymentDialog(true);
-      setPaymentData({
-        ...paymentData,
-        amount: sale.totals.usd,
-      });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      if (selectedCustomer) {
+        queryClient.invalidateQueries({ queryKey: ["customers"] });
+      }
     },
     onError: (error) => toast.error(handleApiError(error)),
   });
 
   const addToCart = (product: Product) => {
+    if (product.inventory.quantity === 0) {
+      toast.error("Product out of stock");
+      return;
+    }
+
+    const rate = exchangeRate?.rate || 89500;
     const existingItem = cartItems.find(
       (item) => item.productId === product.id
     );
 
     if (existingItem) {
+      if (existingItem.quantity >= product.inventory.quantity) {
+        toast.error("Not enough stock");
+        return;
+      }
       setCartItems(
         cartItems.map((item) =>
           item.productId === product.id
-            ? { ...item, quantity: item.quantity + 1 }
+            ? {
+                ...item,
+                quantity: item.quantity + 1,
+                subtotal: {
+                  usd: item.unitPrice.usd * (item.quantity + 1),
+                  lbp: Math.round(
+                    item.unitPrice.usd * (item.quantity + 1) * rate
+                  ),
+                },
+              }
             : item
         )
       );
@@ -91,31 +154,40 @@ const Sales: React.FC = () => {
           productName: product.name,
           productSku: product.sku,
           quantity: 1,
-          unitPrice: product.pricing,
-          subtotal: product.pricing,
+          unitPrice: {
+            usd: product.pricing.usd,
+            lbp: Math.round(product.pricing.usd * rate),
+          },
+          subtotal: {
+            usd: product.pricing.usd,
+            lbp: Math.round(product.pricing.usd * rate),
+          },
         },
       ]);
     }
+    toast.success(`${product.name} added to cart`);
   };
 
   const updateQuantity = (productId: string, change: number) => {
+    const rate = exchangeRate?.rate || 89500;
     setCartItems(
       cartItems
         .map((item) => {
           if (item.productId === productId) {
             const newQuantity = item.quantity + change;
+            if (newQuantity <= 0) return null;
             return {
               ...item,
               quantity: newQuantity,
               subtotal: {
-                usd: item.unitPrice!.usd * newQuantity,
-                lbp: item.unitPrice!.lbp * newQuantity,
+                usd: item.unitPrice.usd * newQuantity,
+                lbp: Math.round(item.unitPrice.usd * newQuantity * rate),
               },
             };
           }
           return item;
         })
-        .filter((item) => item.quantity > 0)
+        .filter((item): item is SaleItem => item !== null)
     );
   };
 
@@ -126,8 +198,8 @@ const Sales: React.FC = () => {
   const calculateTotal = () => {
     return cartItems.reduce(
       (acc, item) => ({
-        usd: acc.usd + item.subtotal!.usd,
-        lbp: acc.lbp + item.subtotal!.lbp,
+        usd: acc.usd + item.subtotal.usd,
+        lbp: acc.lbp + item.subtotal.lbp,
       }),
       { usd: 0, lbp: 0 }
     );
@@ -148,13 +220,101 @@ const Sales: React.FC = () => {
     });
   };
 
+  const handleLoadPendingSale = async (saleId: string) => {
+    try {
+      const sale = await salesApi.getById(saleId);
+      const rate = exchangeRate?.rate || 89500;
+
+      if (sale.customer) {
+        const customer = customers?.data.find(
+          (c: Customer) => c.id === sale.customer?.id
+        );
+        setSelectedCustomer(customer || null);
+      }
+
+      const newCartItems: SaleItem[] = sale.items.map((item) => ({
+        productId: item.product || item.productId,
+        productName: item.productName,
+        productSku: item.productSku,
+        quantity: item.quantity,
+        unitPrice: {
+          usd: item.unitPrice.usd,
+          lbp: Math.round(item.unitPrice.usd * rate),
+        },
+        subtotal: {
+          usd: item.subtotal.usd,
+          lbp: Math.round(item.subtotal.usd * rate),
+        },
+      }));
+
+      setCartItems(newCartItems);
+      setOpenPendingDialog(false);
+      toast.success("Pending order loaded");
+    } catch (error) {
+      toast.error("Failed to load pending order");
+    }
+  };
+
+  const handleRefreshRate = () => {
+    queryClient.invalidateQueries({ queryKey: ["exchange-rate"] });
+    toast.info("Refreshing exchange rate...");
+  };
+
   const total = calculateTotal();
+  const pendingCount = pendingSales?.data?.length || 0;
+  const currentRate = exchangeRate?.rate || 89500;
+
+  if (loadingProducts || loadingCustomers) {
+    return (
+      <Box sx={{ display: "flex", justifyContent: "center", mt: 10 }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
 
   return (
     <Box>
-      <Typography variant="h4" fontWeight="bold" gutterBottom>
-        Point of Sale
-      </Typography>
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          mb: 2,
+        }}
+      >
+        <Box>
+          <Typography variant="h4" fontWeight="bold">
+            Point of Sale
+          </Typography>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1, mt: 1 }}>
+            <Chip
+              label={`1 USD = ${currentRate.toLocaleString()} LBP`}
+              color="primary"
+              size="small"
+              variant="outlined"
+            />
+            <IconButton
+              size="small"
+              onClick={handleRefreshRate}
+              disabled={loadingRate}
+              title="Refresh exchange rate"
+            >
+              <Refresh fontSize="small" />
+            </IconButton>
+          </Box>
+        </Box>
+        <Button
+          variant="outlined"
+          startIcon={
+            <Badge badgeContent={pendingCount} color="error">
+              <PendingActions />
+            </Badge>
+          }
+          onClick={() => setOpenPendingDialog(true)}
+        >
+          Pending Orders
+        </Button>
+      </Box>
 
       <Grid container spacing={3} sx={{ mt: 1 }}>
         {/* Left Side - Product Selection */}
@@ -167,10 +327,62 @@ const Sales: React.FC = () => {
 
               <Autocomplete
                 options={products?.data || []}
-                getOptionLabel={(option) => `${option.name} (${option.sku})`}
+                getOptionLabel={(option) =>
+                  `${option.name} - ${option.sku} ($${option.pricing.usd})`
+                }
                 onChange={(_, value) => value && addToCart(value)}
+                inputValue={productSearch}
+                onInputChange={(_, newValue) => setProductSearch(newValue)}
                 renderInput={(params) => (
                   <TextField {...params} label="Search products" fullWidth />
+                )}
+                renderOption={(props, option) => (
+                  <li {...props} key={option.id}>
+                    <Box sx={{ width: "100%" }}>
+                      <Box
+                        sx={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                        }}
+                      >
+                        <Typography variant="body2" fontWeight={600}>
+                          {option.name}
+                        </Typography>
+                        <Box sx={{ textAlign: "right" }}>
+                          <Typography
+                            variant="body2"
+                            color="primary"
+                            fontWeight={600}
+                          >
+                            ${option.pricing.usd.toFixed(2)}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {Math.round(
+                              option.pricing.usd * currentRate
+                            ).toLocaleString()}{" "}
+                            LBP
+                          </Typography>
+                        </Box>
+                      </Box>
+                      <Box
+                        sx={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                        }}
+                      >
+                        <Typography variant="caption" color="text.secondary">
+                          {option.sku}
+                        </Typography>
+                        <Chip
+                          label={`Stock: ${option.inventory.quantity}`}
+                          size="small"
+                          color={
+                            option.inventory.isLowStock ? "error" : "success"
+                          }
+                        />
+                      </Box>
+                    </Box>
+                  </li>
                 )}
                 sx={{ mb: 3 }}
               />
@@ -181,12 +393,21 @@ const Sales: React.FC = () => {
                     <Grid size={{ xs: 6, sm: 4 }} key={product.id}>
                       <Card
                         sx={{
-                          cursor: "pointer",
-                          "&:hover": { boxShadow: 3 },
+                          cursor:
+                            product.inventory.quantity > 0
+                              ? "pointer"
+                              : "not-allowed",
+                          opacity: product.inventory.quantity > 0 ? 1 : 0.5,
+                          "&:hover":
+                            product.inventory.quantity > 0
+                              ? { boxShadow: 3 }
+                              : {},
                           border: 1,
                           borderColor: "divider",
                         }}
-                        onClick={() => addToCart(product)}
+                        onClick={() =>
+                          product.inventory.quantity > 0 && addToCart(product)
+                        }
                       >
                         <CardContent>
                           <Typography variant="body2" fontWeight={600} noWrap>
@@ -195,19 +416,33 @@ const Sales: React.FC = () => {
                           <Typography variant="caption" color="text.secondary">
                             {product.sku}
                           </Typography>
-                          <Typography
-                            variant="body2"
-                            color="primary"
-                            fontWeight={600}
-                            sx={{ mt: 1 }}
-                          >
-                            ${product.pricing.usd}
-                          </Typography>
+                          <Box sx={{ mt: 1 }}>
+                            <Typography
+                              variant="body2"
+                              color="primary"
+                              fontWeight={600}
+                            >
+                              ${product.pricing.usd.toFixed(2)}
+                            </Typography>
+                            <Typography
+                              variant="caption"
+                              color="text.secondary"
+                            >
+                              {Math.round(
+                                product.pricing.usd * currentRate
+                              ).toLocaleString()}{" "}
+                              LBP
+                            </Typography>
+                          </Box>
                           <Chip
                             label={`Stock: ${product.inventory.quantity}`}
                             size="small"
                             color={
-                              product.inventory.isLowStock ? "error" : "success"
+                              product.inventory.quantity === 0
+                                ? "default"
+                                : product.inventory.isLowStock
+                                ? "error"
+                                : "success"
                             }
                             sx={{ mt: 1 }}
                           />
@@ -227,7 +462,7 @@ const Sales: React.FC = () => {
             <CardContent>
               <Typography variant="h6" fontWeight={600} gutterBottom>
                 <ShoppingCart sx={{ mr: 1, verticalAlign: "middle" }} />
-                Cart
+                Cart ({cartItems.length} items)
               </Typography>
 
               {/* Customer Selection */}
@@ -272,7 +507,8 @@ const Sales: React.FC = () => {
                             {item.productName}
                           </Typography>
                           <Typography variant="caption" color="text.secondary">
-                            ${item.unitPrice!.usd} each
+                            ${item.unitPrice.usd.toFixed(2)} /{" "}
+                            {item.unitPrice.lbp.toLocaleString()} LBP
                           </Typography>
                         </Box>
                         <Box
@@ -304,13 +540,14 @@ const Sales: React.FC = () => {
                             <Delete fontSize="small" />
                           </IconButton>
                         </Box>
-                        <Typography
-                          variant="body2"
-                          fontWeight={600}
-                          sx={{ minWidth: 80, textAlign: "right" }}
-                        >
-                          ${item.subtotal!.usd.toFixed(2)}
-                        </Typography>
+                        <Box sx={{ textAlign: "right", minWidth: 100 }}>
+                          <Typography variant="body2" fontWeight={600}>
+                            ${item.subtotal.usd.toFixed(2)}
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary">
+                            {item.subtotal.lbp.toLocaleString()} LBP
+                          </Typography>
+                        </Box>
                       </Box>
                     ))}
                   </Box>
@@ -319,34 +556,40 @@ const Sales: React.FC = () => {
 
                   {/* Total */}
                   <Box>
-                    <Box
+                    <Card
                       sx={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        mb: 1,
-                      }}
-                    >
-                      <Typography variant="h6" fontWeight={600}>
-                        Total (USD):
-                      </Typography>
-                      <Typography variant="h6" fontWeight={600} color="primary">
-                        ${total.usd.toFixed(2)}
-                      </Typography>
-                    </Box>
-                    <Box
-                      sx={{
-                        display: "flex",
-                        justifyContent: "space-between",
+                        bgcolor: "primary.main",
+                        color: "white",
+                        p: 2,
                         mb: 2,
                       }}
                     >
-                      <Typography variant="body2" color="text.secondary">
-                        Total (LBP):
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        {total.lbp.toLocaleString()} LBP
-                      </Typography>
-                    </Box>
+                      <Box
+                        sx={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          mb: 1,
+                        }}
+                      >
+                        <Typography variant="h6" fontWeight={600}>
+                          Total (USD):
+                        </Typography>
+                        <Typography variant="h6" fontWeight={700}>
+                          ${total.usd.toFixed(2)}
+                        </Typography>
+                      </Box>
+                      <Box
+                        sx={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                        }}
+                      >
+                        <Typography variant="body2">Total (LBP):</Typography>
+                        <Typography variant="body2" fontWeight={600}>
+                          {total.lbp.toLocaleString()} LBP
+                        </Typography>
+                      </Box>
+                    </Card>
 
                     <Button
                       fullWidth
@@ -356,7 +599,9 @@ const Sales: React.FC = () => {
                       onClick={handleCreateSale}
                       disabled={createSaleMutation.isPending}
                     >
-                      Create Sale
+                      {createSaleMutation.isPending
+                        ? "Processing..."
+                        : "Create Sale"}
                     </Button>
                   </Box>
                 </>
@@ -365,6 +610,96 @@ const Sales: React.FC = () => {
           </Card>
         </Grid>
       </Grid>
+
+      {/* Pending Orders Dialog */}
+      <Dialog
+        open={openPendingDialog}
+        onClose={() => setOpenPendingDialog(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            <Typography variant="h6">Pending Orders</Typography>
+            <Chip label={`${pendingCount} Orders`} color="warning" />
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          {loadingPending ? (
+            <Box sx={{ display: "flex", justifyContent: "center", p: 3 }}>
+              <CircularProgress />
+            </Box>
+          ) : pendingSales?.data?.length === 0 ? (
+            <Alert severity="info">No pending orders</Alert>
+          ) : (
+            <List>
+              {pendingSales?.data.map((sale: any) => (
+                <ListItem
+                  key={sale.id}
+                  sx={{
+                    border: 1,
+                    borderColor: "divider",
+                    borderRadius: 1,
+                    mb: 1,
+                    "&:hover": { bgcolor: "action.hover" },
+                  }}
+                >
+                  <ListItemText
+                    primary={
+                      <Box
+                        sx={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                        }}
+                      >
+                        <Typography variant="body1" fontWeight={600}>
+                          {sale.customer?.name || "Walk-in Customer"}
+                        </Typography>
+                        <Chip
+                          label={sale.invoiceNumber}
+                          size="small"
+                          variant="outlined"
+                        />
+                      </Box>
+                    }
+                    secondary={
+                      <Box sx={{ mt: 1 }}>
+                        <Typography variant="body2" color="text.secondary">
+                          Items: {sale.items?.length || 0} | Total: $
+                          {sale.totals.usd.toFixed(2)}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          Created: {new Date(sale.createdAt).toLocaleString()}
+                        </Typography>
+                      </Box>
+                    }
+                  />
+                  <ListItemSecondaryAction>
+                    <Button
+                      variant="contained"
+                      size="small"
+                      startIcon={<Edit />}
+                      onClick={() => handleLoadPendingSale(sale.id)}
+                    >
+                      Load
+                    </Button>
+                  </ListItemSecondaryAction>
+                </ListItem>
+              ))}
+            </List>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenPendingDialog(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

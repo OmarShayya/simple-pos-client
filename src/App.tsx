@@ -14,6 +14,7 @@ import ExchangeRate from "./pages/ExchangeRate";
 import Settings from "./pages/Settings";
 import Profile from "./pages/Profile";
 import { useAuthStore } from "./store/authStore";
+import SalesHistory from "./pages/SalesHistory";
 
 const App: React.FC = () => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
@@ -40,7 +41,8 @@ const App: React.FC = () => {
         <Route index element={<Navigate to="/dashboard" />} />
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="sales" element={<Sales />} />
-        <Route path="products" element={<Products />} />
+        <Route path="sales/history" element={<SalesHistory />} />
+        <Route path="products" element={<Products />} />  
         <Route path="categories" element={<Categories />} />
         <Route path="customers" element={<Customers />} />
         <Route path="reports" element={<Reports />} />

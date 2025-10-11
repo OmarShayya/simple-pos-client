@@ -30,7 +30,12 @@ import {
   Search,
   AccountBalance,
 } from "@mui/icons-material";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useQuery,
+  useMutation,
+  useQueryClient,
+  useQueries,
+} from "@tanstack/react-query";
 import { dashboardApi } from "@/api/dashboard.api";
 import { customersApi } from "@/api/customers.api";
 import { CreateCustomerRequest } from "@/types/customer.types";
@@ -81,29 +86,38 @@ const Dashboard: React.FC = () => {
     email: undefined,
   });
 
-  const {
-    data: todayStats,
-    isLoading,
-    error,
-  } = useQuery({
-    queryKey: ["dashboard", "today"],
-    queryFn: dashboardApi.getTodayStats,
+  const [
+    { data: todayStats, isLoading: loadingToday, error: errorToday },
+    { data: lowStock, isLoading: loadingLowStock },
+    { data: topProducts, isLoading: loadingTopProducts },
+    { data: pendingSales, isLoading: loadingPendingSales },
+  ] = useQueries({
+    queries: [
+      {
+        queryKey: ["dashboard", "today"],
+        queryFn: dashboardApi.getTodayStats,
+      },
+      {
+        queryKey: ["dashboard", "low-stock"],
+        queryFn: dashboardApi.getLowStock,
+      },
+      {
+        queryKey: ["dashboard", "top-products"],
+        queryFn: () => dashboardApi.getTopProducts(5),
+      },
+      {
+        queryKey: ["dashboard", "pending-sales"],
+        queryFn: dashboardApi.getPendingSales,
+      },
+    ],
   });
 
-  const { data: lowStock } = useQuery({
-    queryKey: ["dashboard", "low-stock"],
-    queryFn: dashboardApi.getLowStock,
-  });
-
-  const { data: topProducts } = useQuery({
-    queryKey: ["dashboard", "top-products"],
-    queryFn: () => dashboardApi.getTopProducts(5),
-  });
-
-  const { data: pendingSales } = useQuery({
-    queryKey: ["dashboard", "pending-sales"],
-    queryFn: dashboardApi.getPendingSales,
-  });
+  const isLoading =
+    loadingToday ||
+    loadingLowStock ||
+    loadingTopProducts ||
+    loadingPendingSales;
+  const error = errorToday;
 
   const createCustomerMutation = useMutation({
     mutationFn: customersApi.create,

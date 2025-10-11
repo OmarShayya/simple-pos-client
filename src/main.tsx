@@ -15,7 +15,11 @@ const queryClient = new QueryClient({
     queries: {
       refetchOnWindowFocus: false,
       retry: 1,
-      staleTime: 5 * 60 * 1000,
+      staleTime: 30 * 1000,
+      gcTime: 5 * 60 * 1000,
+    },
+    mutations: {
+      onSuccess: () => {},
     },
   },
 });
@@ -32,12 +36,12 @@ function Root() {
           <App />
           <ToastContainer
             position="top-right"
-            autoClose={3000}
+            autoClose={2000}
             hideProgressBar={false}
             newestOnTop
             closeOnClick
             rtl={false}
-            pauseOnFocusLoss
+            pauseOnFocusLoss={false}
             draggable
             pauseOnHover
             theme={mode}

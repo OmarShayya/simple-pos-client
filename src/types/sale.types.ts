@@ -1,36 +1,31 @@
-export const SaleStatus = {
-  PENDING: "pending",
-  PAID: "paid",
-  CANCELLED: "cancelled",
-} as const;
+export enum SaleStatus {
+  PENDING = "pending",
+  PAID = "paid",
+  CANCELLED = "cancelled",
+}
 
-export type SaleStatus = (typeof SaleStatus)[keyof typeof SaleStatus];
+export enum PaymentMethod {
+  CASH = "cash",
+  CARD = "card",
+  BANK_TRANSFER = "bank_transfer",
+}
 
-export const PaymentMethod = {
-  CASH: "cash",
-  CARD: "card",
-  BANK_TRANSFER: "bank_transfer",
-} as const;
-
-export type PaymentMethod = (typeof PaymentMethod)[keyof typeof PaymentMethod];
-
-export const Currency = {
-  USD: "USD",
-  LBP: "LBP",
-} as const;
-
-export type Currency = (typeof Currency)[keyof typeof Currency];
+export enum Currency {
+  USD = "USD",
+  LBP = "LBP",
+}
 
 export interface SaleItem {
   productId: string;
-  productName?: string;
-  productSku?: string;
+  product?: string;
+  productName: string;
+  productSku: string;
   quantity: number;
-  unitPrice?: {
+  unitPrice: {
     usd: number;
     lbp: number;
   };
-  subtotal?: {
+  subtotal: {
     usd: number;
     lbp: number;
   };
@@ -43,7 +38,7 @@ export interface Sale {
     id: string;
     name: string;
     phone: string;
-  };
+  } | null;
   items: SaleItem[];
   totals: {
     usd: number;
@@ -51,18 +46,19 @@ export interface Sale {
   };
   paymentMethod?: PaymentMethod;
   paymentCurrency?: Currency;
-  amountPaid?: {
+  amountPaid: {
     usd: number;
     lbp: number;
   };
   status: SaleStatus;
-  cashier?: {
+  cashier: {
     name: string;
     email: string;
   };
   notes?: string;
   paidAt?: string;
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface CreateSaleRequest {
