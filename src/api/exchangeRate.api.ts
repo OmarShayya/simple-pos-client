@@ -1,6 +1,7 @@
 import apiClient from "./client";
 import { type ApiResponse } from "../types/api.types";
 import { handleApiResponse } from "../utils/responseHandler";
+import { ExchangeRateResult } from "@/types/exchangeRate.types";
 
 export const exchangeRateApi = {
   getCurrentRate: async (): Promise<{ rate: number; currency: string }> => {
@@ -26,9 +27,9 @@ export const exchangeRateApi = {
   },
 
   convert: async (amount: number, from: "USD" | "LBP") => {
-    const response = await apiClient.get<
-      ApiResponse<{ usd: number; lbp: number }>
-    >(`/exchange-rate/convert?amount=${amount}&from=${from}`);
+    const response = await apiClient.get<ApiResponse<ExchangeRateResult>>(
+      `/exchange-rate/convert?amount=${amount}&from=${from}`
+    );
     return handleApiResponse(response.data);
   },
 };

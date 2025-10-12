@@ -13,7 +13,7 @@ import {
   Tooltip,
   Chip,
 } from "@mui/material";
-import { Logout, Person, Brightness4, Brightness7 } from "@mui/icons-material";
+import { Logout, Person, Brightness7, DarkMode } from "@mui/icons-material";
 import { useAuthStore } from "@/store/authStore";
 import { useThemeStore } from "@/store/themeStore";
 import { useNavigate } from "react-router-dom";
@@ -75,7 +75,11 @@ const Navbar: React.FC = () => {
 
         <Tooltip title="Toggle theme">
           <IconButton onClick={toggleTheme} color="inherit" sx={{ mr: 1 }}>
-            {mode === "dark" ? <Brightness7 /> : <Brightness4 />}
+            {mode === "dark" ? (
+              <Brightness7 />
+            ) : (
+              <DarkMode sx={{ color: "black" }} />
+            )}
           </IconButton>
         </Tooltip>
 

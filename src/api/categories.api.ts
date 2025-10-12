@@ -1,6 +1,6 @@
 import apiClient from "./client";
 import { type ApiResponse } from "../types/api.types";
-import { type Category } from "../types/category.types";
+import { CreateCategoryRequest, type Category } from "../types/category.types";
 import { handleApiResponse } from "../utils/responseHandler";
 
 export const categoriesApi = {
@@ -18,10 +18,13 @@ export const categoriesApi = {
     return handleApiResponse(response.data);
   },
 
-  create: async (data: {
-    name: string;
-    description?: string;
-  }): Promise<Category> => {
+  create: async (data: CreateCategoryRequest): Promise<Category> => {
+    if (data.image === "") {
+      delete data.image;
+    }
+    if (data.description === "") {
+      delete data.description;
+    }
     const response = await apiClient.post<ApiResponse<Category>>(
       "/categories",
       data

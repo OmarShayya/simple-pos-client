@@ -22,6 +22,8 @@ import {
   Avatar,
   ToggleButtonGroup,
   ToggleButton,
+  FormControlLabel,
+  Checkbox,
 } from "@mui/material";
 import {
   Add,
@@ -33,6 +35,7 @@ import {
   ViewList,
   ViewModule,
   Inventory,
+  Restaurant,
 } from "@mui/icons-material";
 import { DataGrid, GridColDef } from "@mui/x-data-grid";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -73,6 +76,7 @@ const Products: React.FC = () => {
     pricing: { usd: 0, lbp: 0 },
     inventory: { quantity: 0, minStockLevel: 10 },
     image: "",
+    displayOnMenu: false,
   });
 
   const [isEditingUsd, setIsEditingUsd] = useState(false);
@@ -201,6 +205,7 @@ const Products: React.FC = () => {
           minStockLevel: product.inventory.minStockLevel,
         },
         image: product.image || "",
+        displayOnMenu: product.displayOnMenu || false,
       });
     } else {
       setEditingProduct(null);
@@ -212,6 +217,7 @@ const Products: React.FC = () => {
         pricing: { usd: 0, lbp: 0 },
         inventory: { quantity: 0, minStockLevel: 10 },
         image: "",
+        displayOnMenu: false,
       });
     }
     setImageFile(null);
@@ -260,7 +266,6 @@ const Products: React.FC = () => {
 
   const handleSubmit = () => {
     if (editingProduct) {
-      // For update, exclude SKU and only send changed fields
       const updateData: UpdateProductRequest = {
         name: formData.name,
         description: formData.description || undefined,
@@ -268,11 +273,11 @@ const Products: React.FC = () => {
         pricing: formData.pricing,
         inventory: formData.inventory,
         image: formData.image || undefined,
+        displayOnMenu: formData.displayOnMenu,
       };
 
       updateMutation.mutate({ id: editingProduct.id, data: updateData });
     } else {
-      // For create, send all fields including SKU
       createMutation.mutate(formData);
     }
   };
@@ -333,6 +338,15 @@ const Products: React.FC = () => {
           size="small"
         />
       ),
+    },
+    {
+      field: "displayOnMenu",
+      headerName: "Menu",
+      width: 80,
+      renderCell: (params) =>
+        params.row.displayOnMenu ? (
+          <Restaurant color="primary" fontSize="small" />
+        ) : null,
     },
     {
       field: "actions",
@@ -484,9 +498,31 @@ const Products: React.FC = () => {
                   }}
                 />
                 <CardContent sx={{ flexGrow: 1 }}>
-                  <Typography variant="h6" gutterBottom noWrap>
-                    {product.name}
-                  </Typography>
+                  <Box
+                    sx={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "start",
+                      mb: 1,
+                    }}
+                  >
+                    <Typography
+                      variant="h6"
+                      gutterBottom
+                      noWrap
+                      sx={{ flex: 1 }}
+                    >
+                      {product.name}
+                    </Typography>
+                    {product.displayOnMenu && (
+                      <Chip
+                        icon={<Restaurant />}
+                        label="Menu"
+                        color="primary"
+                        size="small"
+                      />
+                    )}
+                  </Box>
                   <Typography
                     variant="body2"
                     color="text.secondary"
@@ -647,6 +683,24 @@ const Products: React.FC = () => {
                 </Card>
               </Grid>
             )}
+            <Grid size={12}>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={formData.displayOnMenu}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        displayOnMenu: e.target.checked,
+                      })
+                    }
+                    icon={<Restaurant />}
+                    checkedIcon={<Restaurant />}
+                  />
+                }
+                label="Display on public menu"
+              />
+            </Grid>
             <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth

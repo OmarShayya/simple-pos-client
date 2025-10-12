@@ -2,6 +2,7 @@ import apiClient from "./client";
 import { type ApiResponse, type PaginatedResponse } from "../types/api.types";
 import {
   type Product,
+  type MenuProduct,
   type CreateProductRequest,
   type UpdateProductRequest,
 } from "../types/product.types";
@@ -16,6 +17,7 @@ interface ProductFilters {
   category?: string;
   search?: string;
   lowStock?: boolean;
+  displayOnMenu?: boolean;
   minPrice?: number;
   maxPrice?: number;
 }
@@ -28,6 +30,8 @@ export const productsApi = {
     if (filters?.category) params.append("category", filters.category);
     if (filters?.search) params.append("search", filters.search);
     if (filters?.lowStock) params.append("lowStock", "true");
+    if (filters?.displayOnMenu !== undefined)
+      params.append("displayOnMenu", filters.displayOnMenu.toString());
     if (filters?.minPrice)
       params.append("minPrice", filters.minPrice.toString());
     if (filters?.maxPrice)
@@ -37,6 +41,13 @@ export const productsApi = {
       `/products?${params}`
     );
     return handlePaginatedResponse(response.data);
+  },
+
+  getMenuProducts: async (): Promise<MenuProduct[]> => {
+    const response = await apiClient.get<ApiResponse<MenuProduct[]>>(
+      "/products/menu"
+    );
+    return handleApiResponse(response.data);
   },
 
   getById: async (id: string): Promise<Product> => {

@@ -45,6 +45,9 @@ export const customersApi = {
   },
 
   create: async (data: CreateCustomerRequest): Promise<Customer> => {
+    if (data.email === "") {
+      delete data.email;
+    }
     const response = await apiClient.post<ApiResponse<Customer>>(
       "/customers",
       data

@@ -17,6 +17,7 @@ export interface Product {
     isLowStock: boolean;
   };
   image?: string;
+  displayOnMenu: boolean;
   createdAt: string;
   updatedAt?: string;
 }
@@ -37,6 +38,7 @@ export interface CreateProductRequest {
   };
   inventory: ProductInventoryInput;
   image?: string;
+  displayOnMenu?: boolean;
 }
 
 export interface UpdateProductRequest {
@@ -48,5 +50,22 @@ export interface UpdateProductRequest {
     lbp: number;
   };
   inventory?: ProductInventoryInput;
+  image?: string;
+  displayOnMenu?: boolean;
+}
+
+export interface MenuProduct {
+  id: string;
+  name: string;
+  description?: string;
+  sku: string;
+  category: {
+    id: string;
+    name: string;
+  };
+  pricing: {
+    usd: number;
+    lbp: number;
+  };
   image?: string;
 }
