@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Box,
   Typography,
@@ -16,8 +16,16 @@ import {
   Alert,
   InputAdornment,
   Grid,
+  ToggleButtonGroup,
+  ToggleButton,
 } from "@mui/material";
-import { Payment, Cancel, Search, Print } from "@mui/icons-material";
+import {
+  Payment,
+  Cancel,
+  Search,
+  Print,
+  CalendarToday,
+} from "@mui/icons-material";
 import { DataGrid, GridColDef } from "@mui/x-data-grid";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { salesApi } from "@/api/sales.api";
@@ -26,11 +34,25 @@ import { Sale, SaleStatus, PaymentMethod, Currency } from "@/types/sale.types";
 import { toast } from "react-toastify";
 import { handleApiError } from "@/utils/errorHandler";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
+import { format } from "date-fns";
+import { useSearchParams } from "react-router-dom";
 
 const SalesHistory: React.FC = () => {
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const paymentForId = searchParams.get("paymentFor");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<SaleStatus | "">("");
+  const [dateFilterType, setDateFilterType] = useState<"daily" | "range">(
+    "daily"
+  );
+  const [selectedDate, setSelectedDate] = useState(
+    format(new Date(), "yyyy-MM-dd")
+  );
+  const [dateRange, setDateRange] = useState({
+    startDate: format(new Date(), "yyyy-MM-dd"),
+    endDate: format(new Date(), "yyyy-MM-dd"),
+  });
   const [openPayDialog, setOpenPayDialog] = useState(false);
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
   const [paginationModel, setPaginationModel] = useState({
@@ -49,13 +71,32 @@ const SalesHistory: React.FC = () => {
     queryFn: exchangeRateApi.getCurrentRate,
   });
 
+  const getDateFilters = () => {
+    if (dateFilterType === "daily") {
+      return {
+        startDate: selectedDate,
+        endDate: selectedDate,
+      };
+    }
+    return dateRange;
+  };
+
   const { data: salesData, isLoading } = useQuery({
-    queryKey: ["sales", paginationModel.page + 1, searchQuery, statusFilter],
+    queryKey: [
+      "sales",
+      paginationModel.page + 1,
+      searchQuery,
+      statusFilter,
+      dateFilterType,
+      selectedDate,
+      dateRange,
+    ],
     queryFn: () =>
       salesApi.getAll({
         page: paginationModel.page + 1,
         limit: paginationModel.pageSize,
         status: statusFilter || undefined,
+        ...getDateFilters(),
       }),
   });
 
@@ -171,12 +212,21 @@ const SalesHistory: React.FC = () => {
     }
   };
 
+  useEffect(() => {
+    if (paymentForId && salesData?.data) {
+      const sale = salesData.data.find((s) => s.id === paymentForId);
+      if (sale && sale.status === SaleStatus.PENDING) {
+        handleOpenPayDialog(sale);
+        setSearchParams({}); // Clear the URL parameter
+      }
+    }
+  }, [paymentForId, salesData]);
+
   const generateReceiptHTML = (sale: Sale): string => {
     const items = sale.items || [];
     const customer = sale.customer || null;
     const rate = exchangeRate?.rate || 89500;
 
-    // Safely get amountPaid values
     const amountPaidUsd = sale.amountPaid?.usd || 0;
     const amountPaidLbp = sale.amountPaid?.lbp || 0;
 
@@ -544,10 +594,10 @@ const SalesHistory: React.FC = () => {
 
       <Card sx={{ p: 2, mb: 3 }}>
         <Grid container spacing={2}>
-          <Grid size={{ xs: 12, sm: 6, md: 8 }}>
+          <Grid size={{ xs: 12, md: 4 }}>
             <TextField
               fullWidth
-              placeholder="Search by invoice number or customer..."
+              placeholder="Search by invoice or customer..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               InputProps={{
@@ -559,7 +609,7 @@ const SalesHistory: React.FC = () => {
               }}
             />
           </Grid>
-          <Grid size={{ xs: 12, sm: 6, md: 4 }}>
+          <Grid size={{ xs: 12, md: 3 }}>
             <TextField
               fullWidth
               select
@@ -574,6 +624,52 @@ const SalesHistory: React.FC = () => {
               <MenuItem value={SaleStatus.PENDING}>Pending</MenuItem>
               <MenuItem value={SaleStatus.CANCELLED}>Cancelled</MenuItem>
             </TextField>
+          </Grid>
+          <Grid size={{ xs: 12, md: 5 }}>
+            <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
+              <ToggleButtonGroup
+                value={dateFilterType}
+                exclusive
+                onChange={(_, value) => value && setDateFilterType(value)}
+                size="small"
+              >
+                <ToggleButton value="daily">
+                  <CalendarToday sx={{ mr: 0.5, fontSize: 18 }} />
+                  Daily
+                </ToggleButton>
+                <ToggleButton value="range">Range</ToggleButton>
+              </ToggleButtonGroup>
+              {dateFilterType === "daily" ? (
+                <TextField
+                  type="date"
+                  size="small"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  sx={{ flexGrow: 1 }}
+                />
+              ) : (
+                <>
+                  <TextField
+                    type="date"
+                    size="small"
+                    value={dateRange.startDate}
+                    onChange={(e) =>
+                      setDateRange({ ...dateRange, startDate: e.target.value })
+                    }
+                    sx={{ flexGrow: 1 }}
+                  />
+                  <TextField
+                    type="date"
+                    size="small"
+                    value={dateRange.endDate}
+                    onChange={(e) =>
+                      setDateRange({ ...dateRange, endDate: e.target.value })
+                    }
+                    sx={{ flexGrow: 1 }}
+                  />
+                </>
+              )}
+            </Box>
           </Grid>
         </Grid>
       </Card>

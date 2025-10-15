@@ -55,6 +55,14 @@ export const salesApi = {
     return handleApiResponse(response.data);
   },
 
+  update: async (id: string, data: CreateSaleRequest): Promise<Sale> => {
+    const response = await apiClient.patch<ApiResponse<Sale>>(
+      `/sales/${id}`,
+      data
+    );
+    return handleApiResponse(response.data);
+  },
+
   pay: async (id: string, data: PaySaleRequest): Promise<Sale> => {
     const response = await apiClient.post<ApiResponse<Sale>>(
       `/sales/${id}/pay`,

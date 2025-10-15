@@ -32,8 +32,10 @@ import {
   PendingActions,
   Edit,
   Refresh,
+  Payment,
 } from "@mui/icons-material";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { productsApi } from "@/api/products.api";
 import { customersApi } from "@/api/customers.api";
 import { salesApi } from "@/api/sales.api";
@@ -46,18 +48,20 @@ import { handleApiError } from "@/utils/errorHandler";
 
 const Sales: React.FC = () => {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(
     null
   );
   const [cartItems, setCartItems] = useState<SaleItem[]>([]);
   const [productSearch, setProductSearch] = useState("");
   const [openPendingDialog, setOpenPendingDialog] = useState(false);
+  const [editingSaleId, setEditingSaleId] = useState<string | null>(null);
 
   const { data: exchangeRate, isLoading: loadingRate } = useQuery({
     queryKey: ["exchange-rate"],
     queryFn: exchangeRateApi.getCurrentRate,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-    refetchInterval: 5 * 60 * 1000, // Auto-refresh every 5 minutes
+    staleTime: 5 * 60 * 1000,
+    refetchInterval: 5 * 60 * 1000,
   });
 
   const { data: products, isLoading: loadingProducts } = useQuery({
@@ -78,7 +82,6 @@ const Sales: React.FC = () => {
     staleTime: 10 * 1000,
   });
 
-  // Recalculate LBP prices when exchange rate changes
   useEffect(() => {
     if (exchangeRate && cartItems.length > 0) {
       setCartItems((prevItems) =>
@@ -101,8 +104,7 @@ const Sales: React.FC = () => {
     mutationFn: salesApi.create,
     onSuccess: (sale) => {
       toast.success(`Sale created! Invoice: ${sale.invoiceNumber}`);
-      setCartItems([]);
-      setSelectedCustomer(null);
+      resetCart();
       queryClient.invalidateQueries({ queryKey: ["sales"] });
       queryClient.invalidateQueries({ queryKey: ["pending-sales"] });
       queryClient.invalidateQueries({ queryKey: ["products"] });
@@ -113,6 +115,26 @@ const Sales: React.FC = () => {
     },
     onError: (error) => toast.error(handleApiError(error)),
   });
+
+  const updateSaleMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) =>
+      salesApi.update(id, data),
+    onSuccess: (sale) => {
+      toast.success(`Sale updated! Invoice: ${sale.invoiceNumber}`);
+      resetCart();
+      queryClient.invalidateQueries({ queryKey: ["sales"] });
+      queryClient.invalidateQueries({ queryKey: ["pending-sales"] });
+      queryClient.invalidateQueries({ queryKey: ["products"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+    onError: (error) => toast.error(handleApiError(error)),
+  });
+
+  const resetCart = () => {
+    setCartItems([]);
+    setSelectedCustomer(null);
+    setEditingSaleId(null);
+  };
 
   const addToCart = (product: Product) => {
     if (product.inventory.quantity === 0) {
@@ -205,19 +227,25 @@ const Sales: React.FC = () => {
     );
   };
 
-  const handleCreateSale = () => {
+  const handleSaveSale = () => {
     if (cartItems.length === 0) {
       toast.error("Please add items to cart");
       return;
     }
 
-    createSaleMutation.mutate({
+    const saleData = {
       customerId: selectedCustomer?.id,
       items: cartItems.map((item) => ({
         productId: item.productId,
         quantity: item.quantity,
       })),
-    });
+    };
+
+    if (editingSaleId) {
+      updateSaleMutation.mutate({ id: editingSaleId, data: saleData });
+    } else {
+      createSaleMutation.mutate(saleData);
+    }
   };
 
   const handleLoadPendingSale = async (saleId: string) => {
@@ -232,27 +260,48 @@ const Sales: React.FC = () => {
         setSelectedCustomer(customer || null);
       }
 
-      const newCartItems: SaleItem[] = sale.items.map((item) => ({
-        productId: item.product || item.productId,
-        productName: item.productName,
-        productSku: item.productSku,
-        quantity: item.quantity,
-        unitPrice: {
-          usd: item.unitPrice.usd,
-          lbp: Math.round(item.unitPrice.usd * rate),
-        },
-        subtotal: {
-          usd: item.subtotal.usd,
-          lbp: Math.round(item.subtotal.usd * rate),
-        },
-      }));
+      const newCartItems: SaleItem[] = sale.items.map((item) => {
+        // Extract productId safely from various possible formats
+        let productId = "";
+
+        if (item.productId) {
+          productId = item.productId;
+        } else if (typeof item.product === "string") {
+          productId = item.product;
+        } else if (item.product && typeof item.product === "object") {
+          productId =
+            (item.product as any)._id || (item.product as any).id || "";
+        }
+
+        return {
+          productId,
+          productName: item.productName,
+          productSku: item.productSku,
+          quantity: item.quantity,
+          unitPrice: {
+            usd: item.unitPrice.usd,
+            lbp: Math.round(item.unitPrice.usd * rate),
+          },
+          subtotal: {
+            usd: item.subtotal.usd,
+            lbp: Math.round(item.subtotal.usd * rate),
+          },
+        };
+      });
 
       setCartItems(newCartItems);
+      setEditingSaleId(saleId);
       setOpenPendingDialog(false);
       toast.success("Pending order loaded");
     } catch (error) {
       toast.error("Failed to load pending order");
+      console.error("Load pending sale error:", error);
     }
+  };
+
+  const handleProcessPayment = (saleId: string) => {
+    setOpenPendingDialog(false);
+    navigate(`/sales/history?paymentFor=${saleId}`);
   };
 
   const handleRefreshRate = () => {
@@ -316,8 +365,16 @@ const Sales: React.FC = () => {
         </Button>
       </Box>
 
+      {editingSaleId && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          Editing pending sale. Make changes and click "Update Sale" to save.
+          <Button size="small" onClick={resetCart} sx={{ ml: 2 }}>
+            Cancel Edit
+          </Button>
+        </Alert>
+      )}
+
       <Grid container spacing={3} sx={{ mt: 1 }}>
-        {/* Left Side - Product Selection */}
         <Grid size={{ xs: 12, md: 7 }}>
           <Card>
             <CardContent>
@@ -456,7 +513,6 @@ const Sales: React.FC = () => {
           </Card>
         </Grid>
 
-        {/* Right Side - Cart */}
         <Grid size={{ xs: 12, md: 5 }}>
           <Card sx={{ position: "sticky", top: 20 }}>
             <CardContent>
@@ -465,7 +521,6 @@ const Sales: React.FC = () => {
                 Cart ({cartItems.length} items)
               </Typography>
 
-              {/* Customer Selection */}
               <Autocomplete
                 options={customers?.data || []}
                 getOptionLabel={(option) => `${option.name} (${option.phone})`}
@@ -483,7 +538,6 @@ const Sales: React.FC = () => {
 
               <Divider sx={{ my: 2 }} />
 
-              {/* Cart Items */}
               {cartItems.length === 0 ? (
                 <Alert severity="info">Cart is empty</Alert>
               ) : (
@@ -554,7 +608,6 @@ const Sales: React.FC = () => {
 
                   <Divider sx={{ my: 2 }} />
 
-                  {/* Total */}
                   <Box>
                     <Card
                       sx={{
@@ -596,11 +649,17 @@ const Sales: React.FC = () => {
                       variant="contained"
                       size="large"
                       startIcon={<Receipt />}
-                      onClick={handleCreateSale}
-                      disabled={createSaleMutation.isPending}
+                      onClick={handleSaveSale}
+                      disabled={
+                        createSaleMutation.isPending ||
+                        updateSaleMutation.isPending
+                      }
                     >
-                      {createSaleMutation.isPending
+                      {createSaleMutation.isPending ||
+                      updateSaleMutation.isPending
                         ? "Processing..."
+                        : editingSaleId
+                        ? "Update Sale"
                         : "Create Sale"}
                     </Button>
                   </Box>
@@ -611,7 +670,6 @@ const Sales: React.FC = () => {
         </Grid>
       </Grid>
 
-      {/* Pending Orders Dialog */}
       <Dialog
         open={openPendingDialog}
         onClose={() => setOpenPendingDialog(false)}
@@ -647,6 +705,7 @@ const Sales: React.FC = () => {
                     borderColor: "divider",
                     borderRadius: 1,
                     mb: 1,
+                    pr: 20, // Add padding-right to make space for buttons
                     "&:hover": { bgcolor: "action.hover" },
                   }}
                 >
@@ -682,14 +741,29 @@ const Sales: React.FC = () => {
                     }
                   />
                   <ListItemSecondaryAction>
-                    <Button
-                      variant="contained"
-                      size="small"
-                      startIcon={<Edit />}
-                      onClick={() => handleLoadPendingSale(sale.id)}
+                    <Box
+                      sx={{ display: "flex", gap: 1, flexDirection: "column" }}
                     >
-                      Load
-                    </Button>
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        fullWidth
+                        startIcon={<Edit />}
+                        onClick={() => handleLoadPendingSale(sale.id)}
+                      >
+                        Load
+                      </Button>
+                      <Button
+                        variant="contained"
+                        size="small"
+                        fullWidth
+                        color="success"
+                        startIcon={<Payment />}
+                        onClick={() => handleProcessPayment(sale.id)}
+                      >
+                        Pay
+                      </Button>
+                    </Box>
                   </ListItemSecondaryAction>
                 </ListItem>
               ))}

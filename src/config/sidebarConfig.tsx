@@ -6,7 +6,6 @@ import {
   Category,
   Assessment,
   AttachMoney,
-  Settings,
   Receipt,
 } from "@mui/icons-material";
 import { SvgIconComponent } from "@mui/icons-material";
@@ -44,6 +43,7 @@ export const sidebarItems: SidebarItem[] = [
     label: "Products",
     path: "/products",
     icon: Inventory,
+    roles: [UserRole.ADMIN, UserRole.MANAGER],
   },
   {
     id: "categories",
@@ -71,12 +71,5 @@ export const sidebarItems: SidebarItem[] = [
     path: "/exchange-rate",
     icon: AttachMoney,
     roles: [UserRole.ADMIN, UserRole.MANAGER],
-  },
-  {
-    id: "settings",
-    label: "Settings",
-    path: "/settings",
-    icon: Settings,
-    roles: [UserRole.ADMIN],
   },
 ];
