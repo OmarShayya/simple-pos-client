@@ -100,7 +100,7 @@ const Navbar: React.FC = () => {
                 fontSize: "1rem",
               }}
             >
-              {user?.name.charAt(0).toUpperCase()}
+              {user?.name?.charAt(0)?.toUpperCase()}
             </Avatar>
           </IconButton>
         </Tooltip>

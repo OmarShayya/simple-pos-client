@@ -1,6 +1,11 @@
 import React, { useState } from "react";
 import { Box, Typography, Grid, Tabs, Tab } from "@mui/material";
-import { CalendarToday, Category, ShoppingCart } from "@mui/icons-material";
+import {
+  CalendarToday,
+  Category,
+  ShoppingCart,
+  SportsEsports,
+} from "@mui/icons-material";
 import { format } from "date-fns";
 import WeeklyReportCard from "@/components/reports/WeeklyReportCard";
 import MonthlyReportCard from "@/components/reports/MonthlyReportCard";
@@ -9,6 +14,7 @@ import DailyReportCard from "@/components/reports/DailyReportCard";
 import CategorySalesCard from "@/components/reports/CategorySalesCard";
 import ProductSalesCard from "@/components/reports/ProductSalesCard";
 import DailyTransactionsCard from "@/components/reports/DailyTransactionsCard";
+import GamingRevenueCard from "@/components/reports/GamingRevenueCard";
 
 const Reports: React.FC = () => {
   const [activeTab, setActiveTab] = useState(0);
@@ -67,6 +73,11 @@ const Reports: React.FC = () => {
           icon={<ShoppingCart />}
           iconPosition="start"
         />
+        <Tab
+          label="Gaming Revenue"
+          icon={<SportsEsports />}
+          iconPosition="start"
+        />
       </Tabs>
 
       {activeTab === 0 && (
@@ -120,6 +131,14 @@ const Reports: React.FC = () => {
         <Grid container spacing={3}>
           <Grid size={{ xs: 12 }}>
             <DailyTransactionsCard />
+          </Grid>
+        </Grid>
+      )}
+
+      {activeTab === 3 && (
+        <Grid container spacing={3}>
+          <Grid size={{ xs: 12 }}>
+            <GamingRevenueCard />
           </Grid>
         </Grid>
       )}

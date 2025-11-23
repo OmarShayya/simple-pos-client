@@ -93,4 +93,41 @@ export const reportApi = {
     );
     return response.data;
   },
+
+  // Gaming Revenue Reports
+  getGamingRevenue: async (startDate?: string, endDate?: string) => {
+    const params = new URLSearchParams();
+    if (startDate) params.append("startDate", startDate);
+    if (endDate) params.append("endDate", endDate);
+
+    const response = await apiClient.get<ApiResponse>(
+      `/reports/gaming-revenue?${params}`
+    );
+    return handleApiResponse(response.data);
+  },
+
+  getGamingRevenueByPC: async (startDate?: string, endDate?: string) => {
+    const params = new URLSearchParams();
+    if (startDate) params.append("startDate", startDate);
+    if (endDate) params.append("endDate", endDate);
+
+    const response = await apiClient.get<ApiResponse>(
+      `/reports/gaming-revenue-by-pc?${params}`
+    );
+    return handleApiResponse(response.data);
+  },
+
+  getDailyGamingReport: async (date: string) => {
+    const response = await apiClient.get<ApiResponse>(
+      `/reports/gaming/daily?date=${date}`
+    );
+    return handleApiResponse(response.data);
+  },
+
+  getMonthlyGamingReport: async (month: number, year: number) => {
+    const response = await apiClient.get<ApiResponse>(
+      `/reports/gaming/monthly?month=${month}&year=${year}`
+    );
+    return handleApiResponse(response.data);
+  },
 };

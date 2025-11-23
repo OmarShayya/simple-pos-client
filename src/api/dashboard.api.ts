@@ -71,4 +71,11 @@ export const dashboardApi = {
     );
     return handleApiResponse(response.data);
   },
+
+  getGamingStats: async () => {
+    const response = await apiClient.get<ApiResponse>(
+      "/dashboard/gaming-stats"
+    );
+    return handleApiResponse(response.data);
+  },
 };

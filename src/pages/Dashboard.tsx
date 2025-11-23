@@ -20,7 +20,6 @@ import {
   InputAdornment,
   Grid,
 } from "@mui/material";
-
 import {
   AttachMoney,
   ShoppingCart,
@@ -29,6 +28,7 @@ import {
   PersonAdd,
   Search,
   AccountBalance,
+  SportsEsports,
 } from "@mui/icons-material";
 import {
   useQuery,
@@ -47,9 +47,16 @@ interface StatCardProps {
   value: string | number;
   icon: React.ReactNode;
   color: string;
+  subtitle?: string;
 }
 
-const StatCard: React.FC<StatCardProps> = ({ title, value, icon, color }) => (
+const StatCard: React.FC<StatCardProps> = ({
+  title,
+  value,
+  icon,
+  color,
+  subtitle,
+}) => (
   <Card>
     <CardContent>
       <Box sx={{ display: "flex", justifyContent: "space-between", mb: 2 }}>
@@ -71,6 +78,11 @@ const StatCard: React.FC<StatCardProps> = ({ title, value, icon, color }) => (
       <Typography variant="h4" fontWeight="bold">
         {value}
       </Typography>
+      {subtitle && (
+        <Typography variant="caption" color="text.secondary">
+          {subtitle}
+        </Typography>
+      )}
     </CardContent>
   </Card>
 );
@@ -88,6 +100,7 @@ const Dashboard: React.FC = () => {
 
   const [
     { data: todayStats, isLoading: loadingToday, error: errorToday },
+    { data: gamingStats, isLoading: loadingGaming },
     { data: lowStock, isLoading: loadingLowStock },
     { data: topProducts, isLoading: loadingTopProducts },
     { data: pendingSales, isLoading: loadingPendingSales },
@@ -96,6 +109,10 @@ const Dashboard: React.FC = () => {
       {
         queryKey: ["dashboard", "today"],
         queryFn: dashboardApi.getTodayStats,
+      },
+      {
+        queryKey: ["dashboard", "gaming-stats"],
+        queryFn: dashboardApi.getGamingStats,
       },
       {
         queryKey: ["dashboard", "low-stock"],
@@ -114,6 +131,7 @@ const Dashboard: React.FC = () => {
 
   const isLoading =
     loadingToday ||
+    loadingGaming ||
     loadingLowStock ||
     loadingTopProducts ||
     loadingPendingSales;
@@ -162,6 +180,9 @@ const Dashboard: React.FC = () => {
     );
   }
 
+  const totalRevenue =
+    (todayStats?.revenue.usd || 0) + (todayStats?.gamingRevenue?.usd || 0);
+
   return (
     <Box>
       <Box sx={{ display: "flex", justifyContent: "space-between", mb: 3 }}>
@@ -191,12 +212,15 @@ const Dashboard: React.FC = () => {
         </Box>
       </Box>
 
-      {/* Stats Cards */}
-      <Grid container spacing={3} sx={{ mt: 2 }}>
+      {/* Main Stats Cards */}
+      <Grid container spacing={3}>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <StatCard
-            title="Revenue (USD)"
-            value={`$${todayStats?.revenue.usd.toFixed(2) || 0}`}
+            title="Total Revenue Today (USD)"
+            value={`$${totalRevenue.toFixed(2)}`}
+            subtitle={`Sales: $${
+              todayStats?.revenue.usd.toFixed(2) || 0
+            } | Gaming: $${todayStats?.gamingRevenue?.usd.toFixed(2) || 0}`}
             icon={<AttachMoney sx={{ color: "success.main" }} />}
             color="success"
           />
@@ -230,16 +254,89 @@ const Dashboard: React.FC = () => {
         </Grid>
       </Grid>
 
-      {/* Revenue & New Customers */}
+      {/* Gaming Stats Row */}
+      <Grid container spacing={3} sx={{ mt: 1 }}>
+        <Grid size={{ xs: 12, md: 3 }}>
+          <Card sx={{ bgcolor: "primary.light" }}>
+            <CardContent>
+              <Box sx={{ display: "flex", alignItems: "center", mb: 1 }}>
+                <SportsEsports sx={{ mr: 1, color: "primary.dark" }} />
+                <Typography
+                  variant="body2"
+                  fontWeight={600}
+                  color="primary.dark"
+                >
+                  Gaming Revenue
+                </Typography>
+              </Box>
+              <Typography variant="h5" fontWeight="bold" color="primary.dark">
+                ${todayStats?.gamingRevenue?.usd.toFixed(2) || "0.00"}
+              </Typography>
+              <Typography variant="caption" color="primary.dark">
+                {todayStats?.gamingSessions || 0} sessions today
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid size={{ xs: 12, md: 3 }}>
+          <Card>
+            <CardContent>
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                Active Gaming Sessions
+              </Typography>
+              <Typography variant="h5" fontWeight="bold" color="error.main">
+                {gamingStats?.activeSessions || 0}
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid size={{ xs: 12, md: 3 }}>
+          <Card>
+            <CardContent>
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                Completed Today
+              </Typography>
+              <Typography variant="h5" fontWeight="bold">
+                {gamingStats?.completedToday || 0}
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        <Grid size={{ xs: 12, md: 3 }}>
+          <Card>
+            <CardContent>
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                Unpaid Sessions
+              </Typography>
+              <Typography variant="h5" fontWeight="bold" color="warning.main">
+                {gamingStats?.unpaidSessions || 0}
+              </Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+
+      {/* Revenue LBP & New Customers */}
       <Grid container spacing={3} sx={{ mt: 1 }}>
         <Grid size={{ xs: 12, md: 6 }}>
           <Card>
             <CardContent>
               <Typography variant="h6" fontWeight={600} gutterBottom>
-                Revenue (LBP)
+                Total Revenue (LBP)
               </Typography>
               <Typography variant="h4" fontWeight="bold" color="success.main">
-                {todayStats?.revenue.lbp.toLocaleString()} LBP
+                {(
+                  (todayStats?.revenue.lbp || 0) +
+                  (todayStats?.gamingRevenue?.lbp || 0)
+                ).toLocaleString()}{" "}
+                LBP
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                Sales: {todayStats?.revenue.lbp.toLocaleString()} | Gaming:{" "}
+                {todayStats?.gamingRevenue?.lbp.toLocaleString()}
               </Typography>
             </CardContent>
           </Card>

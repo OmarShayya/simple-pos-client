@@ -15,6 +15,9 @@ import Settings from "./pages/Settings";
 import Profile from "./pages/Profile";
 import { useAuthStore } from "./store/authStore";
 import SalesHistory from "./pages/SalesHistory";
+import GamingStations from "./pages/GamingStations";
+import GamingHistory from "./pages/GamingHistory";
+import PCManagement from "./pages/PCManagement";
 
 const App: React.FC = () => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
@@ -49,6 +52,16 @@ const App: React.FC = () => {
         <Route path="exchange-rate" element={<ExchangeRate />} />
         <Route path="settings" element={<Settings />} />
         <Route path="profile" element={<Profile />} />
+        <Route path="gaming" element={<GamingStations />} />
+        <Route path="gaming/history" element={<GamingHistory />} />
+        <Route
+          path="/gaming/pc-management"
+          element={
+            <ProtectedRoute>
+              <PCManagement />
+            </ProtectedRoute>
+          }
+        />
       </Route>
 
       <Route path="*" element={<Navigate to="/dashboard" />} />

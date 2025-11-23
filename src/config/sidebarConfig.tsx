@@ -7,6 +7,8 @@ import {
   Assessment,
   AttachMoney,
   Receipt,
+  SportsEsports,
+  Computer,
 } from "@mui/icons-material";
 import { SvgIconComponent } from "@mui/icons-material";
 import { UserRole } from "@/types/auth.types";
@@ -31,6 +33,19 @@ export const sidebarItems: SidebarItem[] = [
     label: "Sales",
     path: "/sales",
     icon: ShoppingCart,
+  },
+  {
+    id: "gaming",
+    label: "Gaming Stations",
+    path: "/gaming",
+    icon: SportsEsports,
+  },
+  {
+    id: "pc-management",
+    label: "PC Management",
+    path: "/gaming/pc-management",
+    icon: Computer,
+    roles: [UserRole.ADMIN, UserRole.MANAGER],
   },
   {
     id: "sales-history",
