@@ -22,6 +22,7 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  MenuItem,
 } from "@mui/material";
 import {
   Add,
@@ -40,9 +41,11 @@ import { productsApi } from "@/api/products.api";
 import { customersApi } from "@/api/customers.api";
 import { salesApi } from "@/api/sales.api";
 import { exchangeRateApi } from "@/api/exchangeRate.api";
+import { discountsApi } from "@/api/discounts.api";
 import { Product } from "@/types/product.types";
 import { Customer } from "@/types/customer.types";
 import { SaleItem, SaleStatus } from "@/types/sale.types";
+import { Discount } from "@/types/discount.types";
 import { toast } from "react-toastify";
 import { handleApiError } from "@/utils/errorHandler";
 
@@ -56,6 +59,10 @@ const Sales: React.FC = () => {
   const [productSearch, setProductSearch] = useState("");
   const [openPendingDialog, setOpenPendingDialog] = useState(false);
   const [editingSaleId, setEditingSaleId] = useState<string | null>(null);
+  const [itemDiscounts, setItemDiscounts] = useState<Record<string, string>>({});
+  const [saleDiscountId, setSaleDiscountId] = useState<string>("");
+  const [availableDiscounts, setAvailableDiscounts] = useState<Record<string, Discount[]>>({});
+  const [saleDiscounts, setSaleDiscounts] = useState<Discount[]>([]);
 
   const { data: exchangeRate, isLoading: loadingRate } = useQuery({
     queryKey: ["exchange-rate"],
@@ -100,6 +107,18 @@ const Sales: React.FC = () => {
     }
   }, [exchangeRate?.rate]);
 
+  useEffect(() => {
+    const fetchSaleDiscounts = async () => {
+      try {
+        const discounts = await discountsApi.getActiveForSale();
+        setSaleDiscounts(discounts);
+      } catch (error) {
+        console.error("Failed to fetch sale discounts:", error);
+      }
+    };
+    fetchSaleDiscounts();
+  }, []);
+
   const createSaleMutation = useMutation({
     mutationFn: salesApi.create,
     onSuccess: (sale) => {
@@ -134,9 +153,12 @@ const Sales: React.FC = () => {
     setCartItems([]);
     setSelectedCustomer(null);
     setEditingSaleId(null);
+    setItemDiscounts({});
+    setSaleDiscountId("");
+    setAvailableDiscounts({});
   };
 
-  const addToCart = (product: Product) => {
+  const addToCart = async (product: Product) => {
     if (product.inventory.quantity === 0) {
       toast.error("Product out of stock");
       return;
@@ -186,6 +208,19 @@ const Sales: React.FC = () => {
           },
         },
       ]);
+
+      // Fetch available discounts for this product
+      try {
+        const discounts = await discountsApi.getActiveForProduct(product.id);
+        if (discounts.length > 0) {
+          setAvailableDiscounts(prev => ({
+            ...prev,
+            [product.id]: discounts
+          }));
+        }
+      } catch (error) {
+        console.error("Failed to fetch discounts for product:", error);
+      }
     }
     toast.success(`${product.name} added to cart`);
   };
@@ -218,13 +253,64 @@ const Sales: React.FC = () => {
   };
 
   const calculateTotal = () => {
-    return cartItems.reduce(
+    const rate = exchangeRate?.rate || 89500;
+
+    // Calculate subtotal before discounts
+    const subtotalBeforeDiscount = cartItems.reduce(
       (acc, item) => ({
         usd: acc.usd + item.subtotal.usd,
         lbp: acc.lbp + item.subtotal.lbp,
       }),
       { usd: 0, lbp: 0 }
     );
+
+    // Calculate item-level discounts
+    let totalItemDiscounts = { usd: 0, lbp: 0 };
+    cartItems.forEach(item => {
+      const discountId = itemDiscounts[item.productId];
+      if (discountId) {
+        const discount = availableDiscounts[item.productId]?.find(d => d.id === discountId);
+        if (discount) {
+          const discountAmount = item.subtotal.usd * (discount.value / 100);
+          totalItemDiscounts.usd += discountAmount;
+          totalItemDiscounts.lbp += Math.round(discountAmount * rate);
+        }
+      }
+    });
+
+    // Subtotal after item discounts
+    const subtotalAfterItems = {
+      usd: subtotalBeforeDiscount.usd - totalItemDiscounts.usd,
+      lbp: subtotalBeforeDiscount.lbp - totalItemDiscounts.lbp,
+    };
+
+    // Calculate sale-level discount
+    let saleDiscount = { usd: 0, lbp: 0 };
+    if (saleDiscountId) {
+      const discount = saleDiscounts.find(d => d.id === saleDiscountId);
+      if (discount) {
+        saleDiscount.usd = subtotalAfterItems.usd * (discount.value / 100);
+        saleDiscount.lbp = Math.round(saleDiscount.usd * rate);
+      }
+    }
+
+    // Final total
+    const finalTotal = {
+      usd: subtotalAfterItems.usd - saleDiscount.usd,
+      lbp: subtotalAfterItems.lbp - saleDiscount.lbp,
+    };
+
+    return {
+      subtotalBeforeDiscount,
+      totalItemDiscounts,
+      subtotalAfterItems,
+      saleDiscount,
+      finalTotal,
+      totalSavings: {
+        usd: totalItemDiscounts.usd + saleDiscount.usd,
+        lbp: totalItemDiscounts.lbp + saleDiscount.lbp,
+      }
+    };
   };
 
   const handleSaveSale = () => {
@@ -238,7 +324,9 @@ const Sales: React.FC = () => {
       items: cartItems.map((item) => ({
         productId: item.productId,
         quantity: item.quantity,
+        ...(itemDiscounts[item.productId] && { discountId: itemDiscounts[item.productId] }),
       })),
+      ...(saleDiscountId && { saleDiscountId }),
     };
 
     if (editingSaleId) {
@@ -260,39 +348,68 @@ const Sales: React.FC = () => {
         setSelectedCustomer(customer || null);
       }
 
-      const newCartItems: SaleItem[] = sale.items.map((item) => {
-        // Extract productId safely from various possible formats
-        let productId = "";
+      // Extract discount selections from loaded sale
+      const loadedItemDiscounts: Record<string, string> = {};
+      const loadedAvailableDiscounts: Record<string, Discount[]> = {};
 
-        if (item.productId) {
-          productId = item.productId;
-        } else if (typeof item.product === "string") {
-          productId = item.product;
-        } else if (item.product && typeof item.product === "object") {
-          productId =
-            (item.product as any)._id || (item.product as any).id || "";
-        }
+      // Map cart items and restore discount data
+      const newCartItems: SaleItem[] = await Promise.all(
+        sale.items.map(async (item) => {
+          // Extract productId safely from various possible formats
+          let productId = "";
 
-        return {
-          productId,
-          productName: item.productName,
-          productSku: item.productSku,
-          quantity: item.quantity,
-          unitPrice: {
-            usd: item.unitPrice.usd,
-            lbp: Math.round(item.unitPrice.usd * rate),
-          },
-          subtotal: {
-            usd: item.subtotal.usd,
-            lbp: Math.round(item.subtotal.usd * rate),
-          },
-        };
-      });
+          if (item.productId) {
+            productId = item.productId;
+          } else if (typeof item.product === "string") {
+            productId = item.product;
+          } else if (item.product && typeof item.product === "object") {
+            productId =
+              (item.product as any)._id || (item.product as any).id || "";
+          }
+
+          // If item has a discount, store it and fetch available discounts
+          if (item.discount?.discountId) {
+            loadedItemDiscounts[productId] = item.discount.discountId;
+
+            try {
+              const discounts = await discountsApi.getActiveForProduct(productId);
+              if (discounts.length > 0) {
+                loadedAvailableDiscounts[productId] = discounts;
+              }
+            } catch (error) {
+              console.error(`Failed to fetch discounts for product ${productId}:`, error);
+            }
+          }
+
+          return {
+            productId,
+            productName: item.productName,
+            productSku: item.productSku,
+            quantity: item.quantity,
+            unitPrice: {
+              usd: item.unitPrice.usd,
+              lbp: Math.round(item.unitPrice.usd * rate),
+            },
+            subtotal: {
+              usd: item.subtotal.usd,
+              lbp: Math.round(item.subtotal.usd * rate),
+            },
+          };
+        })
+      );
 
       setCartItems(newCartItems);
+      setItemDiscounts(loadedItemDiscounts);
+      setAvailableDiscounts(loadedAvailableDiscounts);
+
+      // Restore sale-level discount if present
+      if (sale.saleDiscount?.discountId) {
+        setSaleDiscountId(sale.saleDiscount.discountId);
+      }
+
       setEditingSaleId(saleId);
       setOpenPendingDialog(false);
-      toast.success("Pending order loaded");
+      toast.success("Pending order loaded with discounts");
     } catch (error) {
       toast.error("Failed to load pending order");
       console.error("Load pending sale error:", error);
@@ -309,7 +426,7 @@ const Sales: React.FC = () => {
     toast.info("Refreshing exchange rate...");
   };
 
-  const total = calculateTotal();
+  const totals = calculateTotal();
   const pendingCount = pendingSales?.data?.length || 0;
   const currentRate = exchangeRate?.rate || 89500;
 
@@ -542,73 +659,168 @@ const Sales: React.FC = () => {
                 <Alert severity="info">Cart is empty</Alert>
               ) : (
                 <>
-                  <Box sx={{ maxHeight: 300, overflow: "auto", mb: 2 }}>
-                    {cartItems.map((item) => (
-                      <Box
-                        key={item.productId}
-                        sx={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                          mb: 2,
-                          p: 1,
-                          bgcolor: "background.default",
-                          borderRadius: 1,
-                        }}
-                      >
-                        <Box sx={{ flex: 1 }}>
-                          <Typography variant="body2" fontWeight={600}>
-                            {item.productName}
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            ${item.unitPrice.usd.toFixed(2)} /{" "}
-                            {item.unitPrice.lbp.toLocaleString()} LBP
-                          </Typography>
-                        </Box>
+                  <Box sx={{ maxHeight: 350, overflow: "auto", mb: 2 }}>
+                    {cartItems.map((item) => {
+                      const itemDiscount = itemDiscounts[item.productId];
+                      const discountObj = availableDiscounts[item.productId]?.find(d => d.id === itemDiscount);
+                      const discountAmount = discountObj ? item.subtotal.usd * (discountObj.value / 100) : 0;
+                      const finalAmount = item.subtotal.usd - discountAmount;
+
+                      return (
                         <Box
-                          sx={{ display: "flex", alignItems: "center", gap: 1 }}
+                          key={item.productId}
+                          sx={{
+                            mb: 2,
+                            p: 1.5,
+                            bgcolor: "background.default",
+                            borderRadius: 1,
+                          }}
                         >
-                          <IconButton
-                            size="small"
-                            onClick={() => updateQuantity(item.productId, -1)}
-                          >
-                            <Remove fontSize="small" />
-                          </IconButton>
-                          <Typography
-                            variant="body2"
-                            sx={{ minWidth: 30, textAlign: "center" }}
-                          >
-                            {item.quantity}
-                          </Typography>
-                          <IconButton
-                            size="small"
-                            onClick={() => updateQuantity(item.productId, 1)}
-                          >
-                            <Add fontSize="small" />
-                          </IconButton>
-                          <IconButton
-                            size="small"
-                            color="error"
-                            onClick={() => removeFromCart(item.productId)}
-                          >
-                            <Delete fontSize="small" />
-                          </IconButton>
+                          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "start", mb: 1 }}>
+                            <Box sx={{ flex: 1 }}>
+                              <Typography variant="body2" fontWeight={600}>
+                                {item.productName}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                ${item.unitPrice.usd.toFixed(2)} x {item.quantity}
+                              </Typography>
+                            </Box>
+                            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                              <IconButton
+                                size="small"
+                                onClick={() => updateQuantity(item.productId, -1)}
+                              >
+                                <Remove fontSize="small" />
+                              </IconButton>
+                              <Typography variant="body2" sx={{ minWidth: 30, textAlign: "center" }}>
+                                {item.quantity}
+                              </Typography>
+                              <IconButton
+                                size="small"
+                                onClick={() => updateQuantity(item.productId, 1)}
+                              >
+                                <Add fontSize="small" />
+                              </IconButton>
+                              <IconButton
+                                size="small"
+                                color="error"
+                                onClick={() => removeFromCart(item.productId)}
+                              >
+                                <Delete fontSize="small" />
+                              </IconButton>
+                            </Box>
+                          </Box>
+
+                          {availableDiscounts[item.productId]?.length > 0 && (
+                            <TextField
+                              select
+                              size="small"
+                              fullWidth
+                              label="Apply Discount"
+                              value={itemDiscounts[item.productId] || ""}
+                              onChange={(e) => setItemDiscounts(prev => ({
+                                ...prev,
+                                [item.productId]: e.target.value
+                              }))}
+                              sx={{ mb: 1 }}
+                            >
+                              <MenuItem value="">No Discount</MenuItem>
+                              {availableDiscounts[item.productId].map(discount => (
+                                <MenuItem key={discount.id} value={discount.id}>
+                                  {discount.name} ({discount.value}% off)
+                                </MenuItem>
+                              ))}
+                            </TextField>
+                          )}
+
+                          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <Box>
+                              {discountObj && (
+                                <Typography variant="caption" color="success.main">
+                                  -{discountObj.value}% (${discountAmount.toFixed(2)})
+                                </Typography>
+                              )}
+                            </Box>
+                            <Box sx={{ textAlign: "right" }}>
+                              {discountObj && (
+                                <Typography variant="caption" color="text.secondary" sx={{ textDecoration: "line-through" }}>
+                                  ${item.subtotal.usd.toFixed(2)}
+                                </Typography>
+                              )}
+                              <Typography variant="body2" fontWeight={600} color={discountObj ? "success.main" : "inherit"}>
+                                ${finalAmount.toFixed(2)}
+                              </Typography>
+                            </Box>
+                          </Box>
                         </Box>
-                        <Box sx={{ textAlign: "right", minWidth: 100 }}>
-                          <Typography variant="body2" fontWeight={600}>
-                            ${item.subtotal.usd.toFixed(2)}
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            {item.subtotal.lbp.toLocaleString()} LBP
-                          </Typography>
-                        </Box>
-                      </Box>
-                    ))}
+                      );
+                    })}
                   </Box>
 
                   <Divider sx={{ my: 2 }} />
 
+                  {saleDiscounts.length > 0 && (
+                    <TextField
+                      select
+                      size="small"
+                      fullWidth
+                      label="Sale Discount (Optional)"
+                      value={saleDiscountId}
+                      onChange={(e) => setSaleDiscountId(e.target.value)}
+                      sx={{ mb: 2 }}
+                    >
+                      <MenuItem value="">No Sale Discount</MenuItem>
+                      {saleDiscounts.map(discount => (
+                        <MenuItem key={discount.id} value={discount.id}>
+                          {discount.name} ({discount.value}% off entire sale)
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                  )}
+
                   <Box>
+                    {totals.totalSavings.usd > 0 && (
+                      <Card sx={{ bgcolor: "background.default", p: 1.5, mb: 2 }}>
+                        <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.5 }}>
+                          <Typography variant="body2" color="text.secondary">
+                            Subtotal:
+                          </Typography>
+                          <Typography variant="body2">
+                            ${totals.subtotalBeforeDiscount.usd.toFixed(2)}
+                          </Typography>
+                        </Box>
+                        {totals.totalItemDiscounts.usd > 0 && (
+                          <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.5 }}>
+                            <Typography variant="body2" color="success.main">
+                              Item Discounts:
+                            </Typography>
+                            <Typography variant="body2" color="success.main">
+                              -${totals.totalItemDiscounts.usd.toFixed(2)}
+                            </Typography>
+                          </Box>
+                        )}
+                        {totals.saleDiscount.usd > 0 && (
+                          <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.5 }}>
+                            <Typography variant="body2" color="success.main">
+                              Sale Discount:
+                            </Typography>
+                            <Typography variant="body2" color="success.main">
+                              -${totals.saleDiscount.usd.toFixed(2)}
+                            </Typography>
+                          </Box>
+                        )}
+                        <Divider sx={{ my: 1 }} />
+                        <Box sx={{ display: "flex", justifyContent: "space-between" }}>
+                          <Typography variant="body2" fontWeight={600} color="success.main">
+                            Total Savings:
+                          </Typography>
+                          <Typography variant="body2" fontWeight={600} color="success.main">
+                            ${totals.totalSavings.usd.toFixed(2)}
+                          </Typography>
+                        </Box>
+                      </Card>
+                    )}
+
                     <Card
                       sx={{
                         bgcolor: "primary.main",
@@ -628,7 +840,7 @@ const Sales: React.FC = () => {
                           Total (USD):
                         </Typography>
                         <Typography variant="h6" fontWeight={700}>
-                          ${total.usd.toFixed(2)}
+                          ${totals.finalTotal.usd.toFixed(2)}
                         </Typography>
                       </Box>
                       <Box
@@ -639,7 +851,7 @@ const Sales: React.FC = () => {
                       >
                         <Typography variant="body2">Total (LBP):</Typography>
                         <Typography variant="body2" fontWeight={600}>
-                          {total.lbp.toLocaleString()} LBP
+                          {totals.finalTotal.lbp.toLocaleString()} LBP
                         </Typography>
                       </Box>
                     </Card>

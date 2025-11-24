@@ -63,7 +63,7 @@ const CategorySalesCard: React.FC = () => {
               onChange={(e) => setCategoryId(e.target.value)}
             >
               <MenuItem value="">All Categories</MenuItem>
-              {categories?.data?.map((cat: any) => (
+              {categories?.map((cat: any) => (
                 <MenuItem key={cat.id} value={cat.id}>
                   {cat.name}
                 </MenuItem>

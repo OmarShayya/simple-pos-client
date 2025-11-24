@@ -9,6 +9,7 @@ import {
   Receipt,
   SportsEsports,
   Computer,
+  LocalOffer,
 } from "@mui/icons-material";
 import { SvgIconComponent } from "@mui/icons-material";
 import { UserRole } from "@/types/auth.types";
@@ -72,6 +73,13 @@ export const sidebarItems: SidebarItem[] = [
     label: "Customers",
     path: "/customers",
     icon: People,
+  },
+  {
+    id: "discounts",
+    label: "Discounts",
+    path: "/discounts",
+    icon: LocalOffer,
+    roles: [UserRole.ADMIN, UserRole.MANAGER],
   },
   {
     id: "reports",

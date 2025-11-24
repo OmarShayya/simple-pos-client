@@ -109,9 +109,13 @@ export const gamingApi = {
     return handleApiResponse(response.data);
   },
 
-  endSession: async (id: string): Promise<GamingSession> => {
+  endSession: async (
+    id: string,
+    data?: { discountId?: string }
+  ): Promise<GamingSession> => {
     const response = await apiClient.post<ApiResponse<GamingSession>>(
-      `/gaming/sessions/${id}/end`
+      `/gaming/sessions/${id}/end`,
+      data
     );
     return handleApiResponse(response.data);
   },

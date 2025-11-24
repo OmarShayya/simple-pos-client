@@ -25,7 +25,20 @@ export interface SaleItem {
     usd: number;
     lbp: number;
   };
+  discount?: {
+    discountId: string;
+    discountName: string;
+    percentage: number;
+    amount: {
+      usd: number;
+      lbp: number;
+    };
+  };
   subtotal: {
+    usd: number;
+    lbp: number;
+  };
+  finalAmount?: {
     usd: number;
     lbp: number;
   };
@@ -40,6 +53,23 @@ export interface Sale {
     phone: string;
   } | null;
   items: SaleItem[];
+  subtotalBeforeDiscount?: {
+    usd: number;
+    lbp: number;
+  };
+  totalItemDiscounts?: {
+    usd: number;
+    lbp: number;
+  };
+  saleDiscount?: {
+    discountId: string;
+    discountName: string;
+    percentage: number;
+    amount: {
+      usd: number;
+      lbp: number;
+    };
+  };
   totals: {
     usd: number;
     lbp: number;
@@ -66,7 +96,9 @@ export interface CreateSaleRequest {
   items: Array<{
     productId: string;
     quantity: number;
+    discountId?: string;
   }>;
+  saleDiscountId?: string;
   notes?: string;
 }
 

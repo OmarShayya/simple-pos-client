@@ -62,7 +62,20 @@ export interface GamingSession {
     usd: number;
     lbp: number;
   };
+  discount?: {
+    discountId: string;
+    discountName: string;
+    percentage: number;
+    amount: {
+      usd: number;
+      lbp: number;
+    };
+  };
   totalCost?: {
+    usd: number;
+    lbp: number;
+  };
+  finalAmount?: {
     usd: number;
     lbp: number;
   };

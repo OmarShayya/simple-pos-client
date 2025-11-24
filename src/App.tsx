@@ -18,6 +18,7 @@ import SalesHistory from "./pages/SalesHistory";
 import GamingStations from "./pages/GamingStations";
 import GamingHistory from "./pages/GamingHistory";
 import PCManagement from "./pages/PCManagement";
+import Discounts from "./pages/Discounts";
 
 const App: React.FC = () => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
@@ -48,6 +49,7 @@ const App: React.FC = () => {
         <Route path="products" element={<Products />} />
         <Route path="categories" element={<Categories />} />
         <Route path="customers" element={<Customers />} />
+        <Route path="discounts" element={<Discounts />} />
         <Route path="reports" element={<Reports />} />
         <Route path="exchange-rate" element={<ExchangeRate />} />
         <Route path="settings" element={<Settings />} />

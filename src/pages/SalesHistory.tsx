@@ -398,11 +398,21 @@ const SalesHistory: React.FC = () => {
               <div class="item">
                 <div class="item-name">${item.productName}</div>
                 <div class="item-details">
-                  <span>${item.quantity} x $${item.unitPrice.usd.toFixed(
-                  2
-                )}</span>
+                  <span>${item.quantity} x $${item.unitPrice.usd.toFixed(2)}</span>
                   <span>$${item.subtotal.usd.toFixed(2)}</span>
                 </div>
+                ${
+                  item.discount
+                    ? `<div class="item-details" style="color: green; font-size: 10px;">
+                         <span>Discount (${item.discount.percentage}%)</span>
+                         <span>-$${item.discount.amount.usd.toFixed(2)}</span>
+                       </div>
+                       <div class="item-details" style="font-weight: bold;">
+                         <span>Final:</span>
+                         <span>$${(item.finalAmount?.usd || item.subtotal.usd).toFixed(2)}</span>
+                       </div>`
+                    : ""
+                }
               </div>
             `
               )
@@ -410,12 +420,44 @@ const SalesHistory: React.FC = () => {
           </div>
 
           <div class="totals">
+            ${
+              sale.subtotalBeforeDiscount
+                ? `<div class="total-row">
+                     <span>Subtotal:</span>
+                     <span>$${sale.subtotalBeforeDiscount.usd.toFixed(2)}</span>
+                   </div>`
+                : ""
+            }
+            ${
+              sale.totalItemDiscounts && sale.totalItemDiscounts.usd > 0
+                ? `<div class="total-row" style="color: green;">
+                     <span>Item Discounts:</span>
+                     <span>-$${sale.totalItemDiscounts.usd.toFixed(2)}</span>
+                   </div>`
+                : ""
+            }
+            ${
+              sale.saleDiscount
+                ? `<div class="total-row" style="color: green;">
+                     <span>${sale.saleDiscount.discountName} (${sale.saleDiscount.percentage}%):</span>
+                     <span>-$${sale.saleDiscount.amount.usd.toFixed(2)}</span>
+                   </div>`
+                : ""
+            }
+            ${
+              (sale.totalItemDiscounts?.usd || 0) + (sale.saleDiscount?.amount?.usd || 0) > 0
+                ? `<div class="total-row" style="font-weight: bold; color: green; border-top: 1px dashed #000; padding-top: 5px; margin-top: 5px;">
+                     <span>YOU SAVED:</span>
+                     <span>$${((sale.totalItemDiscounts?.usd || 0) + (sale.saleDiscount?.amount?.usd || 0)).toFixed(2)}</span>
+                   </div>`
+                : ""
+            }
             <div class="total-row">
-              <span>Subtotal (USD):</span>
+              <span>Total (USD):</span>
               <span>$${sale.totals.usd.toFixed(2)}</span>
             </div>
             <div class="total-row">
-              <span>Subtotal (LBP):</span>
+              <span>Total (LBP):</span>
               <span>${sale.totals.lbp.toLocaleString()}</span>
             </div>
             <div class="total-row grand">
@@ -490,6 +532,27 @@ const SalesHistory: React.FC = () => {
       headerName: "Customer",
       flex: 1,
       renderCell: (params) => params.row.customer?.name || "Walk-in",
+    },
+    {
+      field: "discounts",
+      headerName: "Savings",
+      width: 100,
+      renderCell: (params) => {
+        const itemDiscounts = params.row.totalItemDiscounts?.usd || 0;
+        const saleDiscount = params.row.saleDiscount?.amount?.usd || 0;
+        const totalSavings = itemDiscounts + saleDiscount;
+
+        if (totalSavings > 0) {
+          return (
+            <Chip
+              label={`$${totalSavings.toFixed(2)}`}
+              color="success"
+              size="small"
+            />
+          );
+        }
+        return "-";
+      },
     },
     {
       field: "totals",
@@ -779,6 +842,50 @@ const SalesHistory: React.FC = () => {
 
                 <Grid size={12}>
                   <Card sx={{ bgcolor: "background.default", p: 2 }}>
+                    {(selectedSale.totalItemDiscounts || selectedSale.saleDiscount) && (
+                      <>
+                        {selectedSale.subtotalBeforeDiscount && (
+                          <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.5 }}>
+                            <Typography variant="body2" color="text.secondary">
+                              Subtotal:
+                            </Typography>
+                            <Typography variant="body2">
+                              ${selectedSale.subtotalBeforeDiscount.usd.toFixed(2)}
+                            </Typography>
+                          </Box>
+                        )}
+                        {selectedSale.totalItemDiscounts && selectedSale.totalItemDiscounts.usd > 0 && (
+                          <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.5 }}>
+                            <Typography variant="body2" color="success.main">
+                              Item Discounts:
+                            </Typography>
+                            <Typography variant="body2" color="success.main">
+                              -${selectedSale.totalItemDiscounts.usd.toFixed(2)}
+                            </Typography>
+                          </Box>
+                        )}
+                        {selectedSale.saleDiscount && (
+                          <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.5 }}>
+                            <Typography variant="body2" color="success.main">
+                              {selectedSale.saleDiscount.discountName}:
+                            </Typography>
+                            <Typography variant="body2" color="success.main">
+                              -${selectedSale.saleDiscount.amount.usd.toFixed(2)}
+                            </Typography>
+                          </Box>
+                        )}
+                        <Box sx={{ borderTop: 1, borderColor: "divider", pt: 1, mt: 1, mb: 1 }}>
+                          <Box sx={{ display: "flex", justifyContent: "space-between" }}>
+                            <Typography variant="body2" fontWeight={600} color="success.main">
+                              Total Savings:
+                            </Typography>
+                            <Typography variant="body2" fontWeight={600} color="success.main">
+                              ${((selectedSale.totalItemDiscounts?.usd || 0) + (selectedSale.saleDiscount?.amount?.usd || 0)).toFixed(2)}
+                            </Typography>
+                          </Box>
+                        </Box>
+                      </>
+                    )}
                     <Typography
                       variant="body2"
                       color="text.secondary"

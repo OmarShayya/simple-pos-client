@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -31,9 +31,11 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { gamingApi } from "@/api/gaming.api";
 import { customersApi } from "@/api/customers.api";
 import { exchangeRateApi } from "@/api/exchangeRate.api";
+import { discountsApi } from "@/api/discounts.api";
 import { PC, PCStatus, GamingSession } from "@/types/gaming.types";
 import { Customer } from "@/types/customer.types";
 import { PaymentMethod, Currency } from "@/types/sale.types";
+import { Discount } from "@/types/discount.types";
 import { toast } from "react-toastify";
 import { handleApiError } from "@/utils/errorHandler";
 import { formatDistanceToNow } from "date-fns";
@@ -59,6 +61,9 @@ const GamingStations: React.FC = () => {
     paymentCurrency: Currency.USD,
     amount: 0,
   });
+
+  const [selectedDiscountId, setSelectedDiscountId] = useState<string>("");
+  const [gamingDiscounts, setGamingDiscounts] = useState<Discount[]>([]);
 
   const { data: pcsData, isLoading: loadingPCs } = useQuery({
     queryKey: ["gaming-pcs"],
@@ -88,6 +93,18 @@ const GamingStations: React.FC = () => {
     refetchInterval: 10000,
   });
 
+  useEffect(() => {
+    const fetchGamingDiscounts = async () => {
+      try {
+        const discounts = await discountsApi.getActiveForGamingSession();
+        setGamingDiscounts(discounts);
+      } catch (error) {
+        console.error("Failed to fetch gaming discounts:", error);
+      }
+    };
+    fetchGamingDiscounts();
+  }, []);
+
   const startSessionMutation = useMutation({
     mutationFn: gamingApi.startSession,
     onSuccess: () => {
@@ -102,7 +119,8 @@ const GamingStations: React.FC = () => {
   });
 
   const endSessionMutation = useMutation({
-    mutationFn: gamingApi.endSession,
+    mutationFn: ({ sessionId, discountId }: { sessionId: string; discountId?: string }) =>
+      gamingApi.endSession(sessionId, discountId ? { discountId } : undefined),
     onSuccess: (session) => {
       toast.success(
         `Session ended! Duration: ${Math.floor(session.duration! / 60)}h ${
@@ -110,11 +128,13 @@ const GamingStations: React.FC = () => {
         }m`
       );
       setEndDialog(false);
+      setSelectedDiscountId("");
       setSelectedSession(session);
+      const finalAmount = session.finalAmount || session.totalCost!;
       setPaymentData({
         paymentMethod: PaymentMethod.CASH,
         paymentCurrency: Currency.USD,
-        amount: session.totalCost!.usd,
+        amount: finalAmount.usd,
       });
       setPaymentDialog(true);
       queryClient.invalidateQueries({ queryKey: ["gaming-pcs"] });
@@ -166,16 +186,20 @@ const GamingStations: React.FC = () => {
 
   const confirmEndSession = () => {
     if (!selectedSession) return;
-    endSessionMutation.mutate(selectedSession.id);
+    endSessionMutation.mutate({
+      sessionId: selectedSession.id,
+      discountId: selectedDiscountId || undefined,
+    });
   };
 
   const handleProcessPayment = () => {
     if (!selectedSession) return;
 
+    const amountDue = selectedSession.finalAmount || selectedSession.totalCost!;
     const totalDue =
       paymentData.paymentCurrency === Currency.USD
-        ? selectedSession.totalCost!.usd
-        : selectedSession.totalCost!.lbp;
+        ? amountDue.usd
+        : amountDue.lbp;
 
     if (paymentData.amount < totalDue) {
       toast.error("Payment amount is less than total due");
@@ -193,16 +217,17 @@ const GamingStations: React.FC = () => {
       return { usd: 0, lbp: 0 };
 
     const rate = exchangeRate?.rate || 89500;
+    const amountDue = selectedSession.finalAmount || selectedSession.totalCost;
 
     if (paymentData.paymentCurrency === Currency.USD) {
       console.log("Calculating USD change", selectedSession);
-      const changeUsd = paymentData.amount - selectedSession.totalCost.usd;
+      const changeUsd = paymentData.amount - amountDue.usd;
       return {
         usd: changeUsd,
         lbp: changeUsd * rate,
       };
     } else {
-      const changeLbp = paymentData.amount - selectedSession.totalCost.lbp;
+      const changeLbp = paymentData.amount - amountDue.lbp;
       return {
         usd: changeLbp / rate,
         lbp: changeLbp,
@@ -550,28 +575,57 @@ const GamingStations: React.FC = () => {
         <DialogContent>
           {selectedSession && (
             <Box sx={{ mt: 2 }}>
-              <Alert severity="warning" sx={{ mb: 3 }}>
-                <Typography variant="body2">
-                  Are you sure you want to end this session?
-                </Typography>
-              </Alert>
-
-              <Box
-                sx={{ bgcolor: "background.default", p: 2, borderRadius: 1 }}
-              >
-                <Typography variant="body2" color="text.secondary" gutterBottom>
+              <Alert severity="info" sx={{ mb: 3 }}>
+                <Typography variant="body2" fontWeight={600}>
                   PC: {selectedSession.pc.name}
                 </Typography>
-                <Typography variant="body2" color="text.secondary" gutterBottom>
+                <Typography variant="body2">
                   Customer: {selectedSession.customerName}
                 </Typography>
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="body2">
                   Started:{" "}
                   {formatDistanceToNow(new Date(selectedSession.startTime), {
                     addSuffix: true,
                   })}
                 </Typography>
-              </Box>
+                <Typography variant="body2" fontWeight={600} color="primary" sx={{ mt: 1 }}>
+                  Estimated Cost: ${selectedSession.currentCost?.usd.toFixed(2) || "0.00"}
+                </Typography>
+              </Alert>
+
+              {gamingDiscounts.length > 0 && (
+                <TextField
+                  select
+                  fullWidth
+                  label="Apply Discount (Optional)"
+                  value={selectedDiscountId}
+                  onChange={(e) => setSelectedDiscountId(e.target.value)}
+                  sx={{ mb: 2 }}
+                >
+                  <MenuItem value="">No Discount</MenuItem>
+                  {gamingDiscounts.map(discount => (
+                    <MenuItem key={discount.id} value={discount.id}>
+                      {discount.name} ({discount.value}% off)
+                    </MenuItem>
+                  ))}
+                </TextField>
+              )}
+
+              {selectedDiscountId && (
+                <Box sx={{ bgcolor: "success.light", p: 2, borderRadius: 1, mb: 2 }}>
+                  <Typography variant="body2" fontWeight={600} color="success.dark">
+                    Discount Applied: {gamingDiscounts.find(d => d.id === selectedDiscountId)?.name}
+                  </Typography>
+                  <Typography variant="body2" color="success.dark">
+                    You save: {gamingDiscounts.find(d => d.id === selectedDiscountId)?.value}%
+                  </Typography>
+                  {selectedSession.currentCost && (
+                    <Typography variant="body2" fontWeight={600} color="success.dark" sx={{ mt: 1 }}>
+                      Final Cost: ${(selectedSession.currentCost.usd * (1 - (gamingDiscounts.find(d => d.id === selectedDiscountId)?.value || 0) / 100)).toFixed(2)}
+                    </Typography>
+                  )}
+                </Box>
+              )}
             </Box>
           )}
         </DialogContent>
@@ -679,6 +733,20 @@ const GamingStations: React.FC = () => {
 
                 <Grid size={12}>
                   <Card sx={{ bgcolor: "background.default", p: 2 }}>
+                    {selectedSession.discount && (
+                      <>
+                        <Typography variant="body2" color="text.secondary" gutterBottom>
+                          Original Cost:
+                        </Typography>
+                        <Typography variant="body2" sx={{ textDecoration: "line-through" }}>
+                          ${(selectedSession.totalCost?.usd || 0).toFixed(2)} USD
+                        </Typography>
+                        <Typography variant="body2" color="success.main" gutterBottom>
+                          Discount ({selectedSession.discount.percentage}%): -${(selectedSession.discount.amount?.usd || 0).toFixed(2)}
+                        </Typography>
+                        <Divider sx={{ my: 1 }} />
+                      </>
+                    )}
                     <Typography
                       variant="body2"
                       color="text.secondary"
@@ -687,10 +755,10 @@ const GamingStations: React.FC = () => {
                       Amount Due:
                     </Typography>
                     <Typography variant="h6" fontWeight={600}>
-                      ${(selectedSession.totalCost?.usd || 0).toFixed(2)} USD
+                      ${(selectedSession.finalAmount?.usd || selectedSession.totalCost?.usd || 0).toFixed(2)} USD
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                      {(selectedSession.totalCost?.lbp || 0).toLocaleString()} LBP
+                      {(selectedSession.finalAmount?.lbp || selectedSession.totalCost?.lbp || 0).toLocaleString()} LBP
                     </Typography>
                   </Card>
                 </Grid>

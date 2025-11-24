@@ -4,6 +4,10 @@ import {
   handleApiResponse,
   handlePaginatedResponse,
 } from "../utils/responseHandler";
+import {
+  type DiscountUsageReport,
+  type CustomerDiscountReport,
+} from "../types/discount.types";
 
 export const reportApi = {
   getDailyReport: async (date: string) => {
@@ -128,6 +132,37 @@ export const reportApi = {
     const response = await apiClient.get<ApiResponse>(
       `/reports/gaming/monthly?month=${month}&year=${year}`
     );
+    return handleApiResponse(response.data);
+  },
+
+  // Discount Reports
+  getDiscountUsage: async (
+    startDate?: string,
+    endDate?: string
+  ): Promise<DiscountUsageReport[]> => {
+    const params = new URLSearchParams();
+    if (startDate) params.append("startDate", startDate);
+    if (endDate) params.append("endDate", endDate);
+
+    const response = await apiClient.get<ApiResponse<DiscountUsageReport[]>>(
+      `/reports/discount-usage?${params}`
+    );
+    return handleApiResponse(response.data);
+  },
+
+  getCustomerDiscounts: async (
+    customerId?: string,
+    startDate?: string,
+    endDate?: string
+  ): Promise<CustomerDiscountReport[]> => {
+    const params = new URLSearchParams();
+    if (customerId) params.append("customerId", customerId);
+    if (startDate) params.append("startDate", startDate);
+    if (endDate) params.append("endDate", endDate);
+
+    const response = await apiClient.get<
+      ApiResponse<CustomerDiscountReport[]>
+    >(`/reports/customer-discounts?${params}`);
     return handleApiResponse(response.data);
   },
 };
