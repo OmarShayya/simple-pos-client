@@ -100,6 +100,7 @@ export const gamingApi = {
     pcId: string;
     customerId?: string;
     customerName?: string;
+    saleId?: string;
     notes?: string;
   }): Promise<GamingSession> => {
     const response = await apiClient.post<ApiResponse<GamingSession>>(
@@ -113,9 +114,11 @@ export const gamingApi = {
     id: string,
     data?: { discountId?: string }
   ): Promise<GamingSession> => {
-    const response = await apiClient.post<ApiResponse<GamingSession>>(
+    // Only send discountId if it's actually provided, otherwise send empty object
+    const body = data?.discountId ? { discountId: data.discountId } : {};
+    const response = await apiClient.put<ApiResponse<GamingSession>>(
       `/gaming/sessions/${id}/end`,
-      data
+      body
     );
     return handleApiResponse(response.data);
   },

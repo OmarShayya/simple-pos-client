@@ -16,8 +16,8 @@ export enum Currency {
 }
 
 export interface SaleItem {
-  productId: string;
-  product?: string;
+  productId: string | null; // Can be null for session items
+  product?: string | null;
   productName: string;
   productSku: string;
   quantity: number;
@@ -42,6 +42,19 @@ export interface SaleItem {
     usd: number;
     lbp: number;
   };
+  sessionData?: {
+    sessionId: string;
+    sessionNumber: string;
+    pcNumber: string; // e.g., "PC-01"
+    pcName: string; // e.g., "Gaming PC 1"
+    hourlyRate: {
+      usd: number;
+      lbp: number;
+    };
+    startTime: string;
+    status: string;
+  };
+  isActive?: boolean; // Only present if session is active
 }
 
 export interface Sale {
@@ -74,6 +87,19 @@ export interface Sale {
     usd: number;
     lbp: number;
   };
+  currentTotals?: {
+    usd: number;
+    lbp: number;
+  };
+  hasActiveSessions?: boolean;
+  activeSessions?: Array<{
+    sessionNumber: string;
+    currentDuration: number;
+    currentCost: {
+      usd: number;
+      lbp: number;
+    };
+  }>;
   paymentMethod?: PaymentMethod;
   paymentCurrency?: Currency;
   amountPaid: {

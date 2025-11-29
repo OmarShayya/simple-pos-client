@@ -18,6 +18,7 @@ import {
   CircularProgress,
   Divider,
   InputAdornment,
+  Tooltip,
 } from "@mui/material";
 import {
   Computer,
@@ -26,12 +27,19 @@ import {
   Timer,
   AttachMoney,
   Person,
+  Receipt,
+  ShoppingCart,
+  AccessTime,
+  Info,
+  Payment,
 } from "@mui/icons-material";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import { gamingApi } from "@/api/gaming.api";
 import { customersApi } from "@/api/customers.api";
 import { exchangeRateApi } from "@/api/exchangeRate.api";
 import { discountsApi } from "@/api/discounts.api";
+import { salesApi } from "@/api/sales.api";
 import { PC, PCStatus, GamingSession } from "@/types/gaming.types";
 import { Customer } from "@/types/customer.types";
 import { PaymentMethod, Currency } from "@/types/sale.types";
@@ -40,15 +48,37 @@ import { toast } from "react-toastify";
 import { handleApiError } from "@/utils/errorHandler";
 import { formatDistanceToNow } from "date-fns";
 
+const calculateSessionCost = (session: GamingSession) => {
+  const now = new Date();
+  const startTime = new Date(session.startTime);
+  const durationMs = now.getTime() - startTime.getTime();
+  const durationMinutes = Math.floor(durationMs / (1000 * 60));
+  const durationHours = durationMs / (1000 * 60 * 60);
+
+  // Handle case where hourlyRate might be undefined
+  const hourlyRate = session.hourlyRate || { usd: 0, lbp: 0 };
+
+  return {
+    duration: durationMinutes,
+    cost: {
+      usd: Math.round(hourlyRate.usd * durationHours * 100) / 100,
+      lbp: Math.round(hourlyRate.lbp * durationHours),
+    },
+  };
+};
+
 const GamingStations: React.FC = () => {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [startDialog, setStartDialog] = useState(false);
   const [endDialog, setEndDialog] = useState(false);
   const [paymentDialog, setPaymentDialog] = useState(false);
+  const [postSessionDialog, setPostSessionDialog] = useState(false);
   const [selectedPC, setSelectedPC] = useState<PC | null>(null);
   const [selectedSession, setSelectedSession] = useState<GamingSession | null>(
     null
   );
+  const [, setUpdateTrigger] = useState(0);
 
   const [startData, setStartData] = useState({
     selectedCustomer: null as Customer | null,
@@ -105,15 +135,26 @@ const GamingStations: React.FC = () => {
     fetchGamingDiscounts();
   }, []);
 
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setUpdateTrigger(prev => prev + 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
   const startSessionMutation = useMutation({
     mutationFn: gamingApi.startSession,
-    onSuccess: () => {
-      toast.success("Gaming session started!");
+    onSuccess: (session) => {
+      const message = session.sale
+        ? `Gaming session started! Invoice: ${session.sale.invoiceNumber}`
+        : "Gaming session started!";
+      toast.success(message);
       setStartDialog(false);
       resetStartData();
       queryClient.invalidateQueries({ queryKey: ["gaming-pcs"] });
       queryClient.invalidateQueries({ queryKey: ["active-gaming-sessions"] });
       queryClient.invalidateQueries({ queryKey: ["gaming-today-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["sales"] });
     },
     onError: (error) => toast.error(handleApiError(error)),
   });
@@ -125,7 +166,7 @@ const GamingStations: React.FC = () => {
       toast.success(
         `Session ended! Duration: ${Math.floor(session.duration! / 60)}h ${
           session.duration! % 60
-        }m`
+        }m - Total: $${(session.finalAmount || session.totalCost)?.usd.toFixed(2)}`
       );
       setEndDialog(false);
       setSelectedDiscountId("");
@@ -136,7 +177,7 @@ const GamingStations: React.FC = () => {
         paymentCurrency: Currency.USD,
         amount: finalAmount.usd,
       });
-      setPaymentDialog(true);
+      setPostSessionDialog(true);
       queryClient.invalidateQueries({ queryKey: ["gaming-pcs"] });
       queryClient.invalidateQueries({ queryKey: ["active-gaming-sessions"] });
       queryClient.invalidateQueries({ queryKey: ["gaming-today-stats"] });
@@ -145,13 +186,17 @@ const GamingStations: React.FC = () => {
   });
 
   const paymentMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: any }) =>
-      gamingApi.processPayment(id, data),
+    mutationFn: ({ saleId, data }: { saleId: string; data: any }) =>
+      salesApi.pay(saleId, data),
     onSuccess: () => {
       toast.success("Payment processed successfully!");
       setPaymentDialog(false);
+      setSelectedSession(null);
+      queryClient.invalidateQueries({ queryKey: ["gaming-pcs"] });
+      queryClient.invalidateQueries({ queryKey: ["active-gaming-sessions"] });
       queryClient.invalidateQueries({ queryKey: ["gaming-sessions"] });
       queryClient.invalidateQueries({ queryKey: ["gaming-today-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["sales"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
     },
     onError: (error) => toast.error(handleApiError(error)),
@@ -193,7 +238,10 @@ const GamingStations: React.FC = () => {
   };
 
   const handleProcessPayment = () => {
-    if (!selectedSession) return;
+    if (!selectedSession || !selectedSession.sale) {
+      toast.error("No sale associated with this session");
+      return;
+    }
 
     const amountDue = selectedSession.finalAmount || selectedSession.totalCost!;
     const totalDue =
@@ -207,7 +255,7 @@ const GamingStations: React.FC = () => {
     }
 
     paymentMutation.mutate({
-      id: selectedSession.id,
+      saleId: selectedSession.sale.id,
       data: paymentData,
     });
   };
@@ -368,72 +416,92 @@ const GamingStations: React.FC = () => {
                     <Divider sx={{ my: 2 }} />
 
                     {isOccupied && session ? (
-                      <Box>
-                        <Box sx={{ mb: 2 }}>
-                          <Box
-                            sx={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 1,
-                              mb: 1,
-                            }}
-                          >
-                            <Person sx={{ fontSize: 18 }} />
-                            <Typography variant="body2" fontWeight={600}>
-                              {session.customerName}
-                            </Typography>
-                          </Box>
-                          <Box
-                            sx={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 1,
-                              mb: 1,
-                            }}
-                          >
-                            <Timer sx={{ fontSize: 18 }} />
-                            <Typography variant="body2">
-                              {formatDuration(session.currentDuration!)}
-                            </Typography>
-                          </Box>
-                          <Box
-                            sx={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 1,
-                            }}
-                          >
-                            <AttachMoney sx={{ fontSize: 18 }} />
+                      (() => {
+                        const { duration, cost } = calculateSessionCost(session);
+                        return (
+                          <Box>
+                            <Box sx={{ mb: 2 }}>
+                              <Box
+                                sx={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 1,
+                                  mb: 1,
+                                }}
+                              >
+                                <Person sx={{ fontSize: 18 }} />
+                                <Typography variant="body2" fontWeight={600}>
+                                  {session.customerName}
+                                </Typography>
+                              </Box>
+                              <Box
+                                sx={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 1,
+                                  mb: 1,
+                                }}
+                              >
+                                <Timer sx={{ fontSize: 18 }} />
+                                <Typography variant="body2">
+                                  {formatDuration(duration)}
+                                </Typography>
+                              </Box>
+                              <Box
+                                sx={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 1,
+                                }}
+                              >
+                                <AttachMoney sx={{ fontSize: 18 }} />
+                                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                                  <Typography
+                                    variant="body2"
+                                    color="error"
+                                    fontWeight={600}
+                                  >
+                                    ${cost.usd.toFixed(2)} USD
+                                  </Typography>
+                                  <Tooltip title="Live cost - updating every second">
+                                    <AccessTime
+                                      sx={{
+                                        fontSize: 14,
+                                        color: "error.main",
+                                        animation: "pulse 2s ease-in-out infinite",
+                                        "@keyframes pulse": {
+                                          "0%, 100%": { opacity: 1 },
+                                          "50%": { opacity: 0.4 },
+                                        },
+                                      }}
+                                    />
+                                  </Tooltip>
+                                </Box>
+                              </Box>
+                            </Box>
                             <Typography
-                              variant="body2"
-                              color="error"
-                              fontWeight={600}
+                              variant="caption"
+                              color="text.secondary"
+                              display="block"
+                              mb={1}
                             >
-                              ${session.currentCost!.usd.toFixed(2)} USD
+                              Started{" "}
+                              {formatDistanceToNow(new Date(session.startTime), {
+                                addSuffix: true,
+                              })}
                             </Typography>
+                            <Button
+                              fullWidth
+                              variant="contained"
+                              color="error"
+                              startIcon={<Stop />}
+                              onClick={() => handleEndSession(session)}
+                            >
+                              End Session
+                            </Button>
                           </Box>
-                        </Box>
-                        <Typography
-                          variant="caption"
-                          color="text.secondary"
-                          display="block"
-                          mb={1}
-                        >
-                          Started{" "}
-                          {formatDistanceToNow(new Date(session.startTime), {
-                            addSuffix: true,
-                          })}
-                        </Typography>
-                        <Button
-                          fullWidth
-                          variant="contained"
-                          color="error"
-                          startIcon={<Stop />}
-                          onClick={() => handleEndSession(session)}
-                        >
-                          End Session
-                        </Button>
-                      </Box>
+                        );
+                      })()
                     ) : (
                       <Box>
                         <Box sx={{ mb: 2 }}>
@@ -489,13 +557,22 @@ const GamingStations: React.FC = () => {
         <DialogContent>
           {selectedPC && (
             <Box sx={{ mt: 2 }}>
-              <Alert severity="info" sx={{ mb: 3 }}>
+              <Alert severity="info" sx={{ mb: 2 }}>
                 <Typography variant="body2" fontWeight={600}>
                   {selectedPC.name} ({selectedPC.pcNumber})
                 </Typography>
                 <Typography variant="body2">
                   Rate: ${selectedPC.hourlyRate.usd}/hr |{" "}
                   {selectedPC.hourlyRate.lbp.toLocaleString()} LBP/hr
+                </Typography>
+              </Alert>
+
+              <Alert severity="success" icon={<Receipt />} sx={{ mb: 3 }}>
+                <Typography variant="caption" fontWeight={600}>
+                  A sale invoice will be created when you start this session.
+                </Typography>
+                <Typography variant="caption" display="block">
+                  You can add items to the sale during gameplay and pay everything together.
                 </Typography>
               </Alert>
 
@@ -573,25 +650,27 @@ const GamingStations: React.FC = () => {
       >
         <DialogTitle>End Gaming Session</DialogTitle>
         <DialogContent>
-          {selectedSession && (
-            <Box sx={{ mt: 2 }}>
-              <Alert severity="info" sx={{ mb: 3 }}>
-                <Typography variant="body2" fontWeight={600}>
-                  PC: {selectedSession.pc.name}
-                </Typography>
-                <Typography variant="body2">
-                  Customer: {selectedSession.customerName}
-                </Typography>
-                <Typography variant="body2">
-                  Started:{" "}
-                  {formatDistanceToNow(new Date(selectedSession.startTime), {
-                    addSuffix: true,
-                  })}
-                </Typography>
-                <Typography variant="body2" fontWeight={600} color="primary" sx={{ mt: 1 }}>
-                  Estimated Cost: ${selectedSession.currentCost?.usd.toFixed(2) || "0.00"}
-                </Typography>
-              </Alert>
+          {selectedSession && (() => {
+            const { cost } = calculateSessionCost(selectedSession);
+            return (
+              <Box sx={{ mt: 2 }}>
+                <Alert severity="info" sx={{ mb: 3 }}>
+                  <Typography variant="body2" fontWeight={600}>
+                    PC: {selectedSession.pc.name}
+                  </Typography>
+                  <Typography variant="body2">
+                    Customer: {selectedSession.customerName}
+                  </Typography>
+                  <Typography variant="body2">
+                    Started:{" "}
+                    {formatDistanceToNow(new Date(selectedSession.startTime), {
+                      addSuffix: true,
+                    })}
+                  </Typography>
+                  <Typography variant="body2" fontWeight={600} color="primary" sx={{ mt: 1 }}>
+                    Estimated Cost: ${cost.usd.toFixed(2)}
+                  </Typography>
+                </Alert>
 
               {gamingDiscounts.length > 0 && (
                 <TextField
@@ -611,23 +690,22 @@ const GamingStations: React.FC = () => {
                 </TextField>
               )}
 
-              {selectedDiscountId && (
-                <Box sx={{ bgcolor: "success.light", p: 2, borderRadius: 1, mb: 2 }}>
-                  <Typography variant="body2" fontWeight={600} color="success.dark">
-                    Discount Applied: {gamingDiscounts.find(d => d.id === selectedDiscountId)?.name}
-                  </Typography>
-                  <Typography variant="body2" color="success.dark">
-                    You save: {gamingDiscounts.find(d => d.id === selectedDiscountId)?.value}%
-                  </Typography>
-                  {selectedSession.currentCost && (
-                    <Typography variant="body2" fontWeight={600} color="success.dark" sx={{ mt: 1 }}>
-                      Final Cost: ${(selectedSession.currentCost.usd * (1 - (gamingDiscounts.find(d => d.id === selectedDiscountId)?.value || 0) / 100)).toFixed(2)}
+                {selectedDiscountId && (
+                  <Box sx={{ bgcolor: "success.light", p: 2, borderRadius: 1, mb: 2 }}>
+                    <Typography variant="body2" fontWeight={600} color="success.dark">
+                      Discount Applied: {gamingDiscounts.find(d => d.id === selectedDiscountId)?.name}
                     </Typography>
-                  )}
-                </Box>
-              )}
-            </Box>
-          )}
+                    <Typography variant="body2" color="success.dark">
+                      You save: {gamingDiscounts.find(d => d.id === selectedDiscountId)?.value}%
+                    </Typography>
+                    <Typography variant="body2" fontWeight={600} color="success.dark" sx={{ mt: 1 }}>
+                      Final Cost: ${(cost.usd * (1 - (gamingDiscounts.find(d => d.id === selectedDiscountId)?.value || 0) / 100)).toFixed(2)}
+                    </Typography>
+                  </Box>
+                )}
+              </Box>
+            );
+          })()}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setEndDialog(false)}>Cancel</Button>
@@ -656,6 +734,11 @@ const GamingStations: React.FC = () => {
                 <Typography variant="body2" fontWeight={600}>
                   Session: {selectedSession.sessionNumber}
                 </Typography>
+                {selectedSession.sale && (
+                  <Typography variant="body2" fontWeight={600}>
+                    Invoice: {selectedSession.sale.invoiceNumber}
+                  </Typography>
+                )}
                 <Typography variant="body2">
                   Duration: {formatDuration(selectedSession.duration!)}
                 </Typography>
@@ -800,6 +883,108 @@ const GamingStations: React.FC = () => {
             {paymentMutation.isPending ? "Processing..." : "Process Payment"}
           </Button>
         </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={postSessionDialog}
+        onClose={() => setPostSessionDialog(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <Receipt color="primary" />
+            Session Ended Successfully
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          {selectedSession && (
+            <Box sx={{ mt: 2 }}>
+              <Alert severity="success" sx={{ mb: 3 }}>
+                <Typography variant="body2" fontWeight={600}>
+                  Session: {selectedSession.sessionNumber}
+                </Typography>
+                <Typography variant="body2">
+                  Invoice: {selectedSession.sale?.invoiceNumber}
+                </Typography>
+                <Typography variant="body2">
+                  Duration: {formatDuration(selectedSession.duration!)}
+                </Typography>
+                <Typography variant="body2" fontWeight={600} color="success.dark" sx={{ mt: 1 }}>
+                  Amount: ${(selectedSession.finalAmount || selectedSession.totalCost)?.usd.toFixed(2)} USD
+                </Typography>
+                {selectedSession.discount && (
+                  <Typography variant="body2" color="success.dark">
+                    Discount Applied: {selectedSession.discount.percentage}% off
+                  </Typography>
+                )}
+              </Alert>
+
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                What would you like to do next?
+              </Typography>
+
+              <Grid container spacing={2}>
+                <Grid size={12}>
+                  <Button
+                    fullWidth
+                    variant="contained"
+                    color="success"
+                    size="large"
+                    startIcon={<Payment />}
+                    onClick={() => {
+                      setPostSessionDialog(false);
+                      setPaymentDialog(true);
+                    }}
+                  >
+                    Pay Now
+                  </Button>
+                </Grid>
+                <Grid size={12}>
+                  <Button
+                    fullWidth
+                    variant="outlined"
+                    color="primary"
+                    size="large"
+                    startIcon={<ShoppingCart />}
+                    onClick={() => {
+                      setPostSessionDialog(false);
+                      if (selectedSession?.sale) {
+                        // Navigate to sales page with the sale ID to load it
+                        navigate(`/sales?loadSale=${selectedSession.sale.id}`);
+                        toast.info(`Opening sale ${selectedSession.sale.invoiceNumber}. Add items and complete payment.`);
+                      }
+                    }}
+                  >
+                    Add Items to Sale
+                  </Button>
+                </Grid>
+                <Grid size={12}>
+                  <Button
+                    fullWidth
+                    variant="text"
+                    size="large"
+                    startIcon={<AccessTime />}
+                    onClick={() => {
+                      setPostSessionDialog(false);
+                      setSelectedSession(null);
+                      toast.info("Sale saved as pending. You can process payment later.");
+                    }}
+                  >
+                    Pay Later
+                  </Button>
+                </Grid>
+              </Grid>
+
+              <Alert severity="info" icon={<Info />} sx={{ mt: 3 }}>
+                <Typography variant="caption">
+                  This session is now linked to sale {selectedSession.sale?.invoiceNumber}.
+                  You can add items to the sale before payment or pay it later from the Sales page.
+                </Typography>
+              </Alert>
+            </Box>
+          )}
+        </DialogContent>
       </Dialog>
     </Box>
   );

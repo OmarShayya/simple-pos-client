@@ -84,6 +84,13 @@ const GamingHistory: React.FC = () => {
       width: 140,
     },
     {
+      field: "sale",
+      headerName: "Invoice",
+      width: 140,
+      renderCell: (params) =>
+        params.row.sale ? params.row.sale.invoiceNumber : "-",
+    },
+    {
       field: "pc",
       headerName: "PC",
       width: 150,
@@ -98,15 +105,32 @@ const GamingHistory: React.FC = () => {
     {
       field: "duration",
       headerName: "Duration",
-      width: 120,
+      width: 100,
       renderCell: (params) => formatDuration(params.row.duration),
     },
     {
-      field: "totalCost",
-      headerName: "Total (USD)",
-      width: 120,
+      field: "discount",
+      headerName: "Discount",
+      width: 100,
       renderCell: (params) =>
-        params.row.totalCost ? `$${params.row.totalCost.usd.toFixed(2)}` : "-",
+        params.row.discount ? (
+          <Chip
+            label={`${params.row.discount.percentage}%`}
+            color="success"
+            size="small"
+          />
+        ) : (
+          "-"
+        ),
+    },
+    {
+      field: "totalCost",
+      headerName: "Amount (USD)",
+      width: 120,
+      renderCell: (params) => {
+        const amount = params.row.finalAmount || params.row.totalCost;
+        return amount ? `$${amount.usd.toFixed(2)}` : "-";
+      },
     },
     {
       field: "status",

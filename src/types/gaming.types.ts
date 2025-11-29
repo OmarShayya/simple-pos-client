@@ -88,6 +88,10 @@ export interface GamingSession {
   sale?: {
     id: string;
     invoiceNumber: string;
+    totals?: {
+      usd: number;
+      lbp: number;
+    };
   };
   startedBy: {
     name: string;

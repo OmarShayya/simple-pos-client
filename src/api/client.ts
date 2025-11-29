@@ -6,6 +6,7 @@ import axios, {
 import { useAuthStore } from "../store/authStore";
 
 const API_BASE_URL = "https://simple-pos-6be8.onrender.com/api/v1";
+// const API_BASE_URL = "http://localhost:3000/api/v1";
 
 const apiClient: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,

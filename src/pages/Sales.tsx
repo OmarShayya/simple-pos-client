@@ -34,9 +34,12 @@ import {
   Edit,
   Refresh,
   Payment,
+  Computer,
+  AccessTime,
+  Print,
 } from "@mui/icons-material";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { productsApi } from "@/api/products.api";
 import { customersApi } from "@/api/customers.api";
 import { salesApi } from "@/api/sales.api";
@@ -49,13 +52,49 @@ import { Discount } from "@/types/discount.types";
 import { toast } from "react-toastify";
 import { handleApiError } from "@/utils/errorHandler";
 
+// Helper to check if an item is a gaming session
+const isSessionItem = (item: SaleItem): boolean => {
+  return item.productSku.startsWith("SESSION-");
+};
+
+// Calculate real-time session cost for active sessions
+const calculateSessionCost = (item: SaleItem): { usd: number; lbp: number } => {
+  if (!item.isActive || !item.sessionData) {
+    return item.finalAmount || item.subtotal;
+  }
+
+  // Handle case where hourlyRate might be undefined
+  const hourlyRate = item.sessionData.hourlyRate || { usd: 0, lbp: 0 };
+
+  const now = new Date();
+  const start = new Date(item.sessionData.startTime);
+  const hours = (now.getTime() - start.getTime()) / (1000 * 60 * 60);
+
+  return {
+    usd: Math.round(hourlyRate.usd * hours * 100) / 100,
+    lbp: Math.round(hourlyRate.lbp * hours),
+  };
+};
+
+// Format duration from start time
+const formatSessionDuration = (startTime: string): string => {
+  const now = new Date();
+  const start = new Date(startTime);
+  const diffMs = now.getTime() - start.getTime();
+  const hours = Math.floor(diffMs / (1000 * 60 * 60));
+  const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+  return `${hours}h ${minutes}m`;
+};
+
 const Sales: React.FC = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(
     null
   );
-  const [cartItems, setCartItems] = useState<SaleItem[]>([]);
+  const [cartItems, setCartItems] = useState<SaleItem[]>([]); // Regular product items only
+  const [sessionItems, setSessionItems] = useState<SaleItem[]>([]); // Gaming session items (read-only)
   const [productSearch, setProductSearch] = useState("");
   const [openPendingDialog, setOpenPendingDialog] = useState(false);
   const [editingSaleId, setEditingSaleId] = useState<string | null>(null);
@@ -63,6 +102,10 @@ const Sales: React.FC = () => {
   const [saleDiscountId, setSaleDiscountId] = useState<string>("");
   const [availableDiscounts, setAvailableDiscounts] = useState<Record<string, Discount[]>>({});
   const [saleDiscounts, setSaleDiscounts] = useState<Discount[]>([]);
+  const [sessionDiscounts, setSessionDiscounts] = useState<Discount[]>([]); // Gaming session discounts
+  const [sessionItemDiscounts, setSessionItemDiscounts] = useState<Record<string, string>>({}); // Session SKU -> discount ID
+  const [, setUpdateTrigger] = useState(0); // For real-time session cost updates
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
 
   const { data: exchangeRate, isLoading: loadingRate } = useQuery({
     queryKey: ["exchange-rate"],
@@ -107,6 +150,28 @@ const Sales: React.FC = () => {
     }
   }, [exchangeRate?.rate]);
 
+  // Update session costs every second
+  useEffect(() => {
+    if (sessionItems.some(item => item.isActive)) {
+      const interval = setInterval(() => {
+        setUpdateTrigger(prev => prev + 1);
+      }, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [sessionItems]);
+
+  // Handle loading sale from URL query parameter (e.g., from GamingStations)
+  useEffect(() => {
+    const loadSaleId = searchParams.get("loadSale");
+    if (loadSaleId && !initialLoadDone && exchangeRate) {
+      setInitialLoadDone(true);
+      // Clear the URL parameter
+      setSearchParams({});
+      // Load the sale
+      handleLoadPendingSale(loadSaleId);
+    }
+  }, [searchParams, initialLoadDone, exchangeRate]);
+
   useEffect(() => {
     const fetchSaleDiscounts = async () => {
       try {
@@ -117,6 +182,19 @@ const Sales: React.FC = () => {
       }
     };
     fetchSaleDiscounts();
+  }, []);
+
+  // Fetch gaming session discounts
+  useEffect(() => {
+    const fetchSessionDiscounts = async () => {
+      try {
+        const discounts = await discountsApi.getActiveForGamingSession();
+        setSessionDiscounts(discounts);
+      } catch (error) {
+        console.error("Failed to fetch gaming session discounts:", error);
+      }
+    };
+    fetchSessionDiscounts();
   }, []);
 
   const createSaleMutation = useMutation({
@@ -151,11 +229,13 @@ const Sales: React.FC = () => {
 
   const resetCart = () => {
     setCartItems([]);
+    setSessionItems([]);
     setSelectedCustomer(null);
     setEditingSaleId(null);
     setItemDiscounts({});
     setSaleDiscountId("");
     setAvailableDiscounts({});
+    setSessionItemDiscounts({});
   };
 
   const addToCart = async (product: Product) => {
@@ -255,8 +335,8 @@ const Sales: React.FC = () => {
   const calculateTotal = () => {
     const rate = exchangeRate?.rate || 89500;
 
-    // Calculate subtotal before discounts
-    const subtotalBeforeDiscount = cartItems.reduce(
+    // Calculate subtotal for regular cart items before discounts
+    const cartSubtotal = cartItems.reduce(
       (acc, item) => ({
         usd: acc.usd + item.subtotal.usd,
         lbp: acc.lbp + item.subtotal.lbp,
@@ -264,24 +344,63 @@ const Sales: React.FC = () => {
       { usd: 0, lbp: 0 }
     );
 
-    // Calculate item-level discounts
+    // Calculate session items total (with real-time calculation for active sessions)
+    const sessionSubtotal = sessionItems.reduce(
+      (acc, item) => {
+        const cost = calculateSessionCost(item);
+        return {
+          usd: acc.usd + cost.usd,
+          lbp: acc.lbp + cost.lbp,
+        };
+      },
+      { usd: 0, lbp: 0 }
+    );
+
+    // Combined subtotal before discounts
+    const subtotalBeforeDiscount = {
+      usd: cartSubtotal.usd + sessionSubtotal.usd,
+      lbp: cartSubtotal.lbp + sessionSubtotal.lbp,
+    };
+
+    // Calculate item-level discounts (only for regular cart items with productId)
     let totalItemDiscounts = { usd: 0, lbp: 0 };
     cartItems.forEach(item => {
-      const discountId = itemDiscounts[item.productId];
-      if (discountId) {
-        const discount = availableDiscounts[item.productId]?.find(d => d.id === discountId);
-        if (discount) {
-          const discountAmount = item.subtotal.usd * (discount.value / 100);
-          totalItemDiscounts.usd += discountAmount;
-          totalItemDiscounts.lbp += Math.round(discountAmount * rate);
+      if (item.productId) {
+        const discountId = itemDiscounts[item.productId];
+        if (discountId) {
+          const discount = availableDiscounts[item.productId]?.find((d: Discount) => d.id === discountId);
+          if (discount) {
+            const discountAmount = item.subtotal.usd * (discount.value / 100);
+            totalItemDiscounts.usd += discountAmount;
+            totalItemDiscounts.lbp += Math.round(discountAmount * rate);
+          }
         }
       }
     });
 
-    // Subtotal after item discounts
+    // Calculate session item discounts
+    let totalSessionItemDiscounts = { usd: 0, lbp: 0 };
+    sessionItems.forEach((item) => {
+      const cost = calculateSessionCost(item);
+      const discountId = sessionItemDiscounts[item.productSku];
+      const discount = discountId ? sessionDiscounts.find(d => d.id === discountId) : null;
+      if (discount) {
+        const discountAmount = cost.usd * (discount.value / 100);
+        totalSessionItemDiscounts.usd += discountAmount;
+        totalSessionItemDiscounts.lbp += Math.round(discountAmount * rate);
+      }
+    });
+
+    // Combined item discounts (products + sessions)
+    const combinedItemDiscounts = {
+      usd: totalItemDiscounts.usd + totalSessionItemDiscounts.usd,
+      lbp: totalItemDiscounts.lbp + totalSessionItemDiscounts.lbp,
+    };
+
+    // Subtotal after item discounts (products + sessions)
     const subtotalAfterItems = {
-      usd: subtotalBeforeDiscount.usd - totalItemDiscounts.usd,
-      lbp: subtotalBeforeDiscount.lbp - totalItemDiscounts.lbp,
+      usd: subtotalBeforeDiscount.usd - combinedItemDiscounts.usd,
+      lbp: subtotalBeforeDiscount.lbp - combinedItemDiscounts.lbp,
     };
 
     // Calculate sale-level discount
@@ -302,31 +421,51 @@ const Sales: React.FC = () => {
 
     return {
       subtotalBeforeDiscount,
-      totalItemDiscounts,
+      totalItemDiscounts: combinedItemDiscounts,
+      totalProductDiscounts: totalItemDiscounts,
+      totalSessionDiscounts: totalSessionItemDiscounts,
       subtotalAfterItems,
       saleDiscount,
       finalTotal,
       totalSavings: {
-        usd: totalItemDiscounts.usd + saleDiscount.usd,
-        lbp: totalItemDiscounts.lbp + saleDiscount.lbp,
-      }
+        usd: combinedItemDiscounts.usd + saleDiscount.usd,
+        lbp: combinedItemDiscounts.lbp + saleDiscount.lbp,
+      },
+      sessionSubtotal,
+      cartSubtotal,
     };
   };
 
   const handleSaveSale = () => {
-    if (cartItems.length === 0) {
+    // Allow saving if we have cart items OR if we're editing a sale with session items
+    if (cartItems.length === 0 && sessionItems.length === 0) {
       toast.error("Please add items to cart");
       return;
     }
 
+    // Only send product items (with non-null productId) - session items are managed by the gaming system
+    const productItemsToSend = cartItems
+      .filter(item => item.productId !== null)
+      .map((item) => ({
+        productId: item.productId!,
+        quantity: item.quantity,
+        ...(item.productId && itemDiscounts[item.productId] && { discountId: itemDiscounts[item.productId] }),
+      }));
+
+    // Build session discounts array to send to backend
+    // Include all session items - with discountId to apply, without to remove
+    const sessionDiscountsToSend = sessionItems.map(item => {
+      const discountId = sessionItemDiscounts[item.productSku];
+      return discountId
+        ? { productSku: item.productSku, discountId }
+        : { productSku: item.productSku }; // No discountId = remove discount
+    });
+
     const saleData = {
       customerId: selectedCustomer?.id,
-      items: cartItems.map((item) => ({
-        productId: item.productId,
-        quantity: item.quantity,
-        ...(itemDiscounts[item.productId] && { discountId: itemDiscounts[item.productId] }),
-      })),
-      ...(saleDiscountId && { saleDiscountId }),
+      items: productItemsToSend,
+      ...(saleDiscountId !== undefined && { saleDiscountId: saleDiscountId || "" }), // Empty string to remove
+      ...(sessionDiscountsToSend.length > 0 && { sessionDiscounts: sessionDiscountsToSend }),
     };
 
     if (editingSaleId) {
@@ -334,6 +473,126 @@ const Sales: React.FC = () => {
     } else {
       createSaleMutation.mutate(saleData);
     }
+  };
+
+  const handlePrintCart = () => {
+    const totalsData = calculateTotal();
+    const currentRate = exchangeRate?.rate || 89500;
+
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      toast.error("Please allow popups to print");
+      return;
+    }
+
+    const printContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Cart - ${editingSaleId ? "Order" : "New Sale"}</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 20px; max-width: 400px; margin: 0 auto; }
+          .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #000; padding-bottom: 10px; }
+          .header h1 { margin: 0; font-size: 18px; }
+          .header p { margin: 5px 0; font-size: 12px; color: #666; }
+          .customer { margin-bottom: 15px; padding: 8px; background: #f5f5f5; border-radius: 4px; }
+          .item { border-bottom: 1px dashed #ccc; padding: 8px 0; }
+          .item-name { font-weight: bold; font-size: 14px; }
+          .item-details { font-size: 12px; color: #666; display: flex; justify-content: space-between; }
+          .item-price { text-align: right; }
+          .session-item { background: #fff3e0; padding: 8px; margin: 5px 0; border-radius: 4px; }
+          .discount { color: #4caf50; font-size: 12px; }
+          .totals { margin-top: 20px; border-top: 2px solid #000; padding-top: 10px; }
+          .total-row { display: flex; justify-content: space-between; margin: 5px 0; }
+          .total-row.final { font-weight: bold; font-size: 16px; border-top: 1px solid #000; padding-top: 10px; margin-top: 10px; }
+          .savings { color: #4caf50; }
+          @media print { body { padding: 0; } }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>Epic Lounge</h1>
+          <p>${new Date().toLocaleString()}</p>
+          <p>${editingSaleId ? "Order Preview" : "New Sale"}</p>
+        </div>
+
+        ${selectedCustomer ? `
+          <div class="customer">
+            <strong>Customer:</strong> ${selectedCustomer.name}<br/>
+            <small>Phone: ${selectedCustomer.phone}</small>
+          </div>
+        ` : ""}
+
+        <div class="items">
+          ${sessionItems.map(item => {
+            const cost = calculateSessionCost(item);
+            const discountId = sessionItemDiscounts[item.productSku];
+            const discount = discountId ? sessionDiscounts.find(d => d.id === discountId) : null;
+            const discountAmount = discount ? cost.usd * (discount.value / 100) : 0;
+            const finalAmount = cost.usd - discountAmount;
+            return `
+              <div class="session-item">
+                <div class="item-name">${item.productName}</div>
+                <div class="item-details">
+                  <span>${item.sessionData?.pcNumber || "Gaming"} | $${item.sessionData?.hourlyRate?.usd?.toFixed(2) || "0.00"}/hr</span>
+                  <span class="item-price">$${cost.usd.toFixed(2)}</span>
+                </div>
+                ${discount ? `<div class="discount">-${discount.value}% (-$${discountAmount.toFixed(2)}) = $${finalAmount.toFixed(2)}</div>` : ""}
+              </div>
+            `;
+          }).join("")}
+
+          ${cartItems.map(item => {
+            const productId = item.productId;
+            const discountId = productId ? itemDiscounts[productId] : undefined;
+            const discount = productId && discountId ? availableDiscounts[productId]?.find(d => d.id === discountId) : undefined;
+            const discountAmount = discount ? item.subtotal.usd * (discount.value / 100) : 0;
+            const finalAmount = item.subtotal.usd - discountAmount;
+            return `
+              <div class="item">
+                <div class="item-name">${item.productName}</div>
+                <div class="item-details">
+                  <span>$${item.unitPrice.usd.toFixed(2)} x ${item.quantity}</span>
+                  <span class="item-price">$${item.subtotal.usd.toFixed(2)}</span>
+                </div>
+                ${discount ? `<div class="discount">-${discount.value}% (-$${discountAmount.toFixed(2)}) = $${finalAmount.toFixed(2)}</div>` : ""}
+              </div>
+            `;
+          }).join("")}
+        </div>
+
+        <div class="totals">
+          <div class="total-row">
+            <span>Subtotal:</span>
+            <span>$${totalsData.subtotalBeforeDiscount.usd.toFixed(2)}</span>
+          </div>
+          ${totalsData.totalSavings.usd > 0 ? `
+            <div class="total-row savings">
+              <span>Total Discounts:</span>
+              <span>-$${totalsData.totalSavings.usd.toFixed(2)}</span>
+            </div>
+          ` : ""}
+          <div class="total-row final">
+            <span>Total (USD):</span>
+            <span>$${totalsData.finalTotal.usd.toFixed(2)}</span>
+          </div>
+          <div class="total-row">
+            <span>Total (LBP):</span>
+            <span>${totalsData.finalTotal.lbp.toLocaleString()} LBP</span>
+          </div>
+          <div class="total-row" style="font-size: 11px; color: #666;">
+            <span>Rate:</span>
+            <span>1 USD = ${currentRate.toLocaleString()} LBP</span>
+          </div>
+        </div>
+
+        <script>window.onload = function() { window.print(); }</script>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(printContent);
+    printWindow.document.close();
   };
 
   const handleLoadPendingSale = async (saleId: string) => {
@@ -351,10 +610,27 @@ const Sales: React.FC = () => {
       // Extract discount selections from loaded sale
       const loadedItemDiscounts: Record<string, string> = {};
       const loadedAvailableDiscounts: Record<string, Discount[]> = {};
+      const loadedSessionItemDiscounts: Record<string, string> = {};
+
+      // Separate session items from product items
+      const loadedSessionItems: SaleItem[] = [];
+      const productItems: typeof sale.items = [];
+
+      for (const item of sale.items) {
+        if (isSessionItem(item)) {
+          // Session items - restore any existing discount
+          loadedSessionItems.push(item);
+          if (item.discount?.discountId) {
+            loadedSessionItemDiscounts[item.productSku] = item.discount.discountId;
+          }
+        } else {
+          productItems.push(item);
+        }
+      }
 
       // Map cart items and restore discount data
       const newCartItems: SaleItem[] = await Promise.all(
-        sale.items.map(async (item) => {
+        productItems.map(async (item) => {
           // Extract productId safely from various possible formats
           let productId = "";
 
@@ -368,7 +644,7 @@ const Sales: React.FC = () => {
           }
 
           // If item has a discount, store it and fetch available discounts
-          if (item.discount?.discountId) {
+          if (item.discount?.discountId && productId) {
             loadedItemDiscounts[productId] = item.discount.discountId;
 
             try {
@@ -399,7 +675,9 @@ const Sales: React.FC = () => {
       );
 
       setCartItems(newCartItems);
+      setSessionItems(loadedSessionItems);
       setItemDiscounts(loadedItemDiscounts);
+      setSessionItemDiscounts(loadedSessionItemDiscounts);
       setAvailableDiscounts(loadedAvailableDiscounts);
 
       // Restore sale-level discount if present
@@ -409,7 +687,17 @@ const Sales: React.FC = () => {
 
       setEditingSaleId(saleId);
       setOpenPendingDialog(false);
-      toast.success("Pending order loaded with discounts");
+
+      if (loadedSessionItems.length > 0) {
+        const activeCount = loadedSessionItems.filter(s => s.isActive).length;
+        if (activeCount > 0) {
+          toast.info(`Loaded order with ${activeCount} active gaming session(s). You can add items - session items are managed separately.`);
+        } else {
+          toast.success("Pending order loaded. Session items are preserved.");
+        }
+      } else {
+        toast.success("Pending order loaded with discounts");
+      }
     } catch (error) {
       toast.error("Failed to load pending order");
       console.error("Load pending sale error:", error);
@@ -484,7 +772,15 @@ const Sales: React.FC = () => {
 
       {editingSaleId && (
         <Alert severity="info" sx={{ mb: 2 }}>
-          Editing pending sale. Make changes and click "Update Sale" to save.
+          {sessionItems.length > 0 ? (
+            <>
+              Editing sale with {sessionItems.length} gaming session(s).
+              {sessionItems.some(s => s.isActive) && " Active sessions continue running."}
+              {" "}Add/remove products freely - session items are preserved automatically.
+            </>
+          ) : (
+            <>Editing pending sale. Make changes and click "Update Sale" to save.</>
+          )}
           <Button size="small" onClick={resetCart} sx={{ ml: 2 }}>
             Cancel Edit
           </Button>
@@ -633,10 +929,22 @@ const Sales: React.FC = () => {
         <Grid size={{ xs: 12, md: 5 }}>
           <Card sx={{ position: "sticky", top: 20 }}>
             <CardContent>
-              <Typography variant="h6" fontWeight={600} gutterBottom>
-                <ShoppingCart sx={{ mr: 1, verticalAlign: "middle" }} />
-                Cart ({cartItems.length} items)
-              </Typography>
+              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
+                <Typography variant="h6" fontWeight={600}>
+                  <ShoppingCart sx={{ mr: 1, verticalAlign: "middle" }} />
+                  Cart ({cartItems.length + sessionItems.length} items)
+                </Typography>
+                {(cartItems.length > 0 || sessionItems.length > 0) && (
+                  <IconButton
+                    size="small"
+                    onClick={handlePrintCart}
+                    title="Print Cart"
+                    color="primary"
+                  >
+                    <Print />
+                  </IconButton>
+                )}
+              </Box>
 
               <Autocomplete
                 options={customers?.data || []}
@@ -655,20 +963,131 @@ const Sales: React.FC = () => {
 
               <Divider sx={{ my: 2 }} />
 
-              {cartItems.length === 0 ? (
+              {cartItems.length === 0 && sessionItems.length === 0 ? (
                 <Alert severity="info">Cart is empty</Alert>
               ) : (
                 <>
                   <Box sx={{ maxHeight: 350, overflow: "auto", mb: 2 }}>
+                    {/* Session Items */}
+                    {sessionItems.map((item) => {
+                      const sessionCost = calculateSessionCost(item);
+                      const pcInfo = item.sessionData?.pcNumber || "Gaming Session";
+                      const sessionDiscountId = sessionItemDiscounts[item.productSku];
+                      const sessionDiscountObj = sessionDiscountId ? sessionDiscounts.find(d => d.id === sessionDiscountId) : null;
+                      const sessionDiscountAmount = sessionDiscountObj ? sessionCost.usd * (sessionDiscountObj.value / 100) : 0;
+                      const finalSessionAmount = sessionCost.usd - sessionDiscountAmount;
+
+                      return (
+                        <Box
+                          key={item.productSku}
+                          sx={{
+                            mb: 2,
+                            p: 1.5,
+                            bgcolor: item.isActive ? "warning.light" : "grey.100",
+                            borderRadius: 1,
+                            border: 2,
+                            borderColor: item.isActive ? "warning.main" : "grey.300",
+                          }}
+                        >
+                          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "start", mb: 1 }}>
+                            <Box sx={{ flex: 1, display: "flex", alignItems: "center", gap: 1 }}>
+                              <Computer sx={{ color: item.isActive ? "warning.dark" : "grey.600" }} />
+                              <Box>
+                                <Typography variant="body2" fontWeight={600}>
+                                  {item.productName}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  {pcInfo} | ${item.sessionData?.hourlyRate?.usd?.toFixed(2) || "0.00"}/hr
+                                </Typography>
+                              </Box>
+                            </Box>
+                            {item.isActive && (
+                              <Chip
+                                icon={<AccessTime sx={{ fontSize: 14 }} />}
+                                label={formatSessionDuration(item.sessionData!.startTime)}
+                                size="small"
+                                color="warning"
+                                sx={{
+                                  animation: "pulse 2s ease-in-out infinite",
+                                  "@keyframes pulse": {
+                                    "0%, 100%": { opacity: 1 },
+                                    "50%": { opacity: 0.7 },
+                                  },
+                                }}
+                              />
+                            )}
+                          </Box>
+
+                          {/* Session Discount Dropdown */}
+                          {sessionDiscounts.length > 0 && (
+                            <TextField
+                              select
+                              size="small"
+                              fullWidth
+                              label="Apply Session Discount"
+                              value={sessionItemDiscounts[item.productSku] || ""}
+                              onChange={(e) => setSessionItemDiscounts(prev => ({
+                                ...prev,
+                                [item.productSku]: e.target.value
+                              }))}
+                              sx={{ mb: 1 }}
+                            >
+                              <MenuItem value="">No Discount</MenuItem>
+                              {sessionDiscounts.map((discount: Discount) => (
+                                <MenuItem key={discount.id} value={discount.id}>
+                                  {discount.name} ({discount.value}% off)
+                                </MenuItem>
+                              ))}
+                            </TextField>
+                          )}
+
+                          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <Box>
+                              <Typography variant="caption" color="text.secondary">
+                                {item.isActive ? "Live cost (updates in real-time)" : "Session ended"}
+                              </Typography>
+                              {sessionDiscountObj && (
+                                <Typography variant="caption" display="block" color="success.main">
+                                  -{sessionDiscountObj.value}% (${sessionDiscountAmount.toFixed(2)})
+                                </Typography>
+                              )}
+                            </Box>
+                            <Box sx={{ textAlign: "right" }}>
+                              {sessionDiscountObj && (
+                                <Typography variant="caption" color="text.secondary" sx={{ textDecoration: "line-through" }}>
+                                  ${sessionCost.usd.toFixed(2)}
+                                </Typography>
+                              )}
+                              <Typography variant="body2" fontWeight={600} color={sessionDiscountObj ? "success.main" : (item.isActive ? "warning.dark" : "text.primary")}>
+                                ${finalSessionAmount.toFixed(2)}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {Math.round(finalSessionAmount * (exchangeRate?.rate || 89500)).toLocaleString()} LBP
+                              </Typography>
+                            </Box>
+                          </Box>
+                          {item.isActive && (
+                            <Alert severity="info" sx={{ mt: 1, py: 0 }}>
+                              <Typography variant="caption">
+                                Session managed from Gaming Stations
+                              </Typography>
+                            </Alert>
+                          )}
+                        </Box>
+                      );
+                    })}
+
+                    {/* Regular Cart Items */}
                     {cartItems.map((item) => {
-                      const itemDiscount = itemDiscounts[item.productId];
-                      const discountObj = availableDiscounts[item.productId]?.find(d => d.id === itemDiscount);
+                      const productId = item.productId;
+                      const itemDiscount = productId ? itemDiscounts[productId] : undefined;
+                      const discountObj = productId ? availableDiscounts[productId]?.find((d: Discount) => d.id === itemDiscount) : undefined;
                       const discountAmount = discountObj ? item.subtotal.usd * (discountObj.value / 100) : 0;
                       const finalAmount = item.subtotal.usd - discountAmount;
 
                       return (
                         <Box
-                          key={item.productId}
+                          key={item.productId || item.productSku}
                           sx={{
                             mb: 2,
                             p: 1.5,
@@ -688,7 +1107,8 @@ const Sales: React.FC = () => {
                             <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                               <IconButton
                                 size="small"
-                                onClick={() => updateQuantity(item.productId, -1)}
+                                onClick={() => productId && updateQuantity(productId, -1)}
+                                disabled={!productId}
                               >
                                 <Remove fontSize="small" />
                               </IconButton>
@@ -697,35 +1117,37 @@ const Sales: React.FC = () => {
                               </Typography>
                               <IconButton
                                 size="small"
-                                onClick={() => updateQuantity(item.productId, 1)}
+                                onClick={() => productId && updateQuantity(productId, 1)}
+                                disabled={!productId}
                               >
                                 <Add fontSize="small" />
                               </IconButton>
                               <IconButton
                                 size="small"
                                 color="error"
-                                onClick={() => removeFromCart(item.productId)}
+                                onClick={() => productId && removeFromCart(productId)}
+                                disabled={!productId}
                               >
                                 <Delete fontSize="small" />
                               </IconButton>
                             </Box>
                           </Box>
 
-                          {availableDiscounts[item.productId]?.length > 0 && (
+                          {productId && availableDiscounts[productId]?.length > 0 && (
                             <TextField
                               select
                               size="small"
                               fullWidth
                               label="Apply Discount"
-                              value={itemDiscounts[item.productId] || ""}
+                              value={itemDiscounts[productId] || ""}
                               onChange={(e) => setItemDiscounts(prev => ({
                                 ...prev,
-                                [item.productId]: e.target.value
+                                [productId]: e.target.value
                               }))}
                               sx={{ mb: 1 }}
                             >
                               <MenuItem value="">No Discount</MenuItem>
-                              {availableDiscounts[item.productId].map(discount => (
+                              {availableDiscounts[productId].map((discount: Discount) => (
                                 <MenuItem key={discount.id} value={discount.id}>
                                   {discount.name} ({discount.value}% off)
                                 </MenuItem>
@@ -944,9 +1366,25 @@ const Sales: React.FC = () => {
                       <Box sx={{ mt: 1 }}>
                         <Typography variant="body2" color="text.secondary">
                           Items: {sale.items?.length || 0} | Total: $
-                          {sale.totals.usd.toFixed(2)}
+                          {(sale.hasActiveSessions ? sale.currentTotals?.usd : sale.totals.usd)?.toFixed(2)}
                         </Typography>
-                        <Typography variant="caption" color="text.secondary">
+                        {sale.hasActiveSessions && (
+                          <Box sx={{ mt: 0.5, mb: 0.5 }}>
+                            <Chip
+                              label={`⏱️ Active Session - ${sale.activeSessions?.[0]?.currentDuration || 0} min`}
+                              size="small"
+                              color="warning"
+                              sx={{
+                                animation: "pulse 2s ease-in-out infinite",
+                                "@keyframes pulse": {
+                                  "0%, 100%": { opacity: 1 },
+                                  "50%": { opacity: 0.7 },
+                                },
+                              }}
+                            />
+                          </Box>
+                        )}
+                        <Typography variant="caption" color="text.secondary" display="block">
                           Created: {new Date(sale.createdAt).toLocaleString()}
                         </Typography>
                       </Box>
