@@ -19,6 +19,8 @@ import {
   Divider,
   InputAdornment,
   Tooltip,
+  FormControlLabel,
+  Switch,
 } from "@mui/material";
 import {
   Computer,
@@ -32,6 +34,8 @@ import {
   AccessTime,
   Info,
   Payment,
+  SportsEsports,
+  History,
 } from "@mui/icons-material";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
@@ -84,6 +88,7 @@ const GamingStations: React.FC = () => {
     selectedCustomer: null as Customer | null,
     customerName: "",
     notes: "",
+    createSale: true,
   });
 
   const [paymentData, setPaymentData] = useState({
@@ -202,11 +207,28 @@ const GamingStations: React.FC = () => {
     onError: (error) => toast.error(handleApiError(error)),
   });
 
+  const standalonePaymentMutation = useMutation({
+    mutationFn: ({ sessionId, data }: { sessionId: string; data: { paymentMethod: PaymentMethod; paymentCurrency: Currency; amount: number } }) =>
+      gamingApi.processPayment(sessionId, data),
+    onSuccess: () => {
+      toast.success("Payment processed successfully!");
+      setPaymentDialog(false);
+      setSelectedSession(null);
+      queryClient.invalidateQueries({ queryKey: ["gaming-pcs"] });
+      queryClient.invalidateQueries({ queryKey: ["active-gaming-sessions"] });
+      queryClient.invalidateQueries({ queryKey: ["gaming-sessions"] });
+      queryClient.invalidateQueries({ queryKey: ["gaming-today-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+    onError: (error) => toast.error(handleApiError(error)),
+  });
+
   const resetStartData = () => {
     setStartData({
       selectedCustomer: null,
       customerName: "",
       notes: "",
+      createSale: true,
     });
     setSelectedPC(null);
   };
@@ -219,6 +241,7 @@ const GamingStations: React.FC = () => {
       customerId: startData.selectedCustomer?.id,
       customerName:
         startData.selectedCustomer?.name || startData.customerName || "Walk-in",
+      createSale: startData.createSale,
       notes: startData.notes,
     });
   };
@@ -238,8 +261,8 @@ const GamingStations: React.FC = () => {
   };
 
   const handleProcessPayment = () => {
-    if (!selectedSession || !selectedSession.sale) {
-      toast.error("No sale associated with this session");
+    if (!selectedSession) {
+      toast.error("No session selected");
       return;
     }
 
@@ -254,10 +277,19 @@ const GamingStations: React.FC = () => {
       return;
     }
 
-    paymentMutation.mutate({
-      saleId: selectedSession.sale.id,
-      data: paymentData,
-    });
+    if (selectedSession.sale) {
+      // Session with linked sale - pay via sales API
+      paymentMutation.mutate({
+        saleId: selectedSession.sale.id,
+        data: paymentData,
+      });
+    } else {
+      // Standalone session - pay via gaming API
+      standalonePaymentMutation.mutate({
+        sessionId: selectedSession.id,
+        data: paymentData,
+      });
+    }
   };
 
   const calculateChange = () => {
@@ -338,7 +370,7 @@ const GamingStations: React.FC = () => {
             Monitor and manage PC gaming sessions
           </Typography>
         </Box>
-        <Box sx={{ display: "flex", gap: 2 }}>
+        <Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
           <Card sx={{ px: 3, py: 1.5 }}>
             <Typography variant="caption" color="text.secondary">
               Active Sessions
@@ -355,6 +387,13 @@ const GamingStations: React.FC = () => {
               ${(todayStats?.totalRevenue.usd || 0).toFixed(2)}
             </Typography>
           </Card>
+          <Button
+            variant="outlined"
+            startIcon={<History />}
+            onClick={() => navigate("/gaming/history")}
+          >
+            History
+          </Button>
         </Box>
       </Box>
 
@@ -433,6 +472,15 @@ const GamingStations: React.FC = () => {
                                 <Typography variant="body2" fontWeight={600}>
                                   {session.customerName}
                                 </Typography>
+                                {!session.sale && (
+                                  <Chip
+                                    label="Standalone"
+                                    size="small"
+                                    color="info"
+                                    variant="outlined"
+                                    sx={{ ml: 0.5, height: 20, fontSize: "0.65rem" }}
+                                  />
+                                )}
                               </Box>
                               <Box
                                 sx={{
@@ -567,14 +615,49 @@ const GamingStations: React.FC = () => {
                 </Typography>
               </Alert>
 
-              <Alert severity="success" icon={<Receipt />} sx={{ mb: 3 }}>
-                <Typography variant="caption" fontWeight={600}>
-                  A sale invoice will be created when you start this session.
-                </Typography>
-                <Typography variant="caption" display="block">
-                  You can add items to the sale during gameplay and pay everything together.
-                </Typography>
-              </Alert>
+              <Box sx={{ mb: 3 }}>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={startData.createSale}
+                      onChange={(e) =>
+                        setStartData({ ...startData, createSale: e.target.checked })
+                      }
+                      color="primary"
+                    />
+                  }
+                  label={
+                    <Box>
+                      <Typography variant="body2" fontWeight={600}>
+                        Create Order
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Create a sale invoice for this session
+                      </Typography>
+                    </Box>
+                  }
+                />
+              </Box>
+
+              {startData.createSale ? (
+                <Alert severity="success" icon={<Receipt />} sx={{ mb: 3 }}>
+                  <Typography variant="caption" fontWeight={600}>
+                    A sale invoice will be created when you start this session.
+                  </Typography>
+                  <Typography variant="caption" display="block">
+                    You can add items to the sale during gameplay and pay everything together.
+                  </Typography>
+                </Alert>
+              ) : (
+                <Alert severity="info" icon={<SportsEsports />} sx={{ mb: 3 }}>
+                  <Typography variant="caption" fontWeight={600}>
+                    Standalone gaming session (no order).
+                  </Typography>
+                  <Typography variant="caption" display="block">
+                    Payment will be processed directly when the session ends.
+                  </Typography>
+                </Alert>
+              )}
 
               <Grid container spacing={2}>
                 <Grid size={12}>
@@ -878,9 +961,9 @@ const GamingStations: React.FC = () => {
           <Button
             variant="contained"
             onClick={handleProcessPayment}
-            disabled={paymentMutation.isPending}
+            disabled={paymentMutation.isPending || standalonePaymentMutation.isPending}
           >
-            {paymentMutation.isPending ? "Processing..." : "Process Payment"}
+            {paymentMutation.isPending || standalonePaymentMutation.isPending ? "Processing..." : "Process Payment"}
           </Button>
         </DialogActions>
       </Dialog>
@@ -903,10 +986,24 @@ const GamingStations: React.FC = () => {
               <Alert severity="success" sx={{ mb: 3 }}>
                 <Typography variant="body2" fontWeight={600}>
                   Session: {selectedSession.sessionNumber}
+                  {!selectedSession.sale && (
+                    <Chip
+                      label="Standalone"
+                      size="small"
+                      color="info"
+                      sx={{ ml: 1, height: 18, fontSize: "0.65rem" }}
+                    />
+                  )}
                 </Typography>
-                <Typography variant="body2">
-                  Invoice: {selectedSession.sale?.invoiceNumber}
-                </Typography>
+                {selectedSession.sale ? (
+                  <Typography variant="body2">
+                    Invoice: {selectedSession.sale.invoiceNumber}
+                  </Typography>
+                ) : (
+                  <Typography variant="body2" color="text.secondary">
+                    No order linked
+                  </Typography>
+                )}
                 <Typography variant="body2">
                   Duration: {formatDuration(selectedSession.duration!)}
                 </Typography>
@@ -940,25 +1037,24 @@ const GamingStations: React.FC = () => {
                     Pay Now
                   </Button>
                 </Grid>
-                <Grid size={12}>
-                  <Button
-                    fullWidth
-                    variant="outlined"
-                    color="primary"
-                    size="large"
-                    startIcon={<ShoppingCart />}
-                    onClick={() => {
-                      setPostSessionDialog(false);
-                      if (selectedSession?.sale) {
-                        // Navigate to sales page with the sale ID to load it
-                        navigate(`/sales?loadSale=${selectedSession.sale.id}`);
-                        toast.info(`Opening sale ${selectedSession.sale.invoiceNumber}. Add items and complete payment.`);
-                      }
-                    }}
-                  >
-                    Add Items to Sale
-                  </Button>
-                </Grid>
+                {selectedSession.sale && (
+                  <Grid size={12}>
+                    <Button
+                      fullWidth
+                      variant="outlined"
+                      color="primary"
+                      size="large"
+                      startIcon={<ShoppingCart />}
+                      onClick={() => {
+                        setPostSessionDialog(false);
+                        navigate(`/sales?loadSale=${selectedSession.sale!.id}`);
+                        toast.info(`Opening sale ${selectedSession.sale!.invoiceNumber}. Add items and complete payment.`);
+                      }}
+                    >
+                      Add Items to Sale
+                    </Button>
+                  </Grid>
+                )}
                 <Grid size={12}>
                   <Button
                     fullWidth
@@ -968,7 +1064,11 @@ const GamingStations: React.FC = () => {
                     onClick={() => {
                       setPostSessionDialog(false);
                       setSelectedSession(null);
-                      toast.info("Sale saved as pending. You can process payment later.");
+                      toast.info(
+                        selectedSession.sale
+                          ? "Sale saved as pending. You can process payment later."
+                          : "Session saved as unpaid. You can process payment from Gaming History."
+                      );
                     }}
                   >
                     Pay Later
@@ -978,8 +1078,9 @@ const GamingStations: React.FC = () => {
 
               <Alert severity="info" icon={<Info />} sx={{ mt: 3 }}>
                 <Typography variant="caption">
-                  This session is now linked to sale {selectedSession.sale?.invoiceNumber}.
-                  You can add items to the sale before payment or pay it later from the Sales page.
+                  {selectedSession.sale
+                    ? `This session is linked to sale ${selectedSession.sale.invoiceNumber}. You can add items to the sale before payment or pay it later from the Sales page.`
+                    : "This is a standalone session. You can process payment now or later from Gaming History."}
                 </Typography>
               </Alert>
             </Box>

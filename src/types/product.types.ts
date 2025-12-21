@@ -1,8 +1,11 @@
+export type ProductType = "physical" | "service";
+
 export interface Product {
   id: string;
   name: string;
   description?: string;
-  sku: string;
+  sku?: string;
+  productType?: ProductType;
   category: {
     id: string;
     name: string;
@@ -11,7 +14,7 @@ export interface Product {
     usd: number;
     lbp: number;
   };
-  inventory: {
+  inventory?: {
     quantity: number;
     minStockLevel: number;
     isLowStock: boolean;
@@ -30,13 +33,14 @@ export interface ProductInventoryInput {
 export interface CreateProductRequest {
   name: string;
   description?: string;
-  sku: string;
+  sku?: string;
+  productType?: ProductType;
   category: string;
-  pricing: {
+  pricing?: {
     usd: number;
     lbp: number;
   };
-  inventory: ProductInventoryInput;
+  inventory?: ProductInventoryInput;
   image?: string;
   displayOnMenu?: boolean;
 }

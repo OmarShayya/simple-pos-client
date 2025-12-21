@@ -11,7 +11,7 @@ import {
   Chip,
   IconButton,
 } from "@mui/material";
-import { DateRange, Print } from "@mui/icons-material";
+import { DateRange, Print, ShoppingCart, SportsEsports } from "@mui/icons-material";
 import { useQuery } from "@tanstack/react-query";
 import { reportApi } from "@/api/report.api";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
@@ -75,6 +75,18 @@ const MonthlyReportCard: React.FC<Props> = ({
         <div class="row">
           <span class="label">In LBP:</span>
           <span>${report.revenue.total.lbp.toLocaleString()} LBP</span>
+        </div>
+
+        <h3>Revenue Breakdown</h3>
+        <div class="section">
+          <div class="row">
+            <span style="color: #2e7d32;">Products Revenue:</span>
+            <span>$${report.revenue.products.usd.toFixed(2)} (${report.revenue.products.lbp.toLocaleString()} LBP)</span>
+          </div>
+          <div class="row">
+            <span style="color: #7b1fa2;">Gaming Revenue:</span>
+            <span>$${report.revenue.gaming.usd.toFixed(2)} (${report.revenue.gaming.lbp.toLocaleString()} LBP)</span>
+          </div>
         </div>
 
         <h3>Payment Breakdown</h3>
@@ -181,6 +193,60 @@ const MonthlyReportCard: React.FC<Props> = ({
                 {report.revenue.total.lbp.toLocaleString()} LBP
               </Typography>
             </Box>
+
+            <Divider sx={{ my: 2 }} />
+
+            {/* Revenue Breakdown: Products vs Gaming */}
+            <Grid container spacing={1} sx={{ mb: 2 }}>
+              <Grid size={{ xs: 6 }}>
+                <Box
+                  sx={{
+                    p: 1.5,
+                    borderRadius: 1,
+                    bgcolor: "success.50",
+                    border: "1px solid",
+                    borderColor: "success.200",
+                  }}
+                >
+                  <Box sx={{ display: "flex", alignItems: "center", mb: 0.5 }}>
+                    <ShoppingCart sx={{ fontSize: 16, color: "success.main", mr: 0.5 }} />
+                    <Typography variant="caption" color="success.main" fontWeight={600}>
+                      Products
+                    </Typography>
+                  </Box>
+                  <Typography variant="body1" fontWeight="bold" color="success.main">
+                    ${report.revenue.products.usd.toFixed(2)}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {report.revenue.products.lbp.toLocaleString()} LBP
+                  </Typography>
+                </Box>
+              </Grid>
+              <Grid size={{ xs: 6 }}>
+                <Box
+                  sx={{
+                    p: 1.5,
+                    borderRadius: 1,
+                    bgcolor: "secondary.50",
+                    border: "1px solid",
+                    borderColor: "secondary.200",
+                  }}
+                >
+                  <Box sx={{ display: "flex", alignItems: "center", mb: 0.5 }}>
+                    <SportsEsports sx={{ fontSize: 16, color: "secondary.main", mr: 0.5 }} />
+                    <Typography variant="caption" color="secondary.main" fontWeight={600}>
+                      Gaming
+                    </Typography>
+                  </Box>
+                  <Typography variant="body1" fontWeight="bold" color="secondary.main">
+                    ${report.revenue.gaming.usd.toFixed(2)}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {report.revenue.gaming.lbp.toLocaleString()} LBP
+                  </Typography>
+                </Box>
+              </Grid>
+            </Grid>
 
             <Divider sx={{ my: 2 }} />
 

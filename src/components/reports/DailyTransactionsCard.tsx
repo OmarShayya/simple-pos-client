@@ -9,14 +9,17 @@ import {
   Grid,
   ToggleButtonGroup,
   ToggleButton,
+  IconButton,
+  Tooltip,
 } from "@mui/material";
-import { Receipt, CalendarToday } from "@mui/icons-material";
+import { Receipt, CalendarToday, Print } from "@mui/icons-material";
 import { DataGrid, GridColDef } from "@mui/x-data-grid";
 import { useQuery } from "@tanstack/react-query";
 import { reportApi } from "@/api/report.api";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
 import { format, subDays } from "date-fns";
 import { SaleStatus } from "@/types/sale.types";
+import { DailyTransaction } from "@/types/report.types";
 
 const DailyTransactionsCard: React.FC = () => {
   const [filterType, setFilterType] = useState<"daily" | "range">("daily");
@@ -47,6 +50,202 @@ const DailyTransactionsCard: React.FC = () => {
         paginationModel.pageSize
       ),
   });
+
+  const formatDuration = (minutes: number): string => {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    if (hours > 0) {
+      return `${hours}h ${mins}m`;
+    }
+    return `${mins}m`;
+  };
+
+  const handlePrintReceipt = (transaction: DailyTransaction) => {
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) return;
+
+    const formattedDate = new Date(transaction.createdAt).toLocaleString("en-US", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+    const itemsHtml = transaction.items?.map((item) => `
+      <div class="item">
+        <div class="item-header">
+          <span class="item-name">${item.productName}${item.isGamingSession ? " (Gaming)" : ""}</span>
+          <span class="item-qty">x${item.quantity}</span>
+        </div>
+        ${item.isGamingSession && item.gamingSessionDetails ? `
+          <div class="gaming-details">
+            <span>PC: ${item.gamingSessionDetails.pcName} (#${item.gamingSessionDetails.pcNumber})</span>
+            <span>Duration: ${formatDuration(item.gamingSessionDetails.duration)}</span>
+            <span>Time: ${new Date(item.gamingSessionDetails.startTime).toLocaleTimeString()} - ${new Date(item.gamingSessionDetails.endTime).toLocaleTimeString()}</span>
+          </div>
+        ` : ""}
+        <div class="item-row">
+          <span class="label">Unit Price:</span>
+          <span>$${item.unitPrice.usd.toFixed(2)}</span>
+        </div>
+        <div class="item-row">
+          <span class="label">Subtotal:</span>
+          <span>$${item.subtotal.usd.toFixed(2)}</span>
+        </div>
+        ${item.discount.usd > 0 ? `
+          <div class="item-row discount">
+            <span class="label">Discount:</span>
+            <span>-$${item.discount.usd.toFixed(2)}</span>
+          </div>
+        ` : ""}
+        <div class="item-row item-total">
+          <span class="label">Item Total:</span>
+          <span>$${item.finalAmount.usd.toFixed(2)}</span>
+        </div>
+      </div>
+    `).join("") || "<p>No items</p>";
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Receipt - ${transaction.invoiceNumber}</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 20px; max-width: 400px; margin: 0 auto; font-size: 12px; }
+          .header { text-align: center; margin-bottom: 15px; border-bottom: 2px solid #000; padding-bottom: 10px; }
+          .header h1 { margin: 0; font-size: 18px; }
+          .header p { margin: 3px 0; color: #666; font-size: 11px; }
+          .invoice-info { margin: 10px 0; padding: 8px; background: #f5f5f5; border-radius: 4px; }
+          .invoice-info .row { display: flex; justify-content: space-between; margin: 4px 0; }
+          .section-title { font-weight: bold; margin: 15px 0 8px; padding-bottom: 5px; border-bottom: 1px solid #ccc; }
+          .item { margin: 10px 0; padding: 8px; background: #fafafa; border-radius: 4px; border-left: 3px solid #1976d2; }
+          .item-header { display: flex; justify-content: space-between; font-weight: bold; margin-bottom: 5px; }
+          .item-name { color: #1976d2; }
+          .item-qty { color: #666; }
+          .item-row { display: flex; justify-content: space-between; margin: 3px 0; font-size: 11px; }
+          .item-row .label { color: #666; }
+          .item-row.discount { color: #d32f2f; }
+          .item-row.item-total { font-weight: bold; border-top: 1px dashed #ccc; padding-top: 5px; margin-top: 5px; }
+          .gaming-details { background: #e3f2fd; padding: 5px; margin: 5px 0; border-radius: 3px; font-size: 10px; }
+          .gaming-details span { display: block; color: #1565c0; }
+          .summary { margin: 15px 0; padding: 10px; background: #f5f5f5; border-radius: 4px; }
+          .summary .row { display: flex; justify-content: space-between; margin: 5px 0; }
+          .summary .row.products { color: #2e7d32; }
+          .summary .row.gaming { color: #7b1fa2; }
+          .totals { margin: 15px 0; padding: 10px; border: 2px solid #000; border-radius: 4px; }
+          .totals .row { display: flex; justify-content: space-between; margin: 5px 0; }
+          .totals .row.discount { color: #d32f2f; }
+          .totals .row.grand-total { font-weight: bold; font-size: 16px; border-top: 2px solid #000; padding-top: 8px; margin-top: 8px; }
+          .payment-info { margin: 15px 0; padding: 10px; background: #e8f5e9; border-radius: 4px; }
+          .payment-info .row { display: flex; justify-content: space-between; margin: 5px 0; }
+          .notes { margin: 15px 0; padding: 10px; background: #fff3e0; border-radius: 4px; font-style: italic; }
+          .footer { text-align: center; margin-top: 20px; padding-top: 10px; border-top: 1px solid #ccc; font-size: 10px; color: #666; }
+          @media print { body { padding: 0; } }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>Epic Lounge</h1>
+          <p>Receipt</p>
+          <p>${formattedDate}</p>
+        </div>
+
+        <div class="invoice-info">
+          <div class="row">
+            <span>Invoice #:</span>
+            <strong>${transaction.invoiceNumber}</strong>
+          </div>
+          <div class="row">
+            <span>Customer:</span>
+            <span>${transaction.customer?.name || "Walk-in"}</span>
+          </div>
+          ${transaction.customer?.phone ? `
+            <div class="row">
+              <span>Phone:</span>
+              <span>${transaction.customer.phone}</span>
+            </div>
+          ` : ""}
+          <div class="row">
+            <span>Cashier:</span>
+            <span>${transaction.cashier}</span>
+          </div>
+          <div class="row">
+            <span>Status:</span>
+            <span>${transaction.status.toUpperCase()}</span>
+          </div>
+        </div>
+
+        <div class="section-title">Items (${transaction.itemsSummary?.totalItems || transaction.items?.length || 0})</div>
+        ${itemsHtml}
+
+        ${transaction.itemsSummary ? `
+          <div class="summary">
+            <div class="row products">
+              <span>Products (${transaction.itemsSummary.productCount}):</span>
+              <span>$${transaction.itemsSummary.productTotal.usd.toFixed(2)}</span>
+            </div>
+            <div class="row gaming">
+              <span>Gaming (${transaction.itemsSummary.gamingCount}):</span>
+              <span>$${transaction.itemsSummary.gamingTotal.usd.toFixed(2)}</span>
+            </div>
+          </div>
+        ` : ""}
+
+        <div class="totals">
+          <div class="row">
+            <span>Subtotal:</span>
+            <span>$${transaction.subtotalBeforeDiscount.usd.toFixed(2)}</span>
+          </div>
+          ${transaction.discounts.totalDiscounts.usd > 0 ? `
+            <div class="row discount">
+              <span>Total Discounts:</span>
+              <span>-$${transaction.discounts.totalDiscounts.usd.toFixed(2)}</span>
+            </div>
+          ` : ""}
+          <div class="row grand-total">
+            <span>TOTAL:</span>
+            <span>$${transaction.totals.usd.toFixed(2)}</span>
+          </div>
+          <div class="row" style="font-size: 11px; color: #666;">
+            <span></span>
+            <span>${transaction.totals.lbp.toLocaleString()} LBP</span>
+          </div>
+        </div>
+
+        <div class="payment-info">
+          <div class="row">
+            <span>Payment Method:</span>
+            <strong>${transaction.paymentMethod}</strong>
+          </div>
+          <div class="row">
+            <span>Paid In:</span>
+            <strong>${transaction.paymentCurrency}</strong>
+          </div>
+          <div class="row">
+            <span>Amount Paid:</span>
+            <strong>${transaction.paymentCurrency === "USD" ? `$${transaction.amountPaid.usd.toFixed(2)}` : `${transaction.amountPaid.lbp.toLocaleString()} LBP`}</strong>
+          </div>
+        </div>
+
+        ${transaction.notes ? `
+          <div class="notes">
+            <strong>Notes:</strong> ${transaction.notes}
+          </div>
+        ` : ""}
+
+        <div class="footer">
+          <p>Thank you for your visit!</p>
+          <p>Generated: ${new Date().toLocaleString()}</p>
+        </div>
+
+        <script>window.onload = function() { window.print(); }</script>
+      </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
 
   const columns: GridColDef[] = [
     {
@@ -127,6 +326,23 @@ const DailyTransactionsCard: React.FC = () => {
           hour: "2-digit",
           minute: "2-digit",
         }),
+    },
+    {
+      field: "actions",
+      headerName: "",
+      width: 60,
+      sortable: false,
+      renderCell: (params) => (
+        <Tooltip title="Print Receipt">
+          <IconButton
+            size="small"
+            onClick={() => handlePrintReceipt(params.row as DailyTransaction)}
+            color="primary"
+          >
+            <Print fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      ),
     },
   ];
 

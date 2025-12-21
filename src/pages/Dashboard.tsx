@@ -217,10 +217,10 @@ const Dashboard: React.FC = () => {
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <StatCard
             title="Total Revenue Today (USD)"
-            value={`$${totalRevenue.toFixed(2)}`}
+            value={`$${totalRevenue?.toFixed(2)}`}
             subtitle={`Sales: $${
-              todayStats?.revenue.usd.toFixed(2) || 0
-            } | Gaming: $${todayStats?.gamingRevenue?.usd.toFixed(2) || 0}`}
+              todayStats?.revenue.usd?.toFixed(2) || 0
+            } | Gaming: $${todayStats?.gamingRevenue?.usd?.toFixed(2) || 0}`}
             icon={<AttachMoney sx={{ color: "success.main" }} />}
             color="success"
           />
@@ -270,7 +270,7 @@ const Dashboard: React.FC = () => {
                 </Typography>
               </Box>
               <Typography variant="h5" fontWeight="bold" color="primary.dark">
-                ${todayStats?.gamingRevenue?.usd.toFixed(2) || "0.00"}
+                ${todayStats?.gamingRevenue?.usd?.toFixed(2) || "0.00"}
               </Typography>
               <Typography variant="caption" color="primary.dark">
                 {todayStats?.gamingSessions || 0} sessions today
@@ -331,12 +331,12 @@ const Dashboard: React.FC = () => {
                 {(
                   (todayStats?.revenue.lbp || 0) +
                   (todayStats?.gamingRevenue?.lbp || 0)
-                ).toLocaleString()}{" "}
+                )?.toLocaleString()}{" "}
                 LBP
               </Typography>
               <Typography variant="caption" color="text.secondary">
-                Sales: {todayStats?.revenue.lbp.toLocaleString()} | Gaming:{" "}
-                {todayStats?.gamingRevenue?.lbp.toLocaleString()}
+                Sales: {todayStats?.revenue.lbp?.toLocaleString()} | Gaming:{" "}
+                {todayStats?.gamingRevenue?.lbp?.toLocaleString()}
               </Typography>
             </CardContent>
           </Card>
@@ -367,8 +367,8 @@ const Dashboard: React.FC = () => {
               </Typography>
             </Box>
             <Typography variant="body2" color="text.secondary" gutterBottom>
-              Total Value: ${pendingSales.totalValue.usd.toFixed(2)} USD /{" "}
-              {pendingSales.totalValue.lbp.toLocaleString()} LBP
+              Total Value: ${pendingSales.totalValue.usd?.toFixed(2)} USD /{" "}
+              {pendingSales.totalValue.lbp?.toLocaleString()} LBP
             </Typography>
             <Table size="small" sx={{ mt: 2 }}>
               <TableHead>
@@ -385,7 +385,7 @@ const Dashboard: React.FC = () => {
                     <TableCell>{sale.invoiceNumber}</TableCell>
                     <TableCell>{sale.customer || "Walk-in"}</TableCell>
                     <TableCell align="right">
-                      ${sale.total.usd.toFixed(2)}
+                      ${sale.total.usd?.toFixed(2)}
                     </TableCell>
                     <TableCell align="right">
                       {new Date(sale.createdAt).toLocaleDateString()}
@@ -447,7 +447,7 @@ const Dashboard: React.FC = () => {
                       {product.totalQuantitySold} sold
                     </Typography>
                     <Typography variant="caption" color="success.main">
-                      ${product.totalRevenue.usd.toFixed(2)}
+                      ${product.totalRevenue.usd?.toFixed(2)}
                     </Typography>
                   </Box>
                 </Box>
@@ -552,10 +552,10 @@ const Dashboard: React.FC = () => {
                         : "success.main"
                     }
                   >
-                    ${customerLookupData.balance.usd.toFixed(2)}
+                    ${customerLookupData.balance.usd?.toFixed(2)}
                   </Typography>
                   <Typography variant="caption" color="text.secondary">
-                    {customerLookupData.balance.lbp.toLocaleString()} LBP
+                    {customerLookupData.balance.lbp?.toLocaleString()} LBP
                   </Typography>
                   <Typography
                     variant="body2"
@@ -563,7 +563,7 @@ const Dashboard: React.FC = () => {
                     sx={{ mt: 2 }}
                   >
                     Total Purchases: $
-                    {customerLookupData.totalPurchases.toFixed(2)}
+                    {customerLookupData.totalPurchases?.toFixed(2)}
                   </Typography>
                 </Box>
               </CardContent>

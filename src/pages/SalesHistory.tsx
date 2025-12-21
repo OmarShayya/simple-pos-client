@@ -213,14 +213,34 @@ const SalesHistory: React.FC = () => {
   };
 
   useEffect(() => {
-    if (paymentForId && salesData?.data) {
-      const sale = salesData.data.find((s) => s.id === paymentForId);
-      if (sale && sale.status === SaleStatus.PENDING) {
-        handleOpenPayDialog(sale);
-        setSearchParams({}); // Clear the URL parameter
+    const fetchAndOpenPayment = async () => {
+      if (!paymentForId) return;
+
+      try {
+        // Fetch the sale directly by ID to avoid date filter issues
+        const sale = await salesApi.getById(paymentForId);
+
+        if (sale && sale.status === SaleStatus.PENDING) {
+          // Update the date filter to show this sale's date
+          const saleDate = format(new Date(sale.createdAt), "yyyy-MM-dd");
+          setDateFilterType("daily");
+          setSelectedDate(saleDate);
+
+          // Open the payment dialog
+          handleOpenPayDialog(sale);
+        }
+
+        // Clear the URL parameter
+        setSearchParams({});
+      } catch (error) {
+        console.error("Failed to fetch sale for payment:", error);
+        toast.error("Failed to load sale for payment");
+        setSearchParams({});
       }
-    }
-  }, [paymentForId, salesData]);
+    };
+
+    fetchAndOpenPayment();
+  }, [paymentForId]);
 
   const generateReceiptHTML = (sale: Sale): string => {
     const items = sale.items || [];

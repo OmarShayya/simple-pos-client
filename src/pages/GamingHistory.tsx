@@ -10,16 +10,30 @@ import {
   Grid,
   ToggleButtonGroup,
   ToggleButton,
+  IconButton,
+  Tooltip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  Alert,
 } from "@mui/material";
-import { Search, CalendarToday } from "@mui/icons-material";
+import { Search, CalendarToday, Payment, SportsEsports } from "@mui/icons-material";
 import { DataGrid, GridColDef } from "@mui/x-data-grid";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { gamingApi } from "@/api/gaming.api";
-import { SessionStatus, SessionPaymentStatus } from "@/types/gaming.types";
+import { exchangeRateApi } from "@/api/exchangeRate.api";
+import { salesApi } from "@/api/sales.api";
+import { GamingSession, SessionStatus, SessionPaymentStatus } from "@/types/gaming.types";
+import { PaymentMethod, Currency } from "@/types/sale.types";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
 import { format } from "date-fns";
+import { toast } from "react-toastify";
+import { handleApiError } from "@/utils/errorHandler";
 
 const GamingHistory: React.FC = () => {
+  const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<SessionStatus | "">("");
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<
@@ -39,6 +53,92 @@ const GamingHistory: React.FC = () => {
     page: 0,
     pageSize: 10,
   });
+
+  // Payment dialog state
+  const [paymentDialog, setPaymentDialog] = useState(false);
+  const [selectedSession, setSelectedSession] = useState<GamingSession | null>(null);
+  const [paymentData, setPaymentData] = useState({
+    paymentMethod: PaymentMethod.CASH,
+    paymentCurrency: Currency.USD,
+    amount: 0,
+  });
+
+  // Exchange rate query
+  const { data: exchangeRate } = useQuery({
+    queryKey: ["exchange-rate"],
+    queryFn: exchangeRateApi.getCurrentRate,
+  });
+
+  // Payment mutation for sessions with linked sale
+  const paymentMutation = useMutation({
+    mutationFn: ({ saleId, data }: { saleId: string; data: typeof paymentData }) =>
+      salesApi.pay(saleId, data),
+    onSuccess: () => {
+      toast.success("Payment processed successfully!");
+      setPaymentDialog(false);
+      setSelectedSession(null);
+      queryClient.invalidateQueries({ queryKey: ["gaming-sessions"] });
+    },
+    onError: (error) => toast.error(handleApiError(error)),
+  });
+
+  // Payment mutation for standalone sessions
+  const standalonePaymentMutation = useMutation({
+    mutationFn: ({ sessionId, data }: { sessionId: string; data: { paymentMethod: PaymentMethod; paymentCurrency: Currency; amount: number } }) =>
+      gamingApi.processPayment(sessionId, data),
+    onSuccess: () => {
+      toast.success("Payment processed successfully!");
+      setPaymentDialog(false);
+      setSelectedSession(null);
+      queryClient.invalidateQueries({ queryKey: ["gaming-sessions"] });
+    },
+    onError: (error) => toast.error(handleApiError(error)),
+  });
+
+  const handleOpenPayment = (session: GamingSession) => {
+    setSelectedSession(session);
+    const amount = session.finalAmount || session.totalCost;
+    setPaymentData({
+      paymentMethod: PaymentMethod.CASH,
+      paymentCurrency: Currency.USD,
+      amount: amount?.usd || 0,
+    });
+    setPaymentDialog(true);
+  };
+
+  const handleProcessPayment = () => {
+    if (!selectedSession) return;
+
+    const amountDue = selectedSession.finalAmount || selectedSession.totalCost;
+    const totalDue =
+      paymentData.paymentCurrency === Currency.USD
+        ? amountDue?.usd || 0
+        : amountDue?.lbp || 0;
+
+    if (paymentData.amount < totalDue) {
+      toast.error("Payment amount is less than total due");
+      return;
+    }
+
+    if (selectedSession.sale) {
+      paymentMutation.mutate({
+        saleId: selectedSession.sale.id,
+        data: paymentData,
+      });
+    } else {
+      standalonePaymentMutation.mutate({
+        sessionId: selectedSession.id,
+        data: paymentData,
+      });
+    }
+  };
+
+  const formatDuration = (minutes?: number) => {
+    if (!minutes) return "-";
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return `${hours}h ${mins}m`;
+  };
 
   const getDateFilters = () => {
     if (dateFilterType === "daily") {
@@ -69,13 +169,6 @@ const GamingHistory: React.FC = () => {
         ...getDateFilters(),
       }),
   });
-
-  const formatDuration = (minutes?: number) => {
-    if (!minutes) return "-";
-    const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
-    return `${hours}h ${mins}m`;
-  };
 
   const columns: GridColDef[] = [
     {
@@ -177,6 +270,32 @@ const GamingHistory: React.FC = () => {
           hour: "2-digit",
           minute: "2-digit",
         }),
+    },
+    {
+      field: "actions",
+      headerName: "",
+      width: 80,
+      sortable: false,
+      renderCell: (params) => {
+        const session = params.row as GamingSession;
+        const canPay =
+          session.status === SessionStatus.COMPLETED &&
+          session.paymentStatus === SessionPaymentStatus.UNPAID;
+
+        if (!canPay) return null;
+
+        return (
+          <Tooltip title="Process Payment">
+            <IconButton
+              size="small"
+              color="success"
+              onClick={() => handleOpenPayment(session)}
+            >
+              <Payment fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        );
+      },
     },
   ];
 
@@ -313,6 +432,202 @@ const GamingHistory: React.FC = () => {
           disableRowSelectionOnClick
         />
       </Card>
+
+      {/* Payment Dialog */}
+      <Dialog
+        open={paymentDialog}
+        onClose={() => setPaymentDialog(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <Payment color="success" />
+            <Typography variant="h6">Process Payment</Typography>
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          {selectedSession && (
+            <Box sx={{ mt: 2 }}>
+              <Alert severity="info" icon={<SportsEsports />} sx={{ mb: 3 }}>
+                <Typography variant="body2" fontWeight={600}>
+                  Session: {selectedSession.sessionNumber}
+                  {!selectedSession.sale && (
+                    <Chip
+                      label="Standalone"
+                      size="small"
+                      color="info"
+                      sx={{ ml: 1, height: 18, fontSize: "0.65rem" }}
+                    />
+                  )}
+                </Typography>
+                <Typography variant="body2">
+                  PC: {selectedSession.pc.name} ({selectedSession.pc.pcNumber})
+                </Typography>
+                <Typography variant="body2">
+                  Duration: {formatDuration(selectedSession.duration)}
+                </Typography>
+                {selectedSession.discount && (
+                  <Typography variant="body2" color="success.main">
+                    Discount: {selectedSession.discount.percentage}% off
+                  </Typography>
+                )}
+              </Alert>
+
+              <Box
+                sx={{
+                  p: 2,
+                  bgcolor: "success.50",
+                  borderRadius: 1,
+                  border: "1px solid",
+                  borderColor: "success.200",
+                  mb: 3,
+                }}
+              >
+                <Typography variant="body2" color="text.secondary">
+                  Amount Due
+                </Typography>
+                <Typography variant="h4" fontWeight="bold" color="success.main">
+                  $
+                  {(
+                    selectedSession.finalAmount || selectedSession.totalCost
+                  )?.usd.toFixed(2)}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {(
+                    selectedSession.finalAmount || selectedSession.totalCost
+                  )?.lbp.toLocaleString()}{" "}
+                  LBP
+                </Typography>
+              </Box>
+
+              <Grid container spacing={2}>
+                <Grid size={6}>
+                  <TextField
+                    fullWidth
+                    select
+                    label="Payment Method"
+                    value={paymentData.paymentMethod}
+                    onChange={(e) =>
+                      setPaymentData({
+                        ...paymentData,
+                        paymentMethod: e.target.value as PaymentMethod,
+                      })
+                    }
+                  >
+                    <MenuItem value={PaymentMethod.CASH}>Cash</MenuItem>
+                    <MenuItem value={PaymentMethod.CARD}>Card</MenuItem>
+                  </TextField>
+                </Grid>
+                <Grid size={6}>
+                  <TextField
+                    fullWidth
+                    select
+                    label="Currency"
+                    value={paymentData.paymentCurrency}
+                    onChange={(e) => {
+                      const currency = e.target.value as Currency;
+                      const amount =
+                        selectedSession.finalAmount || selectedSession.totalCost;
+                      setPaymentData({
+                        ...paymentData,
+                        paymentCurrency: currency,
+                        amount:
+                          currency === Currency.USD
+                            ? amount?.usd || 0
+                            : amount?.lbp || 0,
+                      });
+                    }}
+                  >
+                    <MenuItem value={Currency.USD}>USD</MenuItem>
+                    <MenuItem value={Currency.LBP}>LBP</MenuItem>
+                  </TextField>
+                </Grid>
+                <Grid size={12}>
+                  <TextField
+                    fullWidth
+                    type="number"
+                    label="Amount Received"
+                    value={paymentData.amount}
+                    onChange={(e) =>
+                      setPaymentData({
+                        ...paymentData,
+                        amount: Number(e.target.value),
+                      })
+                    }
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          {paymentData.paymentCurrency === Currency.USD
+                            ? "$"
+                            : "LBP"}
+                        </InputAdornment>
+                      ),
+                    }}
+                  />
+                </Grid>
+              </Grid>
+
+              {paymentData.amount > 0 && (
+                <Box sx={{ mt: 2, p: 1.5, bgcolor: "grey.100", borderRadius: 1 }}>
+                  <Typography variant="body2" color="text.secondary">
+                    Change Due
+                  </Typography>
+                  <Typography variant="h6" fontWeight="bold">
+                    {paymentData.paymentCurrency === Currency.USD ? (
+                      <>
+                        $
+                        {Math.max(
+                          0,
+                          paymentData.amount -
+                            ((selectedSession.finalAmount ||
+                              selectedSession.totalCost)?.usd || 0)
+                        ).toFixed(2)}
+                      </>
+                    ) : (
+                      <>
+                        {Math.max(
+                          0,
+                          paymentData.amount -
+                            ((selectedSession.finalAmount ||
+                              selectedSession.totalCost)?.lbp || 0)
+                        ).toLocaleString()}{" "}
+                        LBP
+                      </>
+                    )}
+                  </Typography>
+                  {exchangeRate && paymentData.paymentCurrency === Currency.USD && (
+                    <Typography variant="caption" color="text.secondary">
+                      ~
+                      {Math.max(
+                        0,
+                        (paymentData.amount -
+                          ((selectedSession.finalAmount ||
+                            selectedSession.totalCost)?.usd || 0)) *
+                          exchangeRate.rate
+                      ).toLocaleString()}{" "}
+                      LBP
+                    </Typography>
+                  )}
+                </Box>
+              )}
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPaymentDialog(false)}>Cancel</Button>
+          <Button
+            variant="contained"
+            color="success"
+            onClick={handleProcessPayment}
+            disabled={paymentMutation.isPending || standalonePaymentMutation.isPending}
+          >
+            {paymentMutation.isPending || standalonePaymentMutation.isPending
+              ? "Processing..."
+              : "Process Payment"}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

@@ -10,6 +10,7 @@ import {
   SportsEsports,
   Computer,
   LocalOffer,
+  History,
 } from "@mui/icons-material";
 import { SvgIconComponent } from "@mui/icons-material";
 import { UserRole } from "@/types/auth.types";
@@ -47,6 +48,12 @@ export const sidebarItems: SidebarItem[] = [
     path: "/gaming/pc-management",
     icon: Computer,
     roles: [UserRole.ADMIN, UserRole.MANAGER],
+  },
+  {
+    id: "gaming-history",
+    label: "Gaming History",
+    path: "/gaming/history",
+    icon: History,
   },
   {
     id: "sales-history",

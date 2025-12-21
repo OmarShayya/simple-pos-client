@@ -1,42 +1,35 @@
+// Currency amount
+export interface CurrencyAmount {
+  usd: number;
+  lbp: number;
+}
+
+// Separated revenue (Products vs Gaming)
+export interface SeparatedRevenue {
+  total: CurrencyAmount;
+  products: CurrencyAmount;
+  gaming: CurrencyAmount;
+}
+
 // Revenue discount breakdown
 export interface RevenueDiscounts {
-  totalItemDiscounts: {
-    usd: number;
-    lbp: number;
-  };
-  totalSaleDiscounts: {
-    usd: number;
-    lbp: number;
-  };
-  totalDiscounts: {
-    usd: number;
-    lbp: number;
-  };
-  revenueBeforeDiscounts: {
-    usd: number;
-    lbp: number;
-  };
+  totalItemDiscounts: CurrencyAmount;
+  totalSaleDiscounts: CurrencyAmount;
+  totalDiscounts: CurrencyAmount;
+  revenueBeforeDiscounts: CurrencyAmount;
 }
 
 // Revenue breakdown with discount information
 export interface RevenueBreakdown {
-  total: {
-    usd: number;
-    lbp: number;
-  };
-  usdPayments: {
-    usd: number;
-    lbp: number;
-  };
-  lbpPayments: {
-    usd: number;
-    lbp: number;
-  };
+  total: CurrencyAmount;
+  products: CurrencyAmount;
+  gaming: CurrencyAmount;
+  usdPayments: CurrencyAmount;
+  lbpPayments: CurrencyAmount;
   totalSales: number;
-  averageSale: {
-    usd: number;
-    lbp: number;
-  };
+  productSales: number;
+  gamingSales: number;
+  averageSale: CurrencyAmount;
   discounts?: RevenueDiscounts;
 }
 
@@ -118,6 +111,56 @@ export interface TransactionDiscounts {
   };
 }
 
+// Transaction item details
+export interface TransactionItem {
+  id: string;
+  productId?: string;
+  productName: string;
+  sku?: string;
+  type: "product" | "gaming";
+  quantity: number;
+  unitPrice: {
+    usd: number;
+    lbp: number;
+  };
+  subtotal: {
+    usd: number;
+    lbp: number;
+  };
+  discount: {
+    usd: number;
+    lbp: number;
+  };
+  finalAmount: {
+    usd: number;
+    lbp: number;
+  };
+  isGamingSession: boolean;
+  gamingSessionDetails?: {
+    sessionId: string;
+    pcNumber: string;
+    pcName: string;
+    duration: number;
+    startTime: string;
+    endTime: string;
+  };
+}
+
+// Transaction items summary
+export interface TransactionItemsSummary {
+  totalItems: number;
+  productCount: number;
+  gamingCount: number;
+  productTotal: {
+    usd: number;
+    lbp: number;
+  };
+  gamingTotal: {
+    usd: number;
+    lbp: number;
+  };
+}
+
 // Daily transaction
 export interface DailyTransaction {
   id: string;
@@ -144,6 +187,9 @@ export interface DailyTransaction {
   status: string;
   cashier: string;
   createdAt: string;
+  notes?: string;
+  items: TransactionItem[];
+  itemsSummary: TransactionItemsSummary;
 }
 
 // Gaming revenue breakdown

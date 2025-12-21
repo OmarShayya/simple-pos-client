@@ -101,6 +101,7 @@ export const gamingApi = {
     customerId?: string;
     customerName?: string;
     saleId?: string;
+    createSale?: boolean;
     notes?: string;
   }): Promise<GamingSession> => {
     const response = await apiClient.post<ApiResponse<GamingSession>>(

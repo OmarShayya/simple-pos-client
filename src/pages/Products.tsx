@@ -24,6 +24,10 @@ import {
   ToggleButton,
   FormControlLabel,
   Checkbox,
+  FormControl,
+  FormLabel,
+  RadioGroup,
+  Radio,
 } from "@mui/material";
 import {
   Add,
@@ -44,6 +48,7 @@ import { categoriesApi } from "@/api/categories.api";
 import { exchangeRateApi } from "@/api/exchangeRate.api";
 import {
   Product,
+  ProductType,
   CreateProductRequest,
   UpdateProductRequest,
 } from "@/types/product.types";
@@ -68,6 +73,7 @@ const Products: React.FC = () => {
     pageSize: 10,
   });
 
+  const [productType, setProductType] = useState<ProductType>("physical");
   const [formData, setFormData] = useState<CreateProductRequest>({
     name: "",
     description: "",
@@ -99,26 +105,28 @@ const Products: React.FC = () => {
   useEffect(() => {
     if (
       exchangeRate &&
+      formData.pricing &&
       formData.pricing.usd > 0 &&
       lastEditedField === "usd" &&
       !isEditingLbp
     ) {
       const lbpValue = Math.round(formData.pricing.usd * exchangeRate.rate);
-      if (Math.abs(lbpValue - formData.pricing.lbp) > 1) {
+      if (Math.abs(lbpValue - (formData.pricing.lbp || 0)) > 1) {
         setFormData((prev) => ({
           ...prev,
           pricing: {
-            ...prev.pricing,
+            usd: prev.pricing?.usd || 0,
             lbp: lbpValue,
           },
         }));
       }
     }
-  }, [formData.pricing.usd, exchangeRate, lastEditedField, isEditingLbp]);
+  }, [formData.pricing?.usd, exchangeRate, lastEditedField, isEditingLbp]);
 
   useEffect(() => {
     if (
       exchangeRate &&
+      formData.pricing &&
       formData.pricing.lbp > 0 &&
       lastEditedField === "lbp" &&
       !isEditingUsd
@@ -126,17 +134,17 @@ const Products: React.FC = () => {
       const usdValue = Number(
         (formData.pricing.lbp / exchangeRate.rate).toFixed(2)
       );
-      if (Math.abs(usdValue - formData.pricing.usd) > 0.01) {
+      if (Math.abs(usdValue - (formData.pricing.usd || 0)) > 0.01) {
         setFormData((prev) => ({
           ...prev,
           pricing: {
-            ...prev.pricing,
             usd: usdValue,
+            lbp: prev.pricing?.lbp || 0,
           },
         }));
       }
     }
-  }, [formData.pricing.lbp, exchangeRate, lastEditedField, isEditingUsd]);
+  }, [formData.pricing?.lbp, exchangeRate, lastEditedField, isEditingUsd]);
 
   const { data: productsData, isLoading } = useQuery({
     queryKey: [
@@ -194,21 +202,23 @@ const Products: React.FC = () => {
   const handleOpenDialog = (product?: Product) => {
     if (product) {
       setEditingProduct(product);
+      setProductType(product.productType || "physical");
       setFormData({
         name: product.name,
         description: product.description || "",
-        sku: product.sku,
+        sku: product.sku || "",
         category: product.category.id,
         pricing: product.pricing,
-        inventory: {
+        inventory: product.inventory ? {
           quantity: product.inventory.quantity,
           minStockLevel: product.inventory.minStockLevel,
-        },
+        } : { quantity: 0, minStockLevel: 10 },
         image: product.image || "",
         displayOnMenu: product.displayOnMenu || false,
       });
     } else {
       setEditingProduct(null);
+      setProductType("physical");
       setFormData({
         name: "",
         description: "",
@@ -270,15 +280,42 @@ const Products: React.FC = () => {
         name: formData.name,
         description: formData.description || undefined,
         category: formData.category,
-        pricing: formData.pricing,
-        inventory: formData.inventory,
         image: formData.image || undefined,
         displayOnMenu: formData.displayOnMenu,
+        // Only include pricing/inventory for physical products
+        ...(productType === "physical" && {
+          pricing: formData.pricing,
+          inventory: formData.inventory,
+        }),
+        // For service, include pricing only if set
+        ...(productType === "service" && formData.pricing && formData.pricing.usd > 0 && {
+          pricing: formData.pricing,
+        }),
       };
 
       updateMutation.mutate({ id: editingProduct.id, data: updateData });
     } else {
-      createMutation.mutate(formData);
+      // Build create payload based on product type
+      const createData: CreateProductRequest = {
+        name: formData.name,
+        category: formData.category,
+        productType,
+        description: formData.description || undefined,
+        image: formData.image || undefined,
+        displayOnMenu: formData.displayOnMenu,
+        // Physical products require SKU, pricing, and inventory
+        ...(productType === "physical" && {
+          sku: formData.sku,
+          pricing: formData.pricing,
+          inventory: formData.inventory,
+        }),
+        // Service products only include pricing if set
+        ...(productType === "service" && formData.pricing && formData.pricing.usd > 0 && {
+          pricing: formData.pricing,
+        }),
+      };
+
+      createMutation.mutate(createData);
     }
   };
 
@@ -311,9 +348,23 @@ const Products: React.FC = () => {
       minWidth: 200,
     },
     {
+      field: "productType",
+      headerName: "Type",
+      width: 100,
+      renderCell: (params) => (
+        <Chip
+          label={(params.row.productType || "physical") === "service" ? "Service" : "Physical"}
+          size="small"
+          color={(params.row.productType || "physical") === "service" ? "info" : "default"}
+          variant="outlined"
+        />
+      ),
+    },
+    {
       field: "sku",
       headerName: "SKU",
       width: 120,
+      renderCell: (params) => params.row.sku || "—",
     },
     {
       field: "category",
@@ -331,13 +382,19 @@ const Products: React.FC = () => {
       field: "inventory",
       headerName: "Stock",
       width: 100,
-      renderCell: (params) => (
-        <Chip
-          label={params.row.inventory.quantity}
-          color={params.row.inventory.isLowStock ? "error" : "success"}
-          size="small"
-        />
-      ),
+      renderCell: (params) => {
+        const isService = (params.row.productType || "physical") === "service";
+        if (isService) {
+          return <Typography variant="body2" color="text.secondary">—</Typography>;
+        }
+        return (
+          <Chip
+            label={params.row.inventory?.quantity || 0}
+            color={params.row.inventory?.isLowStock ? "error" : "success"}
+            size="small"
+          />
+        );
+      },
     },
     {
       field: "displayOnMenu",
@@ -523,13 +580,23 @@ const Products: React.FC = () => {
                       />
                     )}
                   </Box>
-                  <Typography
-                    variant="body2"
-                    color="text.secondary"
-                    gutterBottom
-                  >
-                    SKU: {product.sku}
-                  </Typography>
+                  <Box sx={{ display: "flex", gap: 1, mb: 1 }}>
+                    <Chip
+                      label={(product.productType || "physical") === "service" ? "Service" : "Physical"}
+                      size="small"
+                      color={(product.productType || "physical") === "service" ? "info" : "default"}
+                      variant="outlined"
+                    />
+                  </Box>
+                  {product.sku && (
+                    <Typography
+                      variant="body2"
+                      color="text.secondary"
+                      gutterBottom
+                    >
+                      SKU: {product.sku}
+                    </Typography>
+                  )}
                   <Typography
                     variant="body2"
                     color="text.secondary"
@@ -557,12 +624,21 @@ const Products: React.FC = () => {
                       {product.pricing.lbp.toLocaleString()} LBP
                     </Typography>
                   </Box>
-                  <Chip
-                    label={`Stock: ${product.inventory.quantity}`}
-                    color={product.inventory.isLowStock ? "error" : "success"}
-                    size="small"
-                    sx={{ mt: 1 }}
-                  />
+                  {(product.productType || "physical") === "service" ? (
+                    <Chip
+                      label="No inventory"
+                      size="small"
+                      variant="outlined"
+                      sx={{ mt: 1 }}
+                    />
+                  ) : (
+                    <Chip
+                      label={`Stock: ${product.inventory?.quantity || 0}`}
+                      color={product.inventory?.isLowStock ? "error" : "success"}
+                      size="small"
+                      sx={{ mt: 1 }}
+                    />
+                  )}
                 </CardContent>
                 <CardActions>
                   <Button
@@ -610,18 +686,46 @@ const Products: React.FC = () => {
               />
             </Grid>
             <Grid size={{ xs: 12, md: 6 }}>
-              <TextField
-                fullWidth
-                label="SKU"
-                value={formData.sku}
-                onChange={(e) =>
-                  setFormData({ ...formData, sku: e.target.value })
-                }
-                required
-                disabled={!!editingProduct}
-                helperText={editingProduct ? "SKU cannot be changed" : ""}
-              />
+              <FormControl component="fieldset" disabled={!!editingProduct}>
+                <FormLabel component="legend">Product Type</FormLabel>
+                <RadioGroup
+                  row
+                  value={productType}
+                  onChange={(e) => setProductType(e.target.value as ProductType)}
+                >
+                  <FormControlLabel
+                    value="physical"
+                    control={<Radio />}
+                    label="Physical (inventory tracked)"
+                  />
+                  <FormControlLabel
+                    value="service"
+                    control={<Radio />}
+                    label="Service (no inventory)"
+                  />
+                </RadioGroup>
+                {editingProduct && (
+                  <Typography variant="caption" color="text.secondary">
+                    Product type cannot be changed
+                  </Typography>
+                )}
+              </FormControl>
             </Grid>
+            {productType === "physical" && (
+              <Grid size={{ xs: 12, md: 6 }}>
+                <TextField
+                  fullWidth
+                  label="SKU"
+                  value={formData.sku}
+                  onChange={(e) =>
+                    setFormData({ ...formData, sku: e.target.value })
+                  }
+                  required
+                  disabled={!!editingProduct}
+                  helperText={editingProduct ? "SKU cannot be changed" : ""}
+                />
+              </Grid>
+            )}
             <Grid size={12}>
               <TextField
                 fullWidth
@@ -640,9 +744,17 @@ const Products: React.FC = () => {
                 select
                 label="Category"
                 value={formData.category}
-                onChange={(e) =>
-                  setFormData({ ...formData, category: e.target.value })
-                }
+                onChange={(e) => {
+                  const categoryId = e.target.value;
+                  setFormData({ ...formData, category: categoryId });
+                  // Auto-switch to service type when Gaming category is selected (only when creating)
+                  if (!editingProduct) {
+                    const selectedCategory = categories.find(cat => cat.id === categoryId);
+                    if (selectedCategory?.name.toLowerCase() === "gaming") {
+                      setProductType("service");
+                    }
+                  }
+                }}
                 required
               >
                 {categories.map((cat) => (
@@ -705,12 +817,12 @@ const Products: React.FC = () => {
               <TextField
                 fullWidth
                 type="number"
-                label="Price (USD)"
-                value={formData.pricing.usd}
+                label={productType === "service" ? "Price (USD) - Optional" : "Price (USD)"}
+                value={formData.pricing?.usd || 0}
                 onFocus={(e) => {
                   setIsEditingUsd(true);
                   setLastEditedField("usd");
-                  if (formData.pricing.usd === 0) {
+                  if ((formData.pricing?.usd || 0) === 0) {
                     e.target.select();
                   }
                 }}
@@ -720,11 +832,11 @@ const Products: React.FC = () => {
                     e.target.value === "" ? 0 : Number(e.target.value);
                   setFormData({
                     ...formData,
-                    pricing: { ...formData.pricing, usd: value },
+                    pricing: { ...formData.pricing, usd: value, lbp: formData.pricing?.lbp || 0 },
                   });
                   setLastEditedField("usd");
                 }}
-                required
+                required={productType === "physical"}
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">$</InputAdornment>
@@ -736,12 +848,12 @@ const Products: React.FC = () => {
               <TextField
                 fullWidth
                 type="number"
-                label="Price (LBP)"
-                value={formData.pricing.lbp}
+                label={productType === "service" ? "Price (LBP) - Optional" : "Price (LBP)"}
+                value={formData.pricing?.lbp || 0}
                 onFocus={(e) => {
                   setIsEditingLbp(true);
                   setLastEditedField("lbp");
-                  if (formData.pricing.lbp === 0) {
+                  if ((formData.pricing?.lbp || 0) === 0) {
                     e.target.select();
                   }
                 }}
@@ -751,11 +863,11 @@ const Products: React.FC = () => {
                     e.target.value === "" ? 0 : Number(e.target.value);
                   setFormData({
                     ...formData,
-                    pricing: { ...formData.pricing, lbp: value },
+                    pricing: { ...formData.pricing, usd: formData.pricing?.usd || 0, lbp: value },
                   });
                   setLastEditedField("lbp");
                 }}
-                required
+                required={productType === "physical"}
                 InputProps={{
                   endAdornment: (
                     <InputAdornment position="end">LBP</InputAdornment>
@@ -768,47 +880,53 @@ const Products: React.FC = () => {
                 Exchange Rate: 1 USD = {exchangeRate?.rate.toLocaleString()} LBP
               </Typography>
             </Grid>
-            <Grid size={{ xs: 12, md: 6 }}>
-              <TextField
-                fullWidth
-                type="number"
-                label="Quantity"
-                value={formData.inventory.quantity}
-                onFocus={(e) => {
-                  if (formData.inventory.quantity === 0) {
-                    e.target.select();
-                  }
-                }}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    inventory: {
-                      ...formData.inventory,
-                      quantity:
-                        e.target.value === "" ? 0 : Number(e.target.value),
-                    },
-                  })
-                }
-                required
-              />
-            </Grid>
-            <Grid size={{ xs: 12, md: 6 }}>
-              <TextField
-                fullWidth
-                type="number"
-                label="Min Stock Level"
-                value={formData.inventory.minStockLevel}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    inventory: {
-                      ...formData.inventory,
-                      minStockLevel: Number(e.target.value),
-                    },
-                  })
-                }
-              />
-            </Grid>
+            {productType === "physical" && (
+              <>
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <TextField
+                    fullWidth
+                    type="number"
+                    label="Quantity"
+                    value={formData.inventory?.quantity || 0}
+                    onFocus={(e) => {
+                      if ((formData.inventory?.quantity || 0) === 0) {
+                        e.target.select();
+                      }
+                    }}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        inventory: {
+                          ...formData.inventory,
+                          quantity:
+                            e.target.value === "" ? 0 : Number(e.target.value),
+                          minStockLevel: formData.inventory?.minStockLevel || 10,
+                        },
+                      })
+                    }
+                    required
+                  />
+                </Grid>
+                <Grid size={{ xs: 12, md: 6 }}>
+                  <TextField
+                    fullWidth
+                    type="number"
+                    label="Min Stock Level"
+                    value={formData.inventory?.minStockLevel || 10}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        inventory: {
+                          ...formData.inventory,
+                          quantity: formData.inventory?.quantity || 0,
+                          minStockLevel: Number(e.target.value),
+                        },
+                      })
+                    }
+                  />
+                </Grid>
+              </>
+            )}
           </Grid>
         </DialogContent>
         <DialogActions>

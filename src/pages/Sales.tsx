@@ -54,7 +54,7 @@ import { handleApiError } from "@/utils/errorHandler";
 
 // Helper to check if an item is a gaming session
 const isSessionItem = (item: SaleItem): boolean => {
-  return item.productSku.startsWith("SESSION-");
+  return item.productSku?.startsWith("SESSION-") || false;
 };
 
 // Calculate real-time session cost for active sessions
@@ -239,9 +239,14 @@ const Sales: React.FC = () => {
   };
 
   const addToCart = async (product: Product) => {
-    if (product.inventory.quantity === 0) {
-      toast.error("Product out of stock");
-      return;
+    const isService = (product.productType || "physical") === "service";
+
+    // Only check stock for physical products
+    if (!isService) {
+      if ((product.inventory?.quantity || 0) === 0) {
+        toast.error("Product out of stock");
+        return;
+      }
     }
 
     const rate = exchangeRate?.rate || 89500;
@@ -250,7 +255,8 @@ const Sales: React.FC = () => {
     );
 
     if (existingItem) {
-      if (existingItem.quantity >= product.inventory.quantity) {
+      // Only check stock limit for physical products
+      if (!isService && existingItem.quantity >= (product.inventory?.quantity || 0)) {
         toast.error("Not enough stock");
         return;
       }
@@ -276,7 +282,7 @@ const Sales: React.FC = () => {
         {
           productId: product.id,
           productName: product.name,
-          productSku: product.sku,
+          productSku: product.sku || product.id,
           quantity: 1,
           unitPrice: {
             usd: product.pricing.usd,
@@ -841,15 +847,24 @@ const Sales: React.FC = () => {
                         }}
                       >
                         <Typography variant="caption" color="text.secondary">
-                          {option.sku}
+                          {option.sku || "Service"}
                         </Typography>
-                        <Chip
-                          label={`Stock: ${option.inventory.quantity}`}
-                          size="small"
-                          color={
-                            option.inventory.isLowStock ? "error" : "success"
-                          }
-                        />
+                        {(option.productType || "physical") === "service" ? (
+                          <Chip
+                            label="Service"
+                            size="small"
+                            color="info"
+                            variant="outlined"
+                          />
+                        ) : (
+                          <Chip
+                            label={`Stock: ${option.inventory?.quantity || 0}`}
+                            size="small"
+                            color={
+                              option.inventory?.isLowStock ? "error" : "success"
+                            }
+                          />
+                        )}
                       </Box>
                     </Box>
                   </li>
@@ -859,67 +874,73 @@ const Sales: React.FC = () => {
 
               <Box sx={{ maxHeight: 400, overflow: "auto" }}>
                 <Grid container spacing={2}>
-                  {products?.data.slice(0, 12).map((product) => (
-                    <Grid size={{ xs: 6, sm: 4 }} key={product.id}>
-                      <Card
-                        sx={{
-                          cursor:
-                            product.inventory.quantity > 0
-                              ? "pointer"
-                              : "not-allowed",
-                          opacity: product.inventory.quantity > 0 ? 1 : 0.5,
-                          "&:hover":
-                            product.inventory.quantity > 0
-                              ? { boxShadow: 3 }
-                              : {},
-                          border: 1,
-                          borderColor: "divider",
-                        }}
-                        onClick={() =>
-                          product.inventory.quantity > 0 && addToCart(product)
-                        }
-                      >
-                        <CardContent>
-                          <Typography variant="body2" fontWeight={600} noWrap>
-                            {product.name}
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            {product.sku}
-                          </Typography>
-                          <Box sx={{ mt: 1 }}>
-                            <Typography
-                              variant="body2"
-                              color="primary"
-                              fontWeight={600}
-                            >
-                              ${product.pricing.usd.toFixed(2)}
+                  {products?.data.slice(0, 12).map((product) => {
+                    const isService = (product.productType || "physical") === "service";
+                    const isAvailable = isService || (product.inventory?.quantity || 0) > 0;
+                    return (
+                      <Grid size={{ xs: 6, sm: 4 }} key={product.id}>
+                        <Card
+                          sx={{
+                            cursor: isAvailable ? "pointer" : "not-allowed",
+                            opacity: isAvailable ? 1 : 0.5,
+                            "&:hover": isAvailable ? { boxShadow: 3 } : {},
+                            border: 1,
+                            borderColor: "divider",
+                          }}
+                          onClick={() => isAvailable && addToCart(product)}
+                        >
+                          <CardContent>
+                            <Typography variant="body2" fontWeight={600} noWrap>
+                              {product.name}
                             </Typography>
-                            <Typography
-                              variant="caption"
-                              color="text.secondary"
-                            >
-                              {Math.round(
-                                product.pricing.usd * currentRate
-                              ).toLocaleString()}{" "}
-                              LBP
+                            <Typography variant="caption" color="text.secondary">
+                              {product.sku || "Service"}
                             </Typography>
-                          </Box>
-                          <Chip
-                            label={`Stock: ${product.inventory.quantity}`}
-                            size="small"
-                            color={
-                              product.inventory.quantity === 0
-                                ? "default"
-                                : product.inventory.isLowStock
-                                ? "error"
-                                : "success"
-                            }
-                            sx={{ mt: 1 }}
-                          />
-                        </CardContent>
-                      </Card>
-                    </Grid>
-                  ))}
+                            <Box sx={{ mt: 1 }}>
+                              <Typography
+                                variant="body2"
+                                color="primary"
+                                fontWeight={600}
+                              >
+                                ${product.pricing.usd.toFixed(2)}
+                              </Typography>
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                              >
+                                {Math.round(
+                                  product.pricing.usd * currentRate
+                                ).toLocaleString()}{" "}
+                                LBP
+                              </Typography>
+                            </Box>
+                            {isService ? (
+                              <Chip
+                                label="Service"
+                                size="small"
+                                color="info"
+                                variant="outlined"
+                                sx={{ mt: 1 }}
+                              />
+                            ) : (
+                              <Chip
+                                label={`Stock: ${product.inventory?.quantity || 0}`}
+                                size="small"
+                                color={
+                                  (product.inventory?.quantity || 0) === 0
+                                    ? "default"
+                                    : product.inventory?.isLowStock
+                                    ? "error"
+                                    : "success"
+                                }
+                                sx={{ mt: 1 }}
+                              />
+                            )}
+                          </CardContent>
+                        </Card>
+                      </Grid>
+                    );
+                  })}
                 </Grid>
               </Box>
             </CardContent>
@@ -1344,6 +1365,8 @@ const Sales: React.FC = () => {
                   }}
                 >
                   <ListItemText
+                    primaryTypographyProps={{ component: 'div' }}
+                    secondaryTypographyProps={{ component: 'div' }}
                     primary={
                       <Box
                         sx={{
