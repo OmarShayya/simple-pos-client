@@ -10,6 +10,7 @@ import {
   PCStatus,
   SessionStatus,
   SessionPaymentStatus,
+  StartSessionResponse,
 } from "@/types/gaming.types";
 import { PaymentMethod, Currency } from "@/types/sale.types";
 
@@ -103,8 +104,8 @@ export const gamingApi = {
     saleId?: string;
     createSale?: boolean;
     notes?: string;
-  }): Promise<GamingSession> => {
-    const response = await apiClient.post<ApiResponse<GamingSession>>(
+  }): Promise<StartSessionResponse> => {
+    const response = await apiClient.post<ApiResponse<StartSessionResponse>>(
       "/gaming/sessions",
       data
     );

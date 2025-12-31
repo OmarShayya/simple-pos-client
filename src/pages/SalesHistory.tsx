@@ -108,6 +108,11 @@ const SalesHistory: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ["sales"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       queryClient.invalidateQueries({ queryKey: ["customers"] });
+      queryClient.invalidateQueries({ queryKey: ["daily-report"] });
+      queryClient.invalidateQueries({ queryKey: ["weekly-report"] });
+      queryClient.invalidateQueries({ queryKey: ["monthly-report"] });
+      queryClient.invalidateQueries({ queryKey: ["yearly-report"] });
+      queryClient.invalidateQueries({ queryKey: ["daily-transactions"] });
       setOpenPayDialog(false);
 
       const fullSale = await salesApi.getById(variables.id);
@@ -124,6 +129,11 @@ const SalesHistory: React.FC = () => {
       toast.success("Sale cancelled successfully");
       queryClient.invalidateQueries({ queryKey: ["sales"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["daily-report"] });
+      queryClient.invalidateQueries({ queryKey: ["weekly-report"] });
+      queryClient.invalidateQueries({ queryKey: ["monthly-report"] });
+      queryClient.invalidateQueries({ queryKey: ["yearly-report"] });
+      queryClient.invalidateQueries({ queryKey: ["daily-transactions"] });
     },
     onError: (error) => toast.error(handleApiError(error)),
   });
@@ -422,7 +432,7 @@ const SalesHistory: React.FC = () => {
                   <span>$${item.subtotal.usd.toFixed(2)}</span>
                 </div>
                 ${
-                  item.discount
+                  item.discount && item.discount.percentage
                     ? `<div class="item-details" style="color: green; font-size: 10px;">
                          <span>Discount (${item.discount.percentage}%)</span>
                          <span>-$${item.discount.amount.usd.toFixed(2)}</span>
@@ -457,7 +467,7 @@ const SalesHistory: React.FC = () => {
                 : ""
             }
             ${
-              sale.saleDiscount
+              sale.saleDiscount && sale.saleDiscount.discountName && sale.saleDiscount.percentage
                 ? `<div class="total-row" style="color: green;">
                      <span>${sale.saleDiscount.discountName} (${sale.saleDiscount.percentage}%):</span>
                      <span>-$${sale.saleDiscount.amount.usd.toFixed(2)}</span>
@@ -529,7 +539,7 @@ const SalesHistory: React.FC = () => {
           }
 
           <div class="footer">
-            <p>Thank you for your business!</p>
+            <p>Thank you for your visit!</p>
             <p>Exchange Rate: 1 USD = ${rate.toLocaleString()} LBP</p>
             <p style="margin-top: 10px;">***</p>
           </div>
@@ -922,7 +932,7 @@ const SalesHistory: React.FC = () => {
                   </Card>
                 </Grid>
 
-                {change.usd > 0.01 && (
+                {paymentData.amount > 0 && (
                   <Grid size={12}>
                     <Card sx={{ bgcolor: "success.light", p: 2 }}>
                       <Typography variant="body2" fontWeight={600} gutterBottom>
@@ -933,14 +943,14 @@ const SalesHistory: React.FC = () => {
                         fontWeight={700}
                         color="success.dark"
                       >
-                        ${change.usd.toFixed(2)} USD
+                        ${Math.max(0, change.usd).toFixed(2)} USD
                       </Typography>
                       <Typography
                         variant="body1"
                         fontWeight={600}
                         color="success.dark"
                       >
-                        {Math.round(change.lbp).toLocaleString()} LBP
+                        {Math.max(0, Math.round(change.lbp)).toLocaleString()} LBP
                       </Typography>
                     </Card>
                   </Grid>

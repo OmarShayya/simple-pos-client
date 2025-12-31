@@ -206,6 +206,11 @@ const Sales: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ["pending-sales"] });
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["daily-report"] });
+      queryClient.invalidateQueries({ queryKey: ["weekly-report"] });
+      queryClient.invalidateQueries({ queryKey: ["monthly-report"] });
+      queryClient.invalidateQueries({ queryKey: ["yearly-report"] });
+      queryClient.invalidateQueries({ queryKey: ["daily-transactions"] });
       if (selectedCustomer) {
         queryClient.invalidateQueries({ queryKey: ["customers"] });
       }
@@ -223,6 +228,11 @@ const Sales: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ["pending-sales"] });
       queryClient.invalidateQueries({ queryKey: ["products"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["daily-report"] });
+      queryClient.invalidateQueries({ queryKey: ["weekly-report"] });
+      queryClient.invalidateQueries({ queryKey: ["monthly-report"] });
+      queryClient.invalidateQueries({ queryKey: ["yearly-report"] });
+      queryClient.invalidateQueries({ queryKey: ["daily-transactions"] });
     },
     onError: (error) => toast.error(handleApiError(error)),
   });
@@ -1004,15 +1014,15 @@ const Sales: React.FC = () => {
                           sx={{
                             mb: 2,
                             p: 1.5,
-                            bgcolor: item.isActive ? "warning.light" : "grey.100",
+                            bgcolor: item.isActive ? "info.dark" : "action.selected",
                             borderRadius: 1,
                             border: 2,
-                            borderColor: item.isActive ? "warning.main" : "grey.300",
+                            borderColor: item.isActive ? "info.main" : "divider",
                           }}
                         >
                           <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "start", mb: 1 }}>
                             <Box sx={{ flex: 1, display: "flex", alignItems: "center", gap: 1 }}>
-                              <Computer sx={{ color: item.isActive ? "warning.dark" : "grey.600" }} />
+                              <Computer sx={{ color: item.isActive ? "info.light" : "action.active" }} />
                               <Box>
                                 <Typography variant="body2" fontWeight={600}>
                                   {item.productName}
@@ -1027,7 +1037,7 @@ const Sales: React.FC = () => {
                                 icon={<AccessTime sx={{ fontSize: 14 }} />}
                                 label={formatSessionDuration(item.sessionData!.startTime)}
                                 size="small"
-                                color="warning"
+                                color="info"
                                 sx={{
                                   animation: "pulse 2s ease-in-out infinite",
                                   "@keyframes pulse": {
@@ -1079,7 +1089,7 @@ const Sales: React.FC = () => {
                                   ${sessionCost.usd.toFixed(2)}
                                 </Typography>
                               )}
-                              <Typography variant="body2" fontWeight={600} color={sessionDiscountObj ? "success.main" : (item.isActive ? "warning.dark" : "text.primary")}>
+                              <Typography variant="body2" fontWeight={600} color={sessionDiscountObj ? "success.main" : (item.isActive ? "info.main" : "text.primary")}>
                                 ${finalSessionAmount.toFixed(2)}
                               </Typography>
                               <Typography variant="caption" color="text.secondary">
@@ -1396,7 +1406,7 @@ const Sales: React.FC = () => {
                             <Chip
                               label={`⏱️ Active Session - ${sale.activeSessions?.[0]?.currentDuration || 0} min`}
                               size="small"
-                              color="warning"
+                              color="info"
                               sx={{
                                 animation: "pulse 2s ease-in-out infinite",
                                 "@keyframes pulse": {

@@ -382,6 +382,7 @@ const Register: React.FC = () => {
                       autoFocus
                       sx={{
                         "& .MuiOutlinedInput-root": {
+                          color: "#FFFFFF",
                           "&:hover fieldset": {
                             borderColor: "#00CED1",
                           },
@@ -389,8 +390,14 @@ const Register: React.FC = () => {
                             borderColor: "#00CED1",
                           },
                         },
-                        "& .MuiInputLabel-root.Mui-focused": {
-                          color: "#00CED1",
+                        "& .MuiInputLabel-root": {
+                          color: "#B2BAC2",
+                          "&.Mui-focused": {
+                            color: "#00CED1",
+                          },
+                        },
+                        "& .MuiOutlinedInput-input": {
+                          color: "#FFFFFF",
                         },
                       }}
                     />
@@ -406,6 +413,7 @@ const Register: React.FC = () => {
                       autoComplete="email"
                       sx={{
                         "& .MuiOutlinedInput-root": {
+                          color: "#FFFFFF",
                           "&:hover fieldset": {
                             borderColor: "#00CED1",
                           },
@@ -413,8 +421,14 @@ const Register: React.FC = () => {
                             borderColor: "#00CED1",
                           },
                         },
-                        "& .MuiInputLabel-root.Mui-focused": {
-                          color: "#00CED1",
+                        "& .MuiInputLabel-root": {
+                          color: "#B2BAC2",
+                          "&.Mui-focused": {
+                            color: "#00CED1",
+                          },
+                        },
+                        "& .MuiOutlinedInput-input": {
+                          color: "#FFFFFF",
                         },
                       }}
                     />
@@ -448,6 +462,7 @@ const Register: React.FC = () => {
                       }}
                       sx={{
                         "& .MuiOutlinedInput-root": {
+                          color: "#FFFFFF",
                           "&:hover fieldset": {
                             borderColor: "#00CED1",
                           },
@@ -455,8 +470,17 @@ const Register: React.FC = () => {
                             borderColor: "#00CED1",
                           },
                         },
-                        "& .MuiInputLabel-root.Mui-focused": {
-                          color: "#00CED1",
+                        "& .MuiInputLabel-root": {
+                          color: "#B2BAC2",
+                          "&.Mui-focused": {
+                            color: "#00CED1",
+                          },
+                        },
+                        "& .MuiOutlinedInput-input": {
+                          color: "#FFFFFF",
+                        },
+                        "& .MuiFormHelperText-root": {
+                          color: "#B2BAC2",
                         },
                       }}
                     />
@@ -471,6 +495,7 @@ const Register: React.FC = () => {
                       helperText="Select your role in the system"
                       sx={{
                         "& .MuiOutlinedInput-root": {
+                          color: "#FFFFFF",
                           "&:hover fieldset": {
                             borderColor: "#00CED1",
                           },
@@ -478,8 +503,17 @@ const Register: React.FC = () => {
                             borderColor: "#00CED1",
                           },
                         },
-                        "& .MuiInputLabel-root.Mui-focused": {
-                          color: "#00CED1",
+                        "& .MuiInputLabel-root": {
+                          color: "#B2BAC2",
+                          "&.Mui-focused": {
+                            color: "#00CED1",
+                          },
+                        },
+                        "& .MuiSelect-select": {
+                          color: "#FFFFFF",
+                        },
+                        "& .MuiFormHelperText-root": {
+                          color: "#B2BAC2",
                         },
                       }}
                     >

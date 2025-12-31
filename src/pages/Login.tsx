@@ -379,6 +379,7 @@ const Login: React.FC = () => {
                       autoFocus
                       sx={{
                         "& .MuiOutlinedInput-root": {
+                          color: "#FFFFFF",
                           "&:hover fieldset": {
                             borderColor: "#00CED1",
                           },
@@ -386,8 +387,14 @@ const Login: React.FC = () => {
                             borderColor: "#00CED1",
                           },
                         },
-                        "& .MuiInputLabel-root.Mui-focused": {
-                          color: "#00CED1",
+                        "& .MuiInputLabel-root": {
+                          color: "#B2BAC2",
+                          "&.Mui-focused": {
+                            color: "#00CED1",
+                          },
+                        },
+                        "& .MuiOutlinedInput-input": {
+                          color: "#FFFFFF",
                         },
                       }}
                     />
@@ -420,6 +427,7 @@ const Login: React.FC = () => {
                       }}
                       sx={{
                         "& .MuiOutlinedInput-root": {
+                          color: "#FFFFFF",
                           "&:hover fieldset": {
                             borderColor: "#00CED1",
                           },
@@ -427,8 +435,14 @@ const Login: React.FC = () => {
                             borderColor: "#00CED1",
                           },
                         },
-                        "& .MuiInputLabel-root.Mui-focused": {
-                          color: "#00CED1",
+                        "& .MuiInputLabel-root": {
+                          color: "#B2BAC2",
+                          "&.Mui-focused": {
+                            color: "#00CED1",
+                          },
+                        },
+                        "& .MuiOutlinedInput-input": {
+                          color: "#FFFFFF",
                         },
                       }}
                     />

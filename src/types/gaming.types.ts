@@ -39,6 +39,12 @@ export interface PC {
   updatedAt?: string;
 }
 
+export interface QuickModeResponse {
+  quickMode: true;
+  pcId: string;
+  message: string;
+}
+
 export interface GamingSession {
   id: string;
   sessionNumber: string;
@@ -102,3 +108,5 @@ export interface GamingSession {
   notes?: string;
   createdAt: string;
 }
+
+export type StartSessionResponse = GamingSession | QuickModeResponse;

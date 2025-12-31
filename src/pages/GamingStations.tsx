@@ -99,6 +99,7 @@ const GamingStations: React.FC = () => {
 
   const [selectedDiscountId, setSelectedDiscountId] = useState<string>("");
   const [gamingDiscounts, setGamingDiscounts] = useState<Discount[]>([]);
+  const [quickModePCs, setQuickModePCs] = useState<Set<string>>(new Set());
 
   const { data: pcsData, isLoading: loadingPCs } = useQuery({
     queryKey: ["gaming-pcs"],
@@ -149,13 +150,23 @@ const GamingStations: React.FC = () => {
 
   const startSessionMutation = useMutation({
     mutationFn: gamingApi.startSession,
-    onSuccess: (session) => {
-      const message = session.sale
-        ? `Gaming session started! Invoice: ${session.sale.invoiceNumber}`
-        : "Gaming session started!";
-      toast.success(message);
-      setStartDialog(false);
-      resetStartData();
+    onSuccess: (response) => {
+      // Check if this is a quick mode response
+      if ('quickMode' in response && response.quickMode) {
+        toast.success("PC unlocked in quick mode!");
+        setQuickModePCs((prev) => new Set(prev).add(response.pcId));
+        setStartDialog(false);
+        resetStartData();
+      } else {
+        // This is a regular GamingSession - type narrowing
+        const session = response as GamingSession;
+        const message = session.sale
+          ? `Gaming session started! Invoice: ${session.sale.invoiceNumber}`
+          : "Gaming session started!";
+        toast.success(message);
+        setStartDialog(false);
+        resetStartData();
+      }
       queryClient.invalidateQueries({ queryKey: ["gaming-pcs"] });
       queryClient.invalidateQueries({ queryKey: ["active-gaming-sessions"] });
       queryClient.invalidateQueries({ queryKey: ["gaming-today-stats"] });
@@ -203,6 +214,11 @@ const GamingStations: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ["gaming-today-stats"] });
       queryClient.invalidateQueries({ queryKey: ["sales"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["daily-report"] });
+      queryClient.invalidateQueries({ queryKey: ["weekly-report"] });
+      queryClient.invalidateQueries({ queryKey: ["monthly-report"] });
+      queryClient.invalidateQueries({ queryKey: ["yearly-report"] });
+      queryClient.invalidateQueries({ queryKey: ["daily-transactions"] });
     },
     onError: (error) => toast.error(handleApiError(error)),
   });
@@ -219,6 +235,27 @@ const GamingStations: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ["gaming-sessions"] });
       queryClient.invalidateQueries({ queryKey: ["gaming-today-stats"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["daily-report"] });
+      queryClient.invalidateQueries({ queryKey: ["weekly-report"] });
+      queryClient.invalidateQueries({ queryKey: ["monthly-report"] });
+      queryClient.invalidateQueries({ queryKey: ["yearly-report"] });
+      queryClient.invalidateQueries({ queryKey: ["daily-transactions"] });
+    },
+    onError: (error) => toast.error(handleApiError(error)),
+  });
+
+  const unlockPCMutation = useMutation({
+    mutationFn: (pcId: string) => gamingApi.unlockPC(pcId),
+    onSuccess: (_, pcId) => {
+      toast.success("PC unlocked successfully!");
+      setQuickModePCs((prev) => {
+        const newSet = new Set(prev);
+        newSet.delete(pcId);
+        return newSet;
+      });
+      queryClient.invalidateQueries({ queryKey: ["gaming-pcs"] });
+      queryClient.invalidateQueries({ queryKey: ["active-gaming-sessions"] });
+      queryClient.invalidateQueries({ queryKey: ["gaming-today-stats"] });
     },
     onError: (error) => toast.error(handleApiError(error)),
   });
@@ -250,6 +287,10 @@ const GamingStations: React.FC = () => {
     console.log("Ending session", session);
     setSelectedSession(session);
     setEndDialog(true);
+  };
+
+  const handleEndQuickMode = (pcId: string) => {
+    unlockPCMutation.mutate(pcId);
   };
 
   const confirmEndSession = () => {
@@ -402,7 +443,9 @@ const GamingStations: React.FC = () => {
           .filter((pc) => pc.isActive)
           .map((pc) => {
             const { session, status } = getPCStatus(pc);
-            const isOccupied = status === PCStatus.OCCUPIED && session;
+            const isQuickMode = quickModePCs.has(pc.id);
+            const isOccupied = (status === PCStatus.OCCUPIED && session) || isQuickMode;
+            const displayStatus = isQuickMode ? PCStatus.OCCUPIED : status;
 
             return (
               <Grid size={{ xs: 12, sm: 6, md: 4, lg: 3 }} key={pc.id}>
@@ -412,7 +455,7 @@ const GamingStations: React.FC = () => {
                     border: 2,
                     borderColor: isOccupied
                       ? "error.main"
-                      : status === PCStatus.AVAILABLE
+                      : displayStatus === PCStatus.AVAILABLE
                       ? "success.main"
                       : "warning.main",
                     position: "relative",
@@ -446,15 +489,36 @@ const GamingStations: React.FC = () => {
                         </Box>
                       </Box>
                       <Chip
-                        label={status.toUpperCase()}
-                        color={getStatusColor(status) as any}
+                        label={displayStatus.toUpperCase()}
+                        color={getStatusColor(displayStatus) as any}
                         size="small"
                       />
                     </Box>
 
                     <Divider sx={{ my: 2 }} />
 
-                    {isOccupied && session ? (
+                    {isQuickMode ? (
+                      <Box>
+                        <Alert severity="info" sx={{ mb: 2 }}>
+                          <Typography variant="body2" fontWeight={600}>
+                            Quick Mode Active
+                          </Typography>
+                          <Typography variant="caption">
+                            PC unlocked without session tracking
+                          </Typography>
+                        </Alert>
+                        <Button
+                          fullWidth
+                          variant="contained"
+                          color="error"
+                          startIcon={<Stop />}
+                          onClick={() => handleEndQuickMode(pc.id)}
+                          disabled={unlockPCMutation.isPending}
+                        >
+                          {unlockPCMutation.isPending ? "Ending..." : "End Session"}
+                        </Button>
+                      </Box>
+                    ) : isOccupied && session ? (
                       (() => {
                         const { duration, cost } = calculateSessionCost(session);
                         return (
@@ -567,7 +631,7 @@ const GamingStations: React.FC = () => {
                             {pc.hourlyRate.lbp.toLocaleString()} LBP/hr
                           </Typography>
                         </Box>
-                        {status === PCStatus.AVAILABLE && (
+                        {status === PCStatus.AVAILABLE && !isQuickMode && (
                           <Button
                             fullWidth
                             variant="contained"
@@ -857,13 +921,14 @@ const GamingStations: React.FC = () => {
                     value={paymentData.paymentCurrency}
                     onChange={(e) => {
                       const currency = e.target.value as Currency;
+                      const finalAmount = selectedSession.finalAmount || selectedSession.totalCost;
                       setPaymentData({
                         ...paymentData,
                         paymentCurrency: currency,
                         amount:
                           currency === Currency.USD
-                            ? selectedSession.totalCost?.usd || 0
-                            : selectedSession.totalCost?.lbp || 0,
+                            ? finalAmount?.usd || 0
+                            : finalAmount?.lbp || 0,
                       });
                     }}
                   >
@@ -929,7 +994,7 @@ const GamingStations: React.FC = () => {
                   </Card>
                 </Grid>
 
-                {change.usd > 0.01 && (
+                {paymentData.amount > 0 && (
                   <Grid size={12}>
                     <Card sx={{ bgcolor: "success.light", p: 2 }}>
                       <Typography variant="body2" fontWeight={600} gutterBottom>
@@ -940,14 +1005,14 @@ const GamingStations: React.FC = () => {
                         fontWeight={700}
                         color="success.dark"
                       >
-                        ${change.usd.toFixed(2)} USD
+                        ${Math.max(0, change.usd).toFixed(2)} USD
                       </Typography>
                       <Typography
                         variant="body1"
                         fontWeight={600}
                         color="success.dark"
                       >
-                        {Math.round(change.lbp).toLocaleString()} LBP
+                        {Math.max(0, Math.round(change.lbp)).toLocaleString()} LBP
                       </Typography>
                     </Card>
                   </Grid>

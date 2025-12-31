@@ -78,6 +78,11 @@ const GamingHistory: React.FC = () => {
       setPaymentDialog(false);
       setSelectedSession(null);
       queryClient.invalidateQueries({ queryKey: ["gaming-sessions"] });
+      queryClient.invalidateQueries({ queryKey: ["daily-report"] });
+      queryClient.invalidateQueries({ queryKey: ["weekly-report"] });
+      queryClient.invalidateQueries({ queryKey: ["monthly-report"] });
+      queryClient.invalidateQueries({ queryKey: ["yearly-report"] });
+      queryClient.invalidateQueries({ queryKey: ["daily-transactions"] });
     },
     onError: (error) => toast.error(handleApiError(error)),
   });
@@ -91,6 +96,11 @@ const GamingHistory: React.FC = () => {
       setPaymentDialog(false);
       setSelectedSession(null);
       queryClient.invalidateQueries({ queryKey: ["gaming-sessions"] });
+      queryClient.invalidateQueries({ queryKey: ["daily-report"] });
+      queryClient.invalidateQueries({ queryKey: ["weekly-report"] });
+      queryClient.invalidateQueries({ queryKey: ["monthly-report"] });
+      queryClient.invalidateQueries({ queryKey: ["yearly-report"] });
+      queryClient.invalidateQueries({ queryKey: ["daily-transactions"] });
     },
     onError: (error) => toast.error(handleApiError(error)),
   });
