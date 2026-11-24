@@ -32,6 +32,7 @@ import { exchangeRateApi } from "@/api/exchangeRate.api";
 import { toast } from "react-toastify";
 import { handleApiError } from "@/utils/errorHandler";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
+import PageHeader from "@/components/common/PageHeader";
 
 const ExchangeRate: React.FC = () => {
   const queryClient = useQueryClient();
@@ -87,15 +88,10 @@ const ExchangeRate: React.FC = () => {
 
   return (
     <Box>
-      <Box sx={{ display: "flex", justifyContent: "space-between", mb: 3 }}>
-        <Box>
-          <Typography variant="h4" fontWeight="bold">
-            Exchange Rate Management
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Manage USD to LBP exchange rates
-          </Typography>
-        </Box>
+      <PageHeader
+        title="Exchange Rate Management"
+        subtitle="Manage USD to LBP exchange rates"
+        actions={
         <Button
           variant="contained"
           startIcon={<Edit />}
@@ -103,7 +99,8 @@ const ExchangeRate: React.FC = () => {
         >
           Update Rate
         </Button>
-      </Box>
+        }
+      />
 
       {/* Current Rate Card */}
       <Grid container spacing={3} sx={{ mb: 3 }}>

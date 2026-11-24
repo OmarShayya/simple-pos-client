@@ -11,19 +11,22 @@ import {
   TextField,
   Grid,
   IconButton,
-  Chip,
   Autocomplete,
 } from "@mui/material";
-import { Add, Edit, Delete, Lock, LockOpen } from "@mui/icons-material";
+import { Add, Edit, Delete, Lock, LockOpen, Computer, SportsEsports } from "@mui/icons-material";
+import { ToggleButton, ToggleButtonGroup, Stack } from "@mui/material";
+import type { StationType } from "@/types/reservation.types";
 import { DataGrid, GridColDef } from "@mui/x-data-grid";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { gamingApi } from "@/api/gaming.api";
+import { gamingApi, type UpdateStationPayload } from "@/api/gaming.api";
 import { customersApi } from "@/api/customers.api";
 import { PC, PCStatus } from "@/types/gaming.types";
 import { Customer } from "@/types/customer.types";
 import { toast } from "react-toastify";
 import { handleApiError } from "@/utils/errorHandler";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
+import PageHeader from "@/components/common/PageHeader";
+import StatusChip from "@/components/common/StatusChip";
 
 const PCManagement: React.FC = () => {
   const queryClient = useQueryClient();
@@ -31,7 +34,9 @@ const PCManagement: React.FC = () => {
   const [openLockDialog, setOpenLockDialog] = useState(false);
   const [editingPC, setEditingPC] = useState<PC | null>(null);
   const [lockingPC, setLockingPC] = useState<PC | null>(null);
+  const [typeFilter, setTypeFilter] = useState<"all" | StationType>("all");
   const [formData, setFormData] = useState({
+    type: "pc" as StationType,
     pcNumber: "",
     name: "",
     hourlyRateUsd: 2,
@@ -73,7 +78,7 @@ const PCManagement: React.FC = () => {
   });
 
   const updatePCMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: any }) =>
+    mutationFn: ({ id, data }: { id: string; data: UpdateStationPayload }) =>
       gamingApi.updatePC(id, data),
     onSuccess: () => {
       toast.success("PC updated successfully!");
@@ -96,7 +101,7 @@ const PCManagement: React.FC = () => {
   });
 
   const lockPCMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: any }) =>
+    mutationFn: ({ id, data }: { id: string; data: { customerId?: string; customerName?: string } }) =>
       gamingApi.lockPC(id, data),
     onSuccess: () => {
       toast.success("PC locked successfully!");
@@ -122,6 +127,7 @@ const PCManagement: React.FC = () => {
 
   const resetForm = () => {
     setFormData({
+      type: "pc",
       pcNumber: "",
       name: "",
       hourlyRateUsd: 2,
@@ -149,6 +155,7 @@ const PCManagement: React.FC = () => {
     if (pc) {
       setEditingPC(pc);
       setFormData({
+        type: pc.type ?? "pc",
         pcNumber: pc.pcNumber,
         name: pc.name,
         hourlyRateUsd: pc.hourlyRate.usd,
@@ -177,7 +184,11 @@ const PCManagement: React.FC = () => {
         data: formData,
       });
     } else {
-      createPCMutation.mutate(formData);
+      createPCMutation.mutate(
+        formData.type === "playstation"
+          ? { ...formData, specifications: undefined }
+          : formData
+      );
     }
   };
 
@@ -211,8 +222,22 @@ const PCManagement: React.FC = () => {
   };
 
   const columns: GridColDef[] = [
-    { field: "pcNumber", headerName: "PC Number", width: 130 },
-    { field: "name", headerName: "Name", flex: 1 },
+    {
+      field: "type",
+      headerName: "Type",
+      width: 140,
+      renderCell: (params) => {
+        const ps = params.row.type === "playstation";
+        return (
+          <Stack direction="row" spacing={1} alignItems="center" sx={{ height: "100%" }}>
+            {ps ? <SportsEsports fontSize="small" color="secondary" /> : <Computer fontSize="small" color="primary" />}
+            <span>{ps ? "PlayStation" : "PC"}</span>
+          </Stack>
+        );
+      },
+    },
+    { field: "pcNumber", headerName: "Number", width: 120 },
+    { field: "name", headerName: "Name", flex: 1, minWidth: 140 },
     {
       field: "hourlyRate",
       headerName: "Hourly Rate (USD)",
@@ -224,31 +249,13 @@ const PCManagement: React.FC = () => {
       field: "status",
       headerName: "Status",
       width: 130,
-      renderCell: (params) => (
-        <Chip
-          label={params.row.status.toUpperCase()}
-          color={
-            params.row.status === PCStatus.AVAILABLE
-              ? "success"
-              : params.row.status === PCStatus.OCCUPIED
-              ? "error"
-              : "warning"
-          }
-          size="small"
-        />
-      ),
+      renderCell: (params) => <StatusChip status={params.row.status} />,
     },
     {
       field: "isActive",
       headerName: "Active",
       width: 100,
-      renderCell: (params) => (
-        <Chip
-          label={params.row.isActive ? "Yes" : "No"}
-          color={params.row.isActive ? "success" : "default"}
-          size="small"
-        />
-      ),
+      renderCell: (params) => <StatusChip status={params.row.isActive ? "yes" : "no"} />,
     },
     {
       field: "actions",
@@ -256,7 +263,7 @@ const PCManagement: React.FC = () => {
       width: 200,
       renderCell: (params) => (
         <Box>
-          {params.row.status === PCStatus.AVAILABLE && (
+          {params.row.type !== "playstation" && params.row.status === PCStatus.AVAILABLE && (
             <IconButton
               size="small"
               color="warning"
@@ -266,7 +273,7 @@ const PCManagement: React.FC = () => {
               <Lock fontSize="small" />
             </IconButton>
           )}
-          {params.row.status === PCStatus.OCCUPIED && (
+          {params.row.type !== "playstation" && params.row.status === PCStatus.OCCUPIED && (
             <IconButton
               size="small"
               color="success"
@@ -299,27 +306,31 @@ const PCManagement: React.FC = () => {
 
   return (
     <Box>
-      <Box sx={{ display: "flex", justifyContent: "space-between", mb: 3 }}>
-        <Box>
-          <Typography variant="h4" fontWeight="bold">
-            PC Management
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Manage gaming station configurations and lock/unlock
-          </Typography>
-        </Box>
+      <PageHeader
+        title="Manage stations"
+        subtitle="Add PCs and PlayStation rooms, set hourly rates, and lock/unlock PCs"
+        actions={
         <Button
           variant="contained"
           startIcon={<Add />}
           onClick={() => handleOpenDialog()}
         >
-          Add PC
+          Add station
         </Button>
-      </Box>
+        }
+      >
+        <ToggleButtonGroup size="small" exclusive value={typeFilter} onChange={(_, v) => v && setTypeFilter(v)}>
+          <ToggleButton value="all">All · {(pcsData?.data || []).length}</ToggleButton>
+          <ToggleButton value="pc">PCs · {(pcsData?.data || []).filter((s) => (s.type ?? "pc") === "pc").length}</ToggleButton>
+          <ToggleButton value="playstation">
+            PlayStation · {(pcsData?.data || []).filter((s) => s.type === "playstation").length}
+          </ToggleButton>
+        </ToggleButtonGroup>
+      </PageHeader>
 
       <Card>
         <DataGrid
-          rows={pcsData?.data || []}
+          rows={(pcsData?.data || []).filter((s) => typeFilter === "all" || (s.type ?? "pc") === typeFilter)}
           columns={columns}
           autoHeight
           disableRowSelectionOnClick
@@ -337,13 +348,30 @@ const PCManagement: React.FC = () => {
         maxWidth="md"
         fullWidth
       >
-        <DialogTitle>{editingPC ? "Edit PC" : "Add New PC"}</DialogTitle>
+        <DialogTitle>{editingPC ? `Edit ${editingPC.pcNumber}` : "Add station"}</DialogTitle>
         <DialogContent>
           <Grid container spacing={2} sx={{ mt: 1 }}>
+            <Grid size={12}>
+              <ToggleButtonGroup
+                exclusive
+                fullWidth
+                value={formData.type}
+                onChange={(_, v) => v && setFormData({ ...formData, type: v })}
+              >
+                <ToggleButton value="pc" sx={{ gap: 1 }}>
+                  <Computer fontSize="small" /> Gaming PC
+                </ToggleButton>
+                <ToggleButton value="playstation" sx={{ gap: 1 }}>
+                  <SportsEsports fontSize="small" /> PlayStation
+                </ToggleButton>
+              </ToggleButtonGroup>
+            </Grid>
             <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
-                label="PC Number"
+                label="Station number"
+                placeholder={formData.type === "playstation" ? "PS-1" : "PC-011"}
+                helperText="Shown on receipts, the website and the reservation screens"
                 value={formData.pcNumber}
                 onChange={(e) =>
                   setFormData({
@@ -351,7 +379,6 @@ const PCManagement: React.FC = () => {
                     pcNumber: e.target.value.toUpperCase(),
                   })
                 }
-                disabled={!!editingPC}
               />
             </Grid>
             <Grid size={{ xs: 12, md: 6 }}>
@@ -388,6 +415,8 @@ const PCManagement: React.FC = () => {
                 }
               />
             </Grid>
+            {formData.type === "pc" && (
+              <>
             <Grid size={{ xs: 12, md: 6 }}>
               <TextField
                 fullWidth
@@ -452,6 +481,8 @@ const PCManagement: React.FC = () => {
                 }
               />
             </Grid>
+              </>
+            )}
             <Grid size={12}>
               <TextField
                 fullWidth

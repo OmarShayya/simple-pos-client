@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Box, Typography, Grid, Tabs, Tab } from "@mui/material";
+import { Box, Grid, Tabs, Tab } from "@mui/material";
 import {
   CalendarToday,
   Category,
@@ -15,6 +15,7 @@ import CategorySalesCard from "@/components/reports/CategorySalesCard";
 import ProductSalesCard from "@/components/reports/ProductSalesCard";
 import DailyTransactionsCard from "@/components/reports/DailyTransactionsCard";
 import GamingRevenueCard from "@/components/reports/GamingRevenueCard";
+import PageHeader from "@/components/common/PageHeader";
 
 const Reports: React.FC = () => {
   const [activeTab, setActiveTab] = useState(0);
@@ -42,21 +43,15 @@ const Reports: React.FC = () => {
 
   return (
     <Box>
-      <Box sx={{ display: "flex", justifyContent: "space-between", mb: 3 }}>
-        <Box>
-          <Typography variant="h4" fontWeight="bold">
-            Reports & Analytics
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Comprehensive sales and revenue reports
-          </Typography>
-        </Box>
-      </Box>
+      <PageHeader title="Reports & Analytics" subtitle="Comprehensive sales and revenue reports" />
 
       <Tabs
         value={activeTab}
         onChange={(_, v) => setActiveTab(v)}
-        sx={{ mb: 3 }}
+        variant="scrollable"
+        scrollButtons="auto"
+        allowScrollButtonsMobile
+        sx={{ mb: 3, borderBottom: 1, borderColor: "divider" }}
       >
         <Tab
           label="Time Reports"
@@ -82,14 +77,14 @@ const Reports: React.FC = () => {
 
       {activeTab === 0 && (
         <Grid container spacing={3}>
-          <Grid size={{ xs: 12, md: 6, lg: 3 }}>
+          <Grid size={{ xs: 12, md: 6, xl: 3 }}>
             <DailyReportCard
               date={dailyParams.date}
               onDateChange={(date) => setDailyParams({ date })}
             />
           </Grid>
 
-          <Grid size={{ xs: 12, md: 6, lg: 3 }}>
+          <Grid size={{ xs: 12, md: 6, xl: 3 }}>
             <WeeklyReportCard
               week={weeklyParams.week}
               month={weeklyParams.month}
@@ -98,7 +93,7 @@ const Reports: React.FC = () => {
             />
           </Grid>
 
-          <Grid size={{ xs: 12, md: 6, lg: 3 }}>
+          <Grid size={{ xs: 12, md: 6, xl: 3 }}>
             <MonthlyReportCard
               month={monthlyParams.month}
               year={monthlyParams.year}
@@ -106,7 +101,7 @@ const Reports: React.FC = () => {
             />
           </Grid>
 
-          <Grid size={{ xs: 12, md: 6, lg: 3 }}>
+          <Grid size={{ xs: 12, md: 6, xl: 3 }}>
             <YearlyReportCard
               year={yearlyParams.year}
               onParamsChange={setYearlyParams}

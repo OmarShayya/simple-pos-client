@@ -1,3 +1,5 @@
+import type { StationType, UpcomingReservation } from "./reservation.types";
+
 export enum PCStatus {
   AVAILABLE = "available",
   OCCUPIED = "occupied",
@@ -19,6 +21,8 @@ export enum SessionPaymentStatus {
 
 export interface PC {
   id: string;
+  /** "pc" (default) or "playstation" */
+  type?: StationType;
   pcNumber: string;
   name: string;
   status: PCStatus;
@@ -37,6 +41,8 @@ export interface PC {
   isActive: boolean;
   createdAt: string;
   updatedAt?: string;
+  /** Next booking on this station within ~12h (from the reservations system). */
+  upcomingReservation?: UpcomingReservation;
 }
 
 export interface QuickModeResponse {

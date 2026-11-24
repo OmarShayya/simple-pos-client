@@ -15,19 +15,20 @@ import {
   MenuItem,
   Autocomplete,
   Alert,
-  CircularProgress,
   Divider,
   InputAdornment,
   Tooltip,
   FormControlLabel,
   Switch,
+  Skeleton,
+  Stack,
+  alpha,
+  useTheme,
 } from "@mui/material";
 import {
   Computer,
   PlayArrow,
   Stop,
-  Timer,
-  AttachMoney,
   Person,
   Receipt,
   ShoppingCart,
@@ -36,7 +37,11 @@ import {
   Payment,
   SportsEsports,
   History,
+  EventAvailable,
 } from "@mui/icons-material";
+import { ToggleButton, ToggleButtonGroup } from "@mui/material";
+import type { StationType } from "@/types/reservation.types";
+import { DEFAULT_TZ, fmtTime } from "@/utils/zonedTime";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { gamingApi } from "@/api/gaming.api";
@@ -51,6 +56,10 @@ import { Discount } from "@/types/discount.types";
 import { toast } from "react-toastify";
 import { handleApiError } from "@/utils/errorHandler";
 import { formatDistanceToNow } from "date-fns";
+import PageHeader from "@/components/common/PageHeader";
+import StatusChip from "@/components/common/StatusChip";
+import EmptyState from "@/components/common/EmptyState";
+import { brand } from "@/theme/theme";
 
 const calculateSessionCost = (session: GamingSession) => {
   const now = new Date();
@@ -100,6 +109,9 @@ const GamingStations: React.FC = () => {
   const [selectedDiscountId, setSelectedDiscountId] = useState<string>("");
   const [gamingDiscounts, setGamingDiscounts] = useState<Discount[]>([]);
   const [quickModePCs, setQuickModePCs] = useState<Set<string>>(new Set());
+  const [stationFilter, setStationFilter] = useState<"all" | "available" | "occupied" | "maintenance">("all");
+  const [typeFilter, setTypeFilter] = useState<"all" | StationType>("all");
+  const theme = useTheme();
 
   const { data: pcsData, isLoading: loadingPCs } = useQuery({
     queryKey: ["gaming-pcs"],
@@ -202,7 +214,7 @@ const GamingStations: React.FC = () => {
   });
 
   const paymentMutation = useMutation({
-    mutationFn: ({ saleId, data }: { saleId: string; data: any }) =>
+    mutationFn: ({ saleId, data }: { saleId: string; data: Parameters<typeof salesApi.pay>[1] }) =>
       salesApi.pay(saleId, data),
     onSuccess: () => {
       toast.success("Payment processed successfully!");
@@ -364,18 +376,6 @@ const GamingStations: React.FC = () => {
     return { session: null, status: pc.status };
   };
 
-  const getStatusColor = (status: PCStatus) => {
-    switch (status) {
-      case PCStatus.AVAILABLE:
-        return "success";
-      case PCStatus.OCCUPIED:
-        return "error";
-      case PCStatus.MAINTENANCE:
-        return "warning";
-      default:
-        return "default";
-    }
-  };
 
   const formatDuration = (minutes: number) => {
     const hours = Math.floor(minutes / 60);
@@ -385,271 +385,346 @@ const GamingStations: React.FC = () => {
 
   const change = calculateChange();
 
+  const stationStates = (pcsData?.data || [])
+    .filter((pc) => pc.isActive)
+    .map((pc) => {
+      const { session, status } = getPCStatus(pc);
+      const isQuickMode = quickModePCs.has(pc.id);
+      const isOccupied = Boolean((status === PCStatus.OCCUPIED && session) || isQuickMode);
+      const displayStatus = isQuickMode ? PCStatus.OCCUPIED : status;
+      return { pc, session, isQuickMode, isOccupied, displayStatus };
+    });
+
+  const typeCounts = {
+    pc: stationStates.filter((s) => (s.pc.type ?? "pc") === "pc").length,
+    playstation: stationStates.filter((s) => s.pc.type === "playstation").length,
+  };
+  const typedStations = stationStates.filter((s) => typeFilter === "all" || (s.pc.type ?? "pc") === typeFilter);
+
+  const counts = {
+    all: typedStations.length,
+    available: typedStations.filter((s) => !s.isOccupied && s.displayStatus === PCStatus.AVAILABLE).length,
+    occupied: typedStations.filter((s) => s.isOccupied).length,
+    maintenance: typedStations.filter((s) => s.displayStatus === PCStatus.MAINTENANCE).length,
+  };
+
+  /** Upcoming (not yet checked-in) booking on a station, if any. */
+  const bookingOf = (pc: PC) =>
+    pc.upcomingReservation && pc.upcomingReservation.status === "confirmed" ? pc.upcomingReservation : undefined;
+  const minutesUntil = (iso: string) => Math.round((new Date(iso).getTime() - Date.now()) / 60_000);
+
+  const visibleStations = typedStations.filter((s) => {
+    if (stationFilter === "all") return true;
+    if (stationFilter === "occupied") return s.isOccupied;
+    if (stationFilter === "available") return !s.isOccupied && s.displayStatus === PCStatus.AVAILABLE;
+    return s.displayStatus === PCStatus.MAINTENANCE;
+  });
+
   if (loadingPCs || loadingActiveSessions) {
     return (
-      <Box sx={{ display: "flex", justifyContent: "center", mt: 10 }}>
-        <CircularProgress />
+      <Box>
+        <Skeleton variant="rounded" height={44} sx={{ mb: 2, maxWidth: 420 }} />
+        <Grid container spacing={2}>
+          {[0, 1, 2, 3, 4, 5].map((i) => (
+            <Grid key={i} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
+              <Skeleton variant="rounded" height={230} />
+            </Grid>
+          ))}
+        </Grid>
       </Box>
     );
   }
 
+  const filterChips: { key: typeof stationFilter; label: string; count: number }[] = [
+    { key: "all", label: "All", count: counts.all },
+    { key: "available", label: "Free", count: counts.available },
+    { key: "occupied", label: "In use", count: counts.occupied },
+    { key: "maintenance", label: "Maintenance", count: counts.maintenance },
+  ];
+
   return (
     <Box>
-      <Box
-        sx={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          mb: 3,
-        }}
+      <PageHeader
+        title="Gaming stations"
+        subtitle="Start, end and charge sessions. Costs update live."
+        actions={
+          <>
+            <Button variant="outlined" startIcon={<EventAvailable />} onClick={() => navigate("/reservations")}>
+              Reservations
+            </Button>
+            <Button variant="outlined" startIcon={<History />} onClick={() => navigate("/gaming/history")}>
+              History
+            </Button>
+          </>
+        }
       >
-        <Box>
-          <Typography variant="h4" fontWeight="bold">
-            Gaming Stations
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Monitor and manage PC gaming sessions
-          </Typography>
-        </Box>
-        <Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
-          <Card sx={{ px: 3, py: 1.5 }}>
-            <Typography variant="caption" color="text.secondary">
-              Active Sessions
-            </Typography>
-            <Typography variant="h6" fontWeight="bold" color="primary">
-              {todayStats?.activeSessions || 0}
-            </Typography>
-          </Card>
-          <Card sx={{ px: 3, py: 1.5 }}>
-            <Typography variant="caption" color="text.secondary">
-              Today's Revenue
-            </Typography>
-            <Typography variant="h6" fontWeight="bold" color="success.main">
-              ${(todayStats?.totalRevenue.usd || 0).toFixed(2)}
-            </Typography>
-          </Card>
-          <Button
-            variant="outlined"
-            startIcon={<History />}
-            onClick={() => navigate("/gaming/history")}
+        <Box sx={{ display: "flex", alignItems: "center", gap: 2, flexWrap: "wrap" }}>
+          {typeCounts.playstation > 0 && (
+            <ToggleButtonGroup
+              size="small"
+              exclusive
+              value={typeFilter}
+              onChange={(_, v) => v && setTypeFilter(v)}
+              sx={{ order: { xs: 1, sm: 0 } }}
+            >
+              <ToggleButton value="all">All</ToggleButton>
+              <ToggleButton value="pc" sx={{ gap: 0.75 }}>
+                <Computer sx={{ fontSize: 18 }} /> PCs · {typeCounts.pc}
+              </ToggleButton>
+              <ToggleButton value="playstation" sx={{ gap: 0.75 }}>
+                <SportsEsports sx={{ fontSize: 18 }} /> PlayStation · {typeCounts.playstation}
+              </ToggleButton>
+            </ToggleButtonGroup>
+          )}
+          <Stack
+            direction="row"
+            spacing={1}
+            sx={{ overflowX: "auto", flex: { xs: "1 1 100%", sm: 1 }, minWidth: 0, pb: 0.25, order: { xs: 2, sm: 0 } }}
           >
-            History
-          </Button>
+            {filterChips.map((f) => (
+              <Chip
+                key={f.key}
+                clickable
+                onClick={() => setStationFilter(f.key)}
+                color={stationFilter === f.key ? "primary" : "default"}
+                variant={stationFilter === f.key ? "filled" : "outlined"}
+                label={`${f.label} · ${f.count}`}
+                sx={{ height: 36, flexShrink: 0 }}
+              />
+            ))}
+          </Stack>
+          <Box sx={{ display: "flex", gap: 3 }}>
+            <Box>
+              <Typography variant="caption" color="text.secondary">
+                Active sessions
+              </Typography>
+              <Typography className="num" sx={{ fontFamily: brand.fontDisplay, fontWeight: 700 }}>
+                {todayStats?.activeSessions ?? counts.occupied}
+              </Typography>
+            </Box>
+            <Box>
+              <Typography variant="caption" color="text.secondary">
+                Revenue today
+              </Typography>
+              <Typography className="num" sx={{ fontFamily: brand.fontDisplay, fontWeight: 700, color: "success.main" }}>
+                ${(todayStats?.totalRevenue?.usd || 0).toFixed(2)}
+              </Typography>
+            </Box>
+          </Box>
         </Box>
-      </Box>
+      </PageHeader>
 
-      <Grid container spacing={3}>
-        {pcsData?.data
-          .filter((pc) => pc.isActive)
-          .map((pc) => {
-            const { session, status } = getPCStatus(pc);
-            const isQuickMode = quickModePCs.has(pc.id);
-            const isOccupied = (status === PCStatus.OCCUPIED && session) || isQuickMode;
-            const displayStatus = isQuickMode ? PCStatus.OCCUPIED : status;
-
+      {visibleStations.length === 0 ? (
+        <Card>
+          <EmptyState
+            icon={<SportsEsports />}
+            title={stationStates.length === 0 ? "No stations yet" : "Nothing here"}
+            description={
+              stationStates.length === 0
+                ? "Add your PCs in Manage stations to start tracking sessions."
+                : "No stations match this filter right now."
+            }
+            action={
+              stationStates.length === 0 ? (
+                <Button variant="contained" onClick={() => navigate("/gaming/pc-management")}>
+                  Manage stations
+                </Button>
+              ) : (
+                <Button onClick={() => setStationFilter("all")}>Show all</Button>
+              )
+            }
+          />
+        </Card>
+      ) : (
+        <Grid container spacing={2}>
+          {visibleStations.map(({ pc, session, isQuickMode, isOccupied, displayStatus }) => {
+            const tone =
+              isOccupied ? "error" : displayStatus === PCStatus.AVAILABLE ? "success" : displayStatus === PCStatus.MAINTENANCE ? "warning" : "secondary";
+            const toneColor = theme.palette[tone].main;
             return (
               <Grid size={{ xs: 12, sm: 6, md: 4, lg: 3 }} key={pc.id}>
                 <Card
                   sx={{
                     height: "100%",
-                    border: 2,
-                    borderColor: isOccupied
-                      ? "error.main"
-                      : displayStatus === PCStatus.AVAILABLE
-                      ? "success.main"
-                      : "warning.main",
                     position: "relative",
+                    overflow: "hidden",
+                    display: "flex",
+                    flexDirection: "column",
+                    borderColor: isOccupied ? alpha(toneColor, 0.45) : undefined,
+                    "&::before": {
+                      content: '""',
+                      position: "absolute",
+                      inset: "0 0 auto 0",
+                      height: 4,
+                      bgcolor: toneColor,
+                    },
                   }}
                 >
-                  <CardContent>
-                    <Box
-                      sx={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "start",
-                        mb: 2,
-                      }}
-                    >
+                  <CardContent sx={{ flex: 1, display: "flex", flexDirection: "column", pt: 2.5 }}>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1.25 }}>
                       <Box
-                        sx={{ display: "flex", alignItems: "center", gap: 1 }}
+                        sx={{
+                          width: 42,
+                          height: 42,
+                          borderRadius: 3,
+                          display: "grid",
+                          placeItems: "center",
+                          flexShrink: 0,
+                          color: toneColor,
+                          bgcolor: alpha(toneColor, theme.palette.mode === "dark" ? 0.16 : 0.1),
+                        }}
                       >
-                        <Computer
-                          sx={{
-                            fontSize: 32,
-                            color: isOccupied ? "error.main" : "text.secondary",
-                          }}
-                        />
-                        <Box>
-                          <Typography variant="h6" fontWeight="bold">
-                            {pc.name}
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            {pc.pcNumber}
-                          </Typography>
-                        </Box>
+                        {pc.type === "playstation" ? <SportsEsports /> : <Computer />}
                       </Box>
-                      <Chip
-                        label={displayStatus.toUpperCase()}
-                        color={getStatusColor(displayStatus) as any}
-                        size="small"
-                      />
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Typography sx={{ fontWeight: 700, lineHeight: 1.2 }} noWrap>
+                          {pc.name}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary" noWrap component="div">
+                          {pc.pcNumber}
+                          {pc.location ? ` · ${pc.location}` : ""}
+                        </Typography>
+                      </Box>
+                      <StatusChip status={displayStatus} />
                     </Box>
 
-                    <Divider sx={{ my: 2 }} />
+                    {bookingOf(pc) && (
+                      <Chip
+                        clickable
+                        size="small"
+                        icon={<EventAvailable sx={{ fontSize: 16 }} />}
+                        onClick={() => navigate(`/reservations?highlight=${bookingOf(pc)!.id}`)}
+                        label={
+                          minutesUntil(bookingOf(pc)!.startTime) <= 0
+                            ? `Booked now · ${bookingOf(pc)!.customerName} — check in`
+                            : `Booked ${fmtTime(bookingOf(pc)!.startTime, DEFAULT_TZ)} · ${bookingOf(pc)!.customerName}`
+                        }
+                        color={minutesUntil(bookingOf(pc)!.startTime) <= 60 ? "warning" : "secondary"}
+                        variant="outlined"
+                        sx={{ mt: 1.25, alignSelf: "flex-start", maxWidth: "100%", fontWeight: 600 }}
+                      />
+                    )}
 
                     {isQuickMode ? (
-                      <Box>
-                        <Alert severity="info" sx={{ mb: 2 }}>
-                          <Typography variant="body2" fontWeight={600}>
-                            Quick Mode Active
-                          </Typography>
-                          <Typography variant="caption">
-                            PC unlocked without session tracking
-                          </Typography>
+                      <Box sx={{ mt: "auto", pt: 2 }}>
+                        <Alert severity="info" sx={{ mb: 1.5, py: 0 }}>
+                          Quick mode — unlocked without tracking
                         </Alert>
                         <Button
                           fullWidth
+                          size="large"
                           variant="contained"
                           color="error"
                           startIcon={<Stop />}
                           onClick={() => handleEndQuickMode(pc.id)}
                           disabled={unlockPCMutation.isPending}
                         >
-                          {unlockPCMutation.isPending ? "Ending..." : "End Session"}
+                          {unlockPCMutation.isPending ? "Ending…" : "End session"}
                         </Button>
                       </Box>
                     ) : isOccupied && session ? (
                       (() => {
                         const { duration, cost } = calculateSessionCost(session);
                         return (
-                          <Box>
-                            <Box sx={{ mb: 2 }}>
-                              <Box
-                                sx={{
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: 1,
-                                  mb: 1,
-                                }}
-                              >
-                                <Person sx={{ fontSize: 18 }} />
-                                <Typography variant="body2" fontWeight={600}>
-                                  {session.customerName}
+                          <Box sx={{ mt: 2, display: "flex", flexDirection: "column", flex: 1 }}>
+                            <Box
+                              sx={{
+                                p: 1.5,
+                                borderRadius: 3,
+                                bgcolor: alpha(toneColor, theme.palette.mode === "dark" ? 0.08 : 0.05),
+                                border: 1,
+                                borderColor: alpha(toneColor, 0.18),
+                              }}
+                            >
+                              <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, minWidth: 0 }}>
+                                <Person sx={{ fontSize: 18, color: "text.secondary" }} />
+                                <Typography variant="body2" sx={{ fontWeight: 600 }} noWrap>
+                                  {session.customerName || "Walk-in"}
                                 </Typography>
                                 {!session.sale && (
-                                  <Chip
-                                    label="Standalone"
-                                    size="small"
-                                    color="info"
-                                    variant="outlined"
-                                    sx={{ ml: 0.5, height: 20, fontSize: "0.65rem" }}
-                                  />
+                                  <Tooltip title="Paid directly when the session ends (no order)">
+                                    <Chip label="Standalone" size="small" variant="outlined" sx={{ height: 20, fontSize: "0.65rem", ml: "auto" }} />
+                                  </Tooltip>
                                 )}
                               </Box>
-                              <Box
-                                sx={{
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: 1,
-                                  mb: 1,
-                                }}
-                              >
-                                <Timer sx={{ fontSize: 18 }} />
-                                <Typography variant="body2">
-                                  {formatDuration(duration)}
-                                </Typography>
-                              </Box>
-                              <Box
-                                sx={{
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: 1,
-                                }}
-                              >
-                                <AttachMoney sx={{ fontSize: 18 }} />
-                                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                                  <Typography
-                                    variant="body2"
-                                    color="error"
-                                    fontWeight={600}
-                                  >
-                                    ${cost.usd.toFixed(2)} USD
+                              <Box sx={{ display: "flex", justifyContent: "space-between", mt: 1.25 }}>
+                                <Box>
+                                  <Typography variant="caption" color="text.secondary">
+                                    Time
                                   </Typography>
-                                  <Tooltip title="Live cost - updating every second">
-                                    <AccessTime
-                                      sx={{
-                                        fontSize: 14,
-                                        color: "error.main",
-                                        animation: "pulse 2s ease-in-out infinite",
-                                        "@keyframes pulse": {
-                                          "0%, 100%": { opacity: 1 },
-                                          "50%": { opacity: 0.4 },
-                                        },
-                                      }}
-                                    />
-                                  </Tooltip>
+                                  <Typography className="num" sx={{ fontFamily: brand.fontDisplay, fontWeight: 700, fontSize: "1.3rem" }}>
+                                    {formatDuration(duration)}
+                                  </Typography>
+                                </Box>
+                                <Box sx={{ textAlign: "right" }}>
+                                  <Typography variant="caption" color="text.secondary" sx={{ display: "inline-flex", alignItems: "center", gap: 0.5 }}>
+                                    <Box component="span" sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: toneColor, animation: "pos-pulse 2s infinite" }} />
+                                    Live cost
+                                  </Typography>
+                                  <Typography className="num" sx={{ fontFamily: brand.fontDisplay, fontWeight: 700, fontSize: "1.3rem", color: toneColor }}>
+                                    ${cost.usd.toFixed(2)}
+                                  </Typography>
                                 </Box>
                               </Box>
+                              <Typography variant="caption" color="text.secondary">
+                                Started {formatDistanceToNow(new Date(session.startTime), { addSuffix: true })} · ${pc.hourlyRate.usd.toFixed(2)}/hr
+                              </Typography>
                             </Box>
-                            <Typography
-                              variant="caption"
-                              color="text.secondary"
-                              display="block"
-                              mb={1}
-                            >
-                              Started{" "}
-                              {formatDistanceToNow(new Date(session.startTime), {
-                                addSuffix: true,
-                              })}
-                            </Typography>
-                            <Button
-                              fullWidth
-                              variant="contained"
-                              color="error"
-                              startIcon={<Stop />}
-                              onClick={() => handleEndSession(session)}
-                            >
-                              End Session
-                            </Button>
+                            <Box sx={{ mt: "auto", pt: 2 }}>
+                              <Button
+                                fullWidth
+                                size="large"
+                                variant="contained"
+                                color="error"
+                                startIcon={<Stop />}
+                                onClick={() => handleEndSession(session)}
+                              >
+                                End session
+                              </Button>
+                            </Box>
                           </Box>
                         );
                       })()
                     ) : (
-                      <Box>
-                        <Box sx={{ mb: 2 }}>
+                      <Box sx={{ mt: 2, display: "flex", flexDirection: "column", flex: 1 }}>
+                        <Box sx={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
                           <Typography variant="body2" color="text.secondary">
-                            Hourly Rate:
+                            Rate
                           </Typography>
-                          <Typography
-                            variant="h6"
-                            color="primary"
-                            fontWeight={600}
-                          >
-                            ${pc.hourlyRate.usd.toFixed(2)}/hr
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            {pc.hourlyRate.lbp.toLocaleString()} LBP/hr
-                          </Typography>
+                          <Box sx={{ textAlign: "right" }}>
+                            <Typography className="num" sx={{ fontWeight: 700 }}>
+                              ${pc.hourlyRate.usd.toFixed(2)}/hr
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary" className="num">
+                              {pc.hourlyRate.lbp.toLocaleString()} LBP/hr
+                            </Typography>
+                          </Box>
                         </Box>
-                        {status === PCStatus.AVAILABLE && !isQuickMode && (
-                          <Button
-                            fullWidth
-                            variant="contained"
-                            color="success"
-                            startIcon={<PlayArrow />}
-                            onClick={() => {
-                              setSelectedPC(pc);
-                              setStartDialog(true);
-                            }}
-                          >
-                            Start Session
-                          </Button>
-                        )}
-                        {status === PCStatus.MAINTENANCE && (
-                          <Alert severity="warning" sx={{ mt: 1 }}>
-                            Under Maintenance
-                          </Alert>
-                        )}
+                        <Box sx={{ mt: "auto", pt: 2 }}>
+                          {displayStatus === PCStatus.AVAILABLE ? (
+                            <Button
+                              fullWidth
+                              size="large"
+                              variant="contained"
+                              color="success"
+                              startIcon={<PlayArrow />}
+                              onClick={() => {
+                                setSelectedPC(pc);
+                                setStartDialog(true);
+                              }}
+                            >
+                              Start session
+                            </Button>
+                          ) : displayStatus === PCStatus.MAINTENANCE ? (
+                            <Alert severity="warning" sx={{ py: 0 }}>
+                              Under maintenance
+                            </Alert>
+                          ) : (
+                            <Alert severity="info" sx={{ py: 0 }}>
+                              Not available right now
+                            </Alert>
+                          )}
+                        </Box>
                       </Box>
                     )}
                   </CardContent>
@@ -657,7 +732,8 @@ const GamingStations: React.FC = () => {
               </Grid>
             );
           })}
-      </Grid>
+        </Grid>
+      )}
 
       <Dialog
         open={startDialog}
@@ -669,6 +745,21 @@ const GamingStations: React.FC = () => {
         <DialogContent>
           {selectedPC && (
             <Box sx={{ mt: 2 }}>
+              {bookingOf(selectedPC) && minutesUntil(bookingOf(selectedPC)!.startTime) <= 120 && (
+                <Alert
+                  severity="warning"
+                  sx={{ mb: 2 }}
+                  action={
+                    <Button color="inherit" size="small" onClick={() => navigate(`/reservations?highlight=${bookingOf(selectedPC)!.id}`)}>
+                      View
+                    </Button>
+                  }
+                >
+                  {selectedPC.pcNumber} is booked at <b>{fmtTime(bookingOf(selectedPC)!.startTime, DEFAULT_TZ)}</b> for{" "}
+                  {bookingOf(selectedPC)!.customerName}. If this is them, check the booking in from Reservations instead —
+                  otherwise keep this session shorter.
+                </Alert>
+              )}
               <Alert severity="info" sx={{ mb: 2 }}>
                 <Typography variant="body2" fontWeight={600}>
                   {selectedPC.name} ({selectedPC.pcNumber})
@@ -1075,9 +1166,9 @@ const GamingStations: React.FC = () => {
                 <Typography variant="body2" fontWeight={600} color="success.dark" sx={{ mt: 1 }}>
                   Amount: ${(selectedSession.finalAmount || selectedSession.totalCost)?.usd.toFixed(2)} USD
                 </Typography>
-                {selectedSession.discount && (
+                {(selectedSession.discount?.percentage || 0) > 0 && (
                   <Typography variant="body2" color="success.dark">
-                    Discount Applied: {selectedSession.discount.percentage}% off
+                    Discount applied: {selectedSession.discount?.percentage}% off
                   </Typography>
                 )}
               </Alert>

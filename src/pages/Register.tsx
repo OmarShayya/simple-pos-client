@@ -10,7 +10,6 @@ import {
   Link,
   Container,
   Stack,
-  MenuItem,
 } from "@mui/material";
 import {
   Visibility,
@@ -19,7 +18,8 @@ import {
   SportsEsports,
 } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { staffApi } from "@/api/staff.api";
 import { motion } from "framer-motion";
 import { authApi } from "@/api/auth.api";
 import { useAuthStore } from "@/store/authStore";
@@ -35,14 +35,17 @@ const Register: React.FC = () => {
     name: "",
     email: "",
     password: "",
-    role: UserRole.CASHIER,
+    role: UserRole.ADMIN,
   });
+  // Self-registration only exists to create the very first (admin) account
+  const setup = useQuery({ queryKey: ["setup-status"], queryFn: staffApi.setupStatus, retry: 1 });
+  const closed = setup.data?.needsSetup === false;
 
   const registerMutation = useMutation({
     mutationFn: authApi.register,
     onSuccess: (data) => {
       setAuth(data.user, data.token);
-      toast.success("Registration successful!");
+      toast.success("Welcome! Your admin account is ready.");
       navigate("/dashboard");
     },
     onError: (error) => {
@@ -52,7 +55,8 @@ const Register: React.FC = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    registerMutation.mutate(formData);
+    // The first account is always an admin; the server decides the role
+    registerMutation.mutate({ name: formData.name, email: formData.email, password: formData.password });
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -64,7 +68,7 @@ const Register: React.FC = () => {
       sx={{
         minHeight: "100vh",
         display: "flex",
-        background: "#0A1929",
+        background: "#07070A",
         position: "relative",
         overflow: "hidden",
       }}
@@ -79,7 +83,7 @@ const Register: React.FC = () => {
           justifyContent: "center",
           position: "relative",
           background:
-            "linear-gradient(135deg, #0A1929 0%, #1a237e 50%, #0A1929 100%)",
+            "linear-gradient(135deg, #07070A 0%, #1C1033 50%, #07070A 100%)",
           overflow: "hidden",
         }}
       >
@@ -172,7 +176,7 @@ const Register: React.FC = () => {
           >
             <Box
               component="img"
-              src="/logo.png"
+              src="/logo-192.webp"
               alt="Epic Lounge"
               sx={{
                 height: 120,
@@ -319,7 +323,7 @@ const Register: React.FC = () => {
           >
             <Card
               sx={{
-                background: "rgba(10, 25, 41, 0.8)",
+                background: "rgba(15, 15, 20, 0.85)",
                 backdropFilter: "blur(20px)",
                 border: "1px solid rgba(0,206,209,0.3)",
                 borderRadius: 4,
@@ -337,7 +341,7 @@ const Register: React.FC = () => {
                 >
                   <Box
                     component="img"
-                    src="/logo.png"
+                    src="/logo-192.webp"
                     alt="Epic Lounge"
                     sx={{
                       height: 80,
@@ -361,14 +365,27 @@ const Register: React.FC = () => {
                       mb: 1,
                     }}
                   >
-                    Create Account
+                    {closed ? "Ask an admin" : "Set up Epic Lounge"}
                   </Typography>
                   <Typography variant="body2" sx={{ color: "#B2BAC2" }}>
-                    Join the Epic Lounge team
+                    {closed
+                      ? "Staff accounts are created by an admin or manager."
+                      : "Create the owner account. It gets full admin access."}
                   </Typography>
                 </Box>
 
                 {/* Form */}
+                {closed ? (
+                  <Stack spacing={2} sx={{ textAlign: "center" }}>
+                    <Typography variant="body2" sx={{ color: "#B2BAC2" }}>
+                      For security, new accounts can't sign themselves up. Ask an admin to add you from
+                      <b> Admin → Staff</b> — they'll give you your email and a temporary password.
+                    </Typography>
+                    <Button variant="contained" size="large" onClick={() => navigate("/login")}>
+                      Back to sign in
+                    </Button>
+                  </Stack>
+                ) : (
                 <form onSubmit={handleSubmit}>
                   <Stack spacing={3}>
                     <TextField
@@ -485,42 +502,6 @@ const Register: React.FC = () => {
                       }}
                     />
 
-                    <TextField
-                      fullWidth
-                      select
-                      label="Role"
-                      name="role"
-                      value={formData.role}
-                      onChange={handleChange}
-                      helperText="Select your role in the system"
-                      sx={{
-                        "& .MuiOutlinedInput-root": {
-                          color: "#FFFFFF",
-                          "&:hover fieldset": {
-                            borderColor: "#00CED1",
-                          },
-                          "&.Mui-focused fieldset": {
-                            borderColor: "#00CED1",
-                          },
-                        },
-                        "& .MuiInputLabel-root": {
-                          color: "#B2BAC2",
-                          "&.Mui-focused": {
-                            color: "#00CED1",
-                          },
-                        },
-                        "& .MuiSelect-select": {
-                          color: "#FFFFFF",
-                        },
-                        "& .MuiFormHelperText-root": {
-                          color: "#B2BAC2",
-                        },
-                      }}
-                    >
-                      <MenuItem value={UserRole.CASHIER}>Cashier</MenuItem>
-                      <MenuItem value={UserRole.MANAGER}>Manager</MenuItem>
-                      <MenuItem value={UserRole.ADMIN}>Admin</MenuItem>
-                    </TextField>
 
                     <Button
                       fullWidth
@@ -528,7 +509,7 @@ const Register: React.FC = () => {
                       variant="contained"
                       size="large"
                       startIcon={<PersonAdd />}
-                      disabled={registerMutation.isPending}
+                      disabled={registerMutation.isPending || setup.isLoading}
                       sx={{
                         py: 1.8,
                         fontSize: "1.1rem",
@@ -547,11 +528,12 @@ const Register: React.FC = () => {
                       }}
                     >
                       {registerMutation.isPending
-                        ? "Creating Account..."
-                        : "Sign Up"}
+                        ? "Creating account..."
+                        : "Create admin account"}
                     </Button>
                   </Stack>
                 </form>
+                )}
 
                 {/* Footer */}
                 <Box sx={{ textAlign: "center", mt: 3 }}>

@@ -18,7 +18,8 @@ import {
   SportsEsports,
 } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { staffApi } from "@/api/staff.api";
 import { motion } from "framer-motion";
 import { authApi } from "../api/auth.api";
 import { useAuthStore } from "../store/authStore";
@@ -26,6 +27,8 @@ import { handleApiError } from "../utils/errorHandler";
 import { toast } from "react-toastify";
 
 const Login: React.FC = () => {
+  const { data: setup } = useQuery({ queryKey: ["setup-status"], queryFn: staffApi.setupStatus, retry: 1 });
+  const needsSetup = setup?.needsSetup === true;
   const navigate = useNavigate();
   const setAuth = useAuthStore((state) => state.setAuth);
   const [showPassword, setShowPassword] = useState(false);
@@ -60,7 +63,7 @@ const Login: React.FC = () => {
       sx={{
         minHeight: "100vh",
         display: "flex",
-        background: "#0A1929",
+        background: "#07070A",
         position: "relative",
         overflow: "hidden",
       }}
@@ -75,7 +78,7 @@ const Login: React.FC = () => {
           justifyContent: "center",
           position: "relative",
           background:
-            "linear-gradient(135deg, #0A1929 0%, #1a237e 50%, #0A1929 100%)",
+            "linear-gradient(135deg, #07070A 0%, #1C1033 50%, #07070A 100%)",
           overflow: "hidden",
         }}
       >
@@ -168,7 +171,7 @@ const Login: React.FC = () => {
           >
             <Box
               component="img"
-              src="/logo.png"
+              src="/logo-192.webp"
               alt="Epic Lounge"
               sx={{
                 height: 120,
@@ -315,7 +318,7 @@ const Login: React.FC = () => {
           >
             <Card
               sx={{
-                background: "rgba(10, 25, 41, 0.8)",
+                background: "rgba(15, 15, 20, 0.85)",
                 backdropFilter: "blur(20px)",
                 border: "1px solid rgba(0,206,209,0.3)",
                 borderRadius: 4,
@@ -333,7 +336,7 @@ const Login: React.FC = () => {
                 >
                   <Box
                     component="img"
-                    src="/logo.png"
+                    src="/logo-192.webp"
                     alt="Epic Lounge"
                     sx={{
                       height: 80,
@@ -479,23 +482,21 @@ const Login: React.FC = () => {
                 {/* Footer */}
                 <Box sx={{ textAlign: "center", mt: 3 }}>
                   <Typography variant="body2" sx={{ color: "#B2BAC2" }}>
-                    Don't have an account?{" "}
-                    <Link
-                      component="button"
-                      variant="body2"
-                      onClick={() => navigate("/register")}
-                      sx={{
-                        cursor: "pointer",
-                        fontWeight: 700,
-                        color: "#00CED1",
-                        textDecoration: "none",
-                        "&:hover": {
-                          color: "#9B51E0",
-                        },
-                      }}
-                    >
-                      Sign up
-                    </Link>
+                    {needsSetup ? (
+                      <>
+                        First time here?{" "}
+                        <Link
+                          component="button"
+                          variant="body2"
+                          onClick={() => navigate("/register")}
+                          sx={{ cursor: "pointer", fontWeight: 700, color: "#00CED1", textDecoration: "none", "&:hover": { color: "#9B51E0" } }}
+                        >
+                          Set up the owner account
+                        </Link>
+                      </>
+                    ) : (
+                      "New staff? Ask an admin to create your account."
+                    )}
                   </Typography>
                 </Box>
               </Box>

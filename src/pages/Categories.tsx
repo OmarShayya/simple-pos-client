@@ -27,6 +27,7 @@ import { Category, CreateCategoryRequest } from "@/types/category.types";
 import { toast } from "react-toastify";
 import { handleApiError } from "@/utils/errorHandler";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
+import PageHeader from "@/components/common/PageHeader";
 
 const Categories: React.FC = () => {
   const queryClient = useQueryClient();
@@ -115,15 +116,10 @@ const Categories: React.FC = () => {
 
   return (
     <Box>
-      <Box sx={{ display: "flex", justifyContent: "space-between", mb: 3 }}>
-        <Box>
-          <Typography variant="h4" fontWeight="bold">
-            Categories
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Manage product categories
-          </Typography>
-        </Box>
+      <PageHeader
+        title="Categories"
+        subtitle="Manage product categories"
+        actions={
         <Button
           variant="contained"
           startIcon={<Add />}
@@ -131,11 +127,12 @@ const Categories: React.FC = () => {
         >
           Add Category
         </Button>
-      </Box>
+        }
+      />
 
       <Grid container spacing={3}>
         {categories?.map((category) => (
-          <Grid size={{ xs: 12, sm: 6, md: 4, lg: 3 }} key={category.id}>
+          <Grid size={{ xs: 6, md: 4, lg: 3 }} key={category.id}>
             <Card
               sx={{
                 p: 3,

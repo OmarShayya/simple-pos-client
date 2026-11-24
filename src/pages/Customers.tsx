@@ -34,6 +34,7 @@ import { Customer, CreateCustomerRequest } from "@/types/customer.types";
 import { toast } from "react-toastify";
 import { handleApiError } from "@/utils/errorHandler";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
+import PageHeader from "@/components/common/PageHeader";
 
 const Customers: React.FC = () => {
   const queryClient = useQueryClient();
@@ -293,15 +294,10 @@ const Customers: React.FC = () => {
 
   return (
     <Box>
-      <Box sx={{ display: "flex", justifyContent: "space-between", mb: 3 }}>
-        <Box>
-          <Typography variant="h4" fontWeight="bold">
-            Customers
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Manage customer information and balances
-          </Typography>
-        </Box>
+      <PageHeader
+        title="Customers"
+        subtitle="Manage customer information and balances"
+        actions={
         <Button
           variant="contained"
           startIcon={<Add />}
@@ -309,7 +305,8 @@ const Customers: React.FC = () => {
         >
           Add Customer
         </Button>
-      </Box>
+        }
+      />
 
       {/* Search */}
       <Card sx={{ p: 2, mb: 3 }}>
