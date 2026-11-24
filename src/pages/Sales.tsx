@@ -1,24 +1,25 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   Box,
   Typography,
   Button,
   Card,
-  CardContent,
   TextField,
   Autocomplete,
   IconButton,
-  Divider,
   Chip,
   Grid,
   Alert,
-  CircularProgress,
   Badge,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemSecondaryAction,
   Dialog,
+  InputAdornment,
+  Paper,
+  Skeleton,
+  Stack,
+  Tooltip,
+  alpha,
+  useMediaQuery,
+  useTheme,
   DialogTitle,
   DialogContent,
   DialogActions,
@@ -27,7 +28,10 @@ import {
 import {
   Add,
   Remove,
-  Delete,
+  DeleteOutline,
+  DeleteSweepOutlined,
+  Close,
+  Search,
   ShoppingCart,
   Receipt,
   PendingActions,
@@ -51,6 +55,22 @@ import { SaleItem, SaleStatus } from "@/types/sale.types";
 import { Discount } from "@/types/discount.types";
 import { toast } from "react-toastify";
 import { handleApiError } from "@/utils/errorHandler";
+import PageHeader from "@/components/common/PageHeader";
+import EmptyState from "@/components/common/EmptyState";
+import StatusChip from "@/components/common/StatusChip";
+import { brand } from "@/theme/theme";
+
+interface PendingSaleListItem {
+  id: string;
+  invoiceNumber: string;
+  customer?: { name?: string } | null;
+  items?: unknown[];
+  totals?: { usd: number; lbp: number };
+  currentTotals?: { usd: number; lbp: number };
+  hasActiveSessions?: boolean;
+  activeSessions?: { currentDuration?: number }[];
+  createdAt: string;
+}
 
 // Helper to check if an item is a gaming session
 const isSessionItem = (item: SaleItem): boolean => {
@@ -106,6 +126,12 @@ const Sales: React.FC = () => {
   const [sessionItemDiscounts, setSessionItemDiscounts] = useState<Record<string, string>>({}); // Session SKU -> discount ID
   const [, setUpdateTrigger] = useState(0); // For real-time session cost updates
   const [initialLoadDone, setInitialLoadDone] = useState(false);
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  // When true, the next successful save jumps straight to taking payment
+  const chargeAfterSaveRef = useRef(false);
+  const cartRef = useRef<HTMLDivElement>(null);
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
 
   const { data: exchangeRate, isLoading: loadingRate } = useQuery({
     queryKey: ["exchange-rate"],
@@ -202,6 +228,10 @@ const Sales: React.FC = () => {
     onSuccess: (sale) => {
       toast.success(`Sale created! Invoice: ${sale.invoiceNumber}`);
       resetCart();
+      if (chargeAfterSaveRef.current) {
+        chargeAfterSaveRef.current = false;
+        navigate(`/sales/history?paymentFor=${sale.id}`);
+      }
       queryClient.invalidateQueries({ queryKey: ["sales"] });
       queryClient.invalidateQueries({ queryKey: ["pending-sales"] });
       queryClient.invalidateQueries({ queryKey: ["products"] });
@@ -215,7 +245,10 @@ const Sales: React.FC = () => {
         queryClient.invalidateQueries({ queryKey: ["customers"] });
       }
     },
-    onError: (error) => toast.error(handleApiError(error)),
+    onError: (error) => {
+      chargeAfterSaveRef.current = false;
+      toast.error(handleApiError(error));
+    },
   });
 
   const updateSaleMutation = useMutation({
@@ -224,6 +257,10 @@ const Sales: React.FC = () => {
     onSuccess: (sale) => {
       toast.success(`Sale updated! Invoice: ${sale.invoiceNumber}`);
       resetCart();
+      if (chargeAfterSaveRef.current) {
+        chargeAfterSaveRef.current = false;
+        navigate(`/sales/history?paymentFor=${sale.id}`);
+      }
       queryClient.invalidateQueries({ queryKey: ["sales"] });
       queryClient.invalidateQueries({ queryKey: ["pending-sales"] });
       queryClient.invalidateQueries({ queryKey: ["products"] });
@@ -234,7 +271,10 @@ const Sales: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ["yearly-report"] });
       queryClient.invalidateQueries({ queryKey: ["daily-transactions"] });
     },
-    onError: (error) => toast.error(handleApiError(error)),
+    onError: (error) => {
+      chargeAfterSaveRef.current = false;
+      toast.error(handleApiError(error));
+    },
   });
 
   const resetCart = () => {
@@ -344,9 +384,6 @@ const Sales: React.FC = () => {
     );
   };
 
-  const removeFromCart = (productId: string) => {
-    setCartItems(cartItems.filter((item) => item.productId !== productId));
-  };
 
   const calculateTotal = () => {
     const rate = exchangeRate?.rate || 89500;
@@ -730,727 +767,692 @@ const Sales: React.FC = () => {
     toast.info("Refreshing exchange rate...");
   };
 
+  // Product grid: category chips + live search over ALL products
+  const productCategories = useMemo(() => {
+    const map = new Map<string, string>();
+    (products?.data || []).forEach((p) => p.category?.id && map.set(p.category.id, p.category.name));
+    return Array.from(map, ([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+  }, [products?.data]);
+
+  const filteredProducts = useMemo(() => {
+    const q = productSearch.trim().toLowerCase();
+    return (products?.data || [])
+      .filter((p) => categoryFilter === "all" || p.category?.id === categoryFilter)
+      .filter((p) => !q || p.name.toLowerCase().includes(q) || (p.sku || "").toLowerCase().includes(q))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [products?.data, productSearch, categoryFilter]);
+
+  const cartQty: Record<string, number> = {};
+  cartItems.forEach((i) => {
+    if (i.productId) cartQty[i.productId] = i.quantity;
+  });
+
   const totals = calculateTotal();
   const pendingCount = pendingSales?.data?.length || 0;
   const currentRate = exchangeRate?.rate || 89500;
+  const itemCount = cartItems.reduce((n, i) => n + i.quantity, 0) + sessionItems.length;
+  const hasItems = cartItems.length > 0 || sessionItems.length > 0;
+  const isSaving = createSaleMutation.isPending || updateSaleMutation.isPending;
+
+  const handleCharge = () => {
+    if (!hasItems) {
+      toast.error("Please add items to cart");
+      return;
+    }
+    chargeAfterSaveRef.current = true;
+    handleSaveSale();
+  };
+
+  const handleSearchKeyDown = (e: React.KeyboardEvent) => {
+    // Enter adds the first match (handy with a barcode scanner or quick typing)
+    if (e.key !== "Enter") return;
+    const first = filteredProducts.find(
+      (p) => (p.productType || "physical") === "service" || (p.inventory?.quantity || 0) > 0
+    );
+    if (first) {
+      addToCart(first);
+      setProductSearch("");
+    }
+  };
 
   if (loadingProducts || loadingCustomers) {
     return (
-      <Box sx={{ display: "flex", justifyContent: "center", mt: 10 }}>
-        <CircularProgress />
+      <Box>
+        <Skeleton variant="rounded" height={48} sx={{ mb: 2, maxWidth: 360 }} />
+        <Grid container spacing={2}>
+          <Grid size={{ xs: 12, md: 7, lg: 8 }}>
+            <Skeleton variant="rounded" height={420} />
+          </Grid>
+          <Grid size={{ xs: 12, md: 5, lg: 4 }}>
+            <Skeleton variant="rounded" height={420} />
+          </Grid>
+        </Grid>
       </Box>
     );
   }
 
   return (
-    <Box>
-      <Box
-        sx={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          mb: 2,
-        }}
-      >
-        <Box>
-          <Typography variant="h4" fontWeight="bold">
-            Point of Sale
-          </Typography>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1, mt: 1 }}>
-            <Chip
-              label={`1 USD = ${currentRate.toLocaleString()} LBP`}
-              color="primary"
-              size="small"
-              variant="outlined"
-            />
-            <IconButton
-              size="small"
-              onClick={handleRefreshRate}
-              disabled={loadingRate}
-              title="Refresh exchange rate"
-            >
-              <Refresh fontSize="small" />
+    <Box sx={{ pb: { xs: hasItems ? 10 : 0, md: 0 } }}>
+      <PageHeader
+        title={editingSaleId ? "Edit pending sale" : "New sale"}
+        subtitle={
+          <Box component="span" sx={{ display: "inline-flex", alignItems: "center", gap: 0.75 }}>
+            1 USD = {currentRate.toLocaleString()} LBP
+            <IconButton size="small" onClick={handleRefreshRate} disabled={loadingRate} aria-label="Refresh exchange rate">
+              <Refresh fontSize="inherit" />
             </IconButton>
           </Box>
-        </Box>
-        <Button
-          variant="outlined"
-          startIcon={
-            <Badge badgeContent={pendingCount} color="error">
-              <PendingActions />
-            </Badge>
-          }
-          onClick={() => setOpenPendingDialog(true)}
-        >
-          Pending Orders
-        </Button>
-      </Box>
+        }
+        actions={
+          <Button
+            variant="outlined"
+            startIcon={
+              <Badge badgeContent={pendingCount} color="warning">
+                <PendingActions />
+              </Badge>
+            }
+            onClick={() => setOpenPendingDialog(true)}
+          >
+            Pending orders
+          </Button>
+        }
+      />
 
       {editingSaleId && (
-        <Alert severity="info" sx={{ mb: 2 }}>
-          {sessionItems.length > 0 ? (
-            <>
-              Editing sale with {sessionItems.length} gaming session(s).
-              {sessionItems.some(s => s.isActive) && " Active sessions continue running."}
-              {" "}Add/remove products freely - session items are preserved automatically.
-            </>
-          ) : (
-            <>Editing pending sale. Make changes and click "Update Sale" to save.</>
-          )}
-          <Button size="small" onClick={resetCart} sx={{ ml: 2 }}>
-            Cancel Edit
-          </Button>
+        <Alert
+          severity="info"
+          sx={{ mb: 2 }}
+          action={
+            <Button size="small" color="inherit" onClick={resetCart}>
+              Cancel edit
+            </Button>
+          }
+        >
+          {sessionItems.length > 0
+            ? `Editing a sale with ${sessionItems.length} gaming session(s)${
+                sessionItems.some((s) => s.isActive) ? " — active sessions keep running" : ""
+              }. Session items are kept automatically.`
+            : "Editing a pending sale. Make your changes, then update or charge."}
         </Alert>
       )}
 
-      <Grid container spacing={3} sx={{ mt: 1 }}>
-        <Grid size={{ xs: 12, md: 7 }}>
+      <Grid container spacing={2} alignItems="flex-start">
+        {/* Products */}
+        <Grid size={{ xs: 12, md: 7, lg: 8 }}>
           <Card>
-            <CardContent>
-              <Typography variant="h6" fontWeight={600} gutterBottom>
-                Select Products
-              </Typography>
-
-              <Autocomplete
-                options={products?.data || []}
-                getOptionLabel={(option) =>
-                  `${option.name} - ${option.sku} ($${option.pricing.usd})`
-                }
-                onChange={(_, value) => value && addToCart(value)}
-                inputValue={productSearch}
-                onInputChange={(_, newValue) => setProductSearch(newValue)}
-                renderInput={(params) => (
-                  <TextField {...params} label="Search products" fullWidth />
-                )}
-                renderOption={(props, option) => (
-                  <li {...props} key={option.id}>
-                    <Box sx={{ width: "100%" }}>
+            <Box sx={{ p: { xs: 1.5, sm: 2 }, pb: 1 }}>
+              <TextField
+                fullWidth
+                placeholder="Search products by name or SKU…"
+                value={productSearch}
+                onChange={(e) => setProductSearch(e.target.value)}
+                onKeyDown={handleSearchKeyDown}
+                slotProps={{
+                  input: {
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <Search />
+                      </InputAdornment>
+                    ),
+                    endAdornment: productSearch ? (
+                      <InputAdornment position="end">
+                        <IconButton size="small" onClick={() => setProductSearch("")} aria-label="Clear search">
+                          <Close fontSize="small" />
+                        </IconButton>
+                      </InputAdornment>
+                    ) : undefined,
+                  },
+                }}
+              />
+              <Stack
+                direction="row"
+                spacing={1}
+                sx={{ mt: 1.5, overflowX: "auto", pb: 0.5, scrollbarWidth: "none", "&::-webkit-scrollbar": { display: "none" } }}
+              >
+                {[{ id: "all", name: "All" }, ...productCategories].map((c) => (
+                  <Chip
+                    key={c.id}
+                    label={c.name}
+                    clickable
+                    color={categoryFilter === c.id ? "primary" : "default"}
+                    variant={categoryFilter === c.id ? "filled" : "outlined"}
+                    onClick={() => setCategoryFilter(c.id)}
+                    sx={{ flexShrink: 0, height: 34 }}
+                  />
+                ))}
+              </Stack>
+            </Box>
+            <Box
+              sx={{
+                px: { xs: 1.5, sm: 2 },
+                pb: 2,
+                pt: 1,
+                maxHeight: { md: "calc(100vh - 290px)" },
+                minHeight: { md: 320 },
+                overflowY: { md: "auto" },
+              }}
+            >
+              {filteredProducts.length === 0 ? (
+                <EmptyState
+                  compact
+                  title="No products match"
+                  description={productSearch ? `Nothing found for “${productSearch}”.` : "This category is empty."}
+                />
+              ) : (
+                <Box
+                  sx={{
+                    display: "grid",
+                    gap: { xs: 1, sm: 1.25 },
+                    gridTemplateColumns: { xs: "repeat(2, minmax(0, 1fr))", sm: "repeat(auto-fill, minmax(150px, 1fr))" },
+                  }}
+                >
+                  {filteredProducts.map((product) => {
+                    const isService = (product.productType || "physical") === "service";
+                    const stock = product.inventory?.quantity || 0;
+                    const isAvailable = isService || stock > 0;
+                    const inCart = cartQty[product.id] || 0;
+                    return (
                       <Box
+                        key={product.id}
+                        component="button"
+                        type="button"
+                        disabled={!isAvailable}
+                        onClick={() => addToCart(product)}
                         sx={{
+                          position: "relative",
+                          textAlign: "left",
+                          font: "inherit",
+                          color: "text.primary",
+                          p: 1.5,
+                          minHeight: 108,
                           display: "flex",
-                          justifyContent: "space-between",
+                          flexDirection: "column",
+                          gap: 0.25,
+                          borderRadius: 3,
+                          border: 1.5,
+                          borderColor: inCart ? "primary.main" : "divider",
+                          bgcolor: inCart ? alpha(theme.palette.primary.main, 0.06) : "background.paper",
+                          cursor: isAvailable ? "pointer" : "not-allowed",
+                          opacity: isAvailable ? 1 : 0.45,
+                          transition: "border-color .15s ease, transform .1s ease, background-color .15s ease",
+                          "&:hover:not(:disabled)": { borderColor: "primary.main" },
+                          "&:active:not(:disabled)": { transform: "scale(0.97)" },
                         }}
                       >
-                        <Typography variant="body2" fontWeight={600}>
-                          {option.name}
-                        </Typography>
-                        <Box sx={{ textAlign: "right" }}>
-                          <Typography
-                            variant="body2"
-                            color="primary"
-                            fontWeight={600}
+                        {inCart > 0 && (
+                          <Box
+                            sx={{
+                              position: "absolute",
+                              top: 8,
+                              right: 8,
+                              minWidth: 24,
+                              height: 24,
+                              px: 0.75,
+                              borderRadius: 12,
+                              bgcolor: "primary.main",
+                              color: "primary.contrastText",
+                              fontSize: "0.78rem",
+                              fontWeight: 700,
+                              display: "grid",
+                              placeItems: "center",
+                            }}
                           >
-                            ${option.pricing.usd.toFixed(2)}
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            {Math.round(
-                              option.pricing.usd * currentRate
-                            ).toLocaleString()}{" "}
-                            LBP
-                          </Typography>
+                            {inCart}
+                          </Box>
+                        )}
+                        <Typography
+                          variant="body2"
+                          sx={{
+                            fontWeight: 600,
+                            pr: inCart ? 3.5 : 0,
+                            lineHeight: 1.3,
+                            display: "-webkit-box",
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: "vertical",
+                            overflow: "hidden",
+                          }}
+                        >
+                          {product.name}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary" noWrap>
+                          {product.category?.name}
+                        </Typography>
+                        <Box sx={{ mt: "auto", pt: 0.75, display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 1 }}>
+                          <Box sx={{ minWidth: 0 }}>
+                            <Typography className="num" sx={{ fontWeight: 700, lineHeight: 1.1 }}>
+                              ${product.pricing.usd.toFixed(2)}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary" className="num" noWrap component="div">
+                              {Math.round(product.pricing.usd * currentRate).toLocaleString()} LBP
+                            </Typography>
+                          </Box>
+                          {isService ? (
+                            <StatusChip status="info" label="Service" dot={false} />
+                          ) : stock === 0 ? (
+                            <StatusChip status="cancelled" label="Out" dot={false} />
+                          ) : product.inventory?.isLowStock ? (
+                            <StatusChip status="pending" label={`${stock} left`} dot={false} />
+                          ) : (
+                            <Typography
+                              variant="caption"
+                              color="text.secondary"
+                              className="num"
+                              sx={{ flexShrink: 0, display: { xs: "none", sm: "block" } }}
+                            >
+                              {stock} in stock
+                            </Typography>
+                          )}
                         </Box>
                       </Box>
-                      <Box
-                        sx={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                        }}
-                      >
-                        <Typography variant="caption" color="text.secondary">
-                          {option.sku || "Service"}
-                        </Typography>
-                        {(option.productType || "physical") === "service" ? (
-                          <Chip
-                            label="Service"
-                            size="small"
-                            color="info"
-                            variant="outlined"
-                          />
-                        ) : (
-                          <Chip
-                            label={`Stock: ${option.inventory?.quantity || 0}`}
-                            size="small"
-                            color={
-                              option.inventory?.isLowStock ? "error" : "success"
-                            }
-                          />
-                        )}
-                      </Box>
-                    </Box>
-                  </li>
-                )}
-                sx={{ mb: 3 }}
-              />
-
-              <Box sx={{ maxHeight: 400, overflow: "auto" }}>
-                <Grid container spacing={2}>
-                  {products?.data.slice(0, 12).map((product) => {
-                    const isService = (product.productType || "physical") === "service";
-                    const isAvailable = isService || (product.inventory?.quantity || 0) > 0;
-                    return (
-                      <Grid size={{ xs: 6, sm: 4 }} key={product.id}>
-                        <Card
-                          sx={{
-                            cursor: isAvailable ? "pointer" : "not-allowed",
-                            opacity: isAvailable ? 1 : 0.5,
-                            "&:hover": isAvailable ? { boxShadow: 3 } : {},
-                            border: 1,
-                            borderColor: "divider",
-                          }}
-                          onClick={() => isAvailable && addToCart(product)}
-                        >
-                          <CardContent>
-                            <Typography variant="body2" fontWeight={600} noWrap>
-                              {product.name}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary">
-                              {product.sku || "Service"}
-                            </Typography>
-                            <Box sx={{ mt: 1 }}>
-                              <Typography
-                                variant="body2"
-                                color="primary"
-                                fontWeight={600}
-                              >
-                                ${product.pricing.usd.toFixed(2)}
-                              </Typography>
-                              <Typography
-                                variant="caption"
-                                color="text.secondary"
-                              >
-                                {Math.round(
-                                  product.pricing.usd * currentRate
-                                ).toLocaleString()}{" "}
-                                LBP
-                              </Typography>
-                            </Box>
-                            {isService ? (
-                              <Chip
-                                label="Service"
-                                size="small"
-                                color="info"
-                                variant="outlined"
-                                sx={{ mt: 1 }}
-                              />
-                            ) : (
-                              <Chip
-                                label={`Stock: ${product.inventory?.quantity || 0}`}
-                                size="small"
-                                color={
-                                  (product.inventory?.quantity || 0) === 0
-                                    ? "default"
-                                    : product.inventory?.isLowStock
-                                    ? "error"
-                                    : "success"
-                                }
-                                sx={{ mt: 1 }}
-                              />
-                            )}
-                          </CardContent>
-                        </Card>
-                      </Grid>
                     );
                   })}
-                </Grid>
-              </Box>
-            </CardContent>
+                </Box>
+              )}
+            </Box>
           </Card>
         </Grid>
 
-        <Grid size={{ xs: 12, md: 5 }}>
-          <Card sx={{ position: "sticky", top: 20 }}>
-            <CardContent>
-              <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
-                <Typography variant="h6" fontWeight={600}>
-                  <ShoppingCart sx={{ mr: 1, verticalAlign: "middle" }} />
-                  Cart ({cartItems.length + sessionItems.length} items)
-                </Typography>
-                {(cartItems.length > 0 || sessionItems.length > 0) && (
-                  <IconButton
-                    size="small"
-                    onClick={handlePrintCart}
-                    title="Print Cart"
-                    color="primary"
-                  >
-                    <Print />
-                  </IconButton>
-                )}
-              </Box>
-
+        {/* Cart */}
+        <Grid size={{ xs: 12, md: 5, lg: 4 }} ref={cartRef}>
+          <Card sx={{ position: { md: "sticky" }, top: { md: 84 } }}>
+            <Box sx={{ p: 2, pb: 1.5, display: "flex", alignItems: "center", gap: 1 }}>
+              <ShoppingCart color="primary" />
+              <Typography variant="h6" sx={{ flex: 1 }}>
+                Cart{itemCount > 0 ? ` · ${itemCount}` : ""}
+              </Typography>
+              {hasItems && (
+                <>
+                  <Tooltip title="Print cart">
+                    <IconButton size="small" onClick={handlePrintCart} aria-label="Print cart">
+                      <Print fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="Clear cart">
+                    <IconButton size="small" onClick={resetCart} aria-label="Clear cart">
+                      <DeleteSweepOutlined fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                </>
+              )}
+            </Box>
+            <Box sx={{ px: 2 }}>
               <Autocomplete
                 options={customers?.data || []}
                 getOptionLabel={(option) => `${option.name} (${option.phone})`}
                 value={selectedCustomer}
                 onChange={(_, value) => setSelectedCustomer(value)}
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    label="Select Customer (Optional)"
-                    size="small"
-                  />
-                )}
-                sx={{ mb: 2 }}
+                renderInput={(params) => <TextField {...params} label="Customer (optional)" size="small" />}
               />
+            </Box>
 
-              <Divider sx={{ my: 2 }} />
-
-              {cartItems.length === 0 && sessionItems.length === 0 ? (
-                <Alert severity="info">Cart is empty</Alert>
-              ) : (
-                <>
-                  <Box sx={{ maxHeight: 350, overflow: "auto", mb: 2 }}>
-                    {/* Session Items */}
-                    {sessionItems.map((item) => {
-                      const sessionCost = calculateSessionCost(item);
-                      const pcInfo = item.sessionData?.pcNumber || "Gaming Session";
-                      const sessionDiscountId = sessionItemDiscounts[item.productSku];
-                      const sessionDiscountObj = sessionDiscountId ? sessionDiscounts.find(d => d.id === sessionDiscountId) : null;
-                      const sessionDiscountAmount = sessionDiscountObj ? sessionCost.usd * (sessionDiscountObj.value / 100) : 0;
-                      const finalSessionAmount = sessionCost.usd - sessionDiscountAmount;
-
-                      return (
-                        <Box
-                          key={item.productSku}
-                          sx={{
-                            mb: 2,
-                            p: 1.5,
-                            bgcolor: item.isActive ? "info.dark" : "action.selected",
-                            borderRadius: 1,
-                            border: 2,
-                            borderColor: item.isActive ? "info.main" : "divider",
-                          }}
-                        >
-                          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "start", mb: 1 }}>
-                            <Box sx={{ flex: 1, display: "flex", alignItems: "center", gap: 1 }}>
-                              <Computer sx={{ color: item.isActive ? "info.light" : "action.active" }} />
-                              <Box>
-                                <Typography variant="body2" fontWeight={600}>
-                                  {item.productName}
-                                </Typography>
-                                <Typography variant="caption" color="text.secondary">
-                                  {pcInfo} | ${item.sessionData?.hourlyRate?.usd?.toFixed(2) || "0.00"}/hr
-                                </Typography>
-                              </Box>
-                            </Box>
-                            {item.isActive && (
-                              <Chip
-                                icon={<AccessTime sx={{ fontSize: 14 }} />}
-                                label={formatSessionDuration(item.sessionData!.startTime)}
-                                size="small"
-                                color="info"
-                                sx={{
-                                  animation: "pulse 2s ease-in-out infinite",
-                                  "@keyframes pulse": {
-                                    "0%, 100%": { opacity: 1 },
-                                    "50%": { opacity: 0.7 },
-                                  },
-                                }}
-                              />
+            {!hasItems ? (
+              <EmptyState
+                compact
+                icon={<ShoppingCart />}
+                title="Cart is empty"
+                description="Tap a product to add it."
+              />
+            ) : (
+              <>
+                <Box sx={{ px: 2, mt: 1, maxHeight: { md: "calc(100vh - 520px)" }, minHeight: { md: 120 }, overflowY: { md: "auto" } }}>
+                  {/* Gaming session items */}
+                  {sessionItems.map((item) => {
+                    const sessionCost = calculateSessionCost(item);
+                    const pcInfo = item.sessionData?.pcNumber || "Gaming session";
+                    const sessionDiscountId = sessionItemDiscounts[item.productSku];
+                    const sessionDiscountObj = sessionDiscountId ? sessionDiscounts.find((d) => d.id === sessionDiscountId) : null;
+                    const sessionDiscountAmount = sessionDiscountObj ? sessionCost.usd * (sessionDiscountObj.value / 100) : 0;
+                    const finalSessionAmount = sessionCost.usd - sessionDiscountAmount;
+                    return (
+                      <Box
+                        key={item.productSku}
+                        sx={{
+                          my: 1,
+                          p: 1.5,
+                          borderRadius: 3,
+                          border: 1,
+                          borderColor: item.isActive ? alpha(theme.palette.info.main, 0.4) : "divider",
+                          bgcolor: item.isActive ? alpha(theme.palette.info.main, 0.08) : "action.hover",
+                        }}
+                      >
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                          <Computer fontSize="small" color={item.isActive ? "info" : "action"} />
+                          <Box sx={{ flex: 1, minWidth: 0 }}>
+                            <Typography variant="body2" sx={{ fontWeight: 600 }} noWrap>
+                              {item.productName}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {pcInfo} · ${item.sessionData?.hourlyRate?.usd?.toFixed(2) || "0.00"}/hr
+                            </Typography>
+                          </Box>
+                          <Box sx={{ textAlign: "right" }}>
+                            {sessionDiscountObj && (
+                              <Typography variant="caption" color="text.secondary" sx={{ textDecoration: "line-through", display: "block" }}>
+                                ${sessionCost.usd.toFixed(2)}
+                              </Typography>
                             )}
-                          </Box>
-
-                          {/* Session Discount Dropdown */}
-                          {sessionDiscounts.length > 0 && (
-                            <TextField
-                              select
-                              size="small"
-                              fullWidth
-                              label="Apply Session Discount"
-                              value={sessionItemDiscounts[item.productSku] || ""}
-                              onChange={(e) => setSessionItemDiscounts(prev => ({
-                                ...prev,
-                                [item.productSku]: e.target.value
-                              }))}
-                              sx={{ mb: 1 }}
-                            >
-                              <MenuItem value="">No Discount</MenuItem>
-                              {sessionDiscounts.map((discount: Discount) => (
-                                <MenuItem key={discount.id} value={discount.id}>
-                                  {discount.name} ({discount.value}% off)
-                                </MenuItem>
-                              ))}
-                            </TextField>
-                          )}
-
-                          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                            <Box>
-                              <Typography variant="caption" color="text.secondary">
-                                {item.isActive ? "Live cost (updates in real-time)" : "Session ended"}
-                              </Typography>
-                              {sessionDiscountObj && (
-                                <Typography variant="caption" display="block" color="success.main">
-                                  -{sessionDiscountObj.value}% (${sessionDiscountAmount.toFixed(2)})
-                                </Typography>
-                              )}
-                            </Box>
-                            <Box sx={{ textAlign: "right" }}>
-                              {sessionDiscountObj && (
-                                <Typography variant="caption" color="text.secondary" sx={{ textDecoration: "line-through" }}>
-                                  ${sessionCost.usd.toFixed(2)}
-                                </Typography>
-                              )}
-                              <Typography variant="body2" fontWeight={600} color={sessionDiscountObj ? "success.main" : (item.isActive ? "info.main" : "text.primary")}>
-                                ${finalSessionAmount.toFixed(2)}
-                              </Typography>
-                              <Typography variant="caption" color="text.secondary">
-                                {Math.round(finalSessionAmount * (exchangeRate?.rate || 89500)).toLocaleString()} LBP
-                              </Typography>
-                            </Box>
-                          </Box>
-                          {item.isActive && (
-                            <Alert severity="info" sx={{ mt: 1, py: 0 }}>
-                              <Typography variant="caption">
-                                Session managed from Gaming Stations
-                              </Typography>
-                            </Alert>
-                          )}
-                        </Box>
-                      );
-                    })}
-
-                    {/* Regular Cart Items */}
-                    {cartItems.map((item) => {
-                      const productId = item.productId;
-                      const itemDiscount = productId ? itemDiscounts[productId] : undefined;
-                      const discountObj = productId ? availableDiscounts[productId]?.find((d: Discount) => d.id === itemDiscount) : undefined;
-                      const discountAmount = discountObj ? item.subtotal.usd * (discountObj.value / 100) : 0;
-                      const finalAmount = item.subtotal.usd - discountAmount;
-
-                      return (
-                        <Box
-                          key={item.productId || item.productSku}
-                          sx={{
-                            mb: 2,
-                            p: 1.5,
-                            bgcolor: "background.default",
-                            borderRadius: 1,
-                          }}
-                        >
-                          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "start", mb: 1 }}>
-                            <Box sx={{ flex: 1 }}>
-                              <Typography variant="body2" fontWeight={600}>
-                                {item.productName}
-                              </Typography>
-                              <Typography variant="caption" color="text.secondary">
-                                ${item.unitPrice.usd.toFixed(2)} x {item.quantity}
-                              </Typography>
-                            </Box>
-                            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                              <IconButton
-                                size="small"
-                                onClick={() => productId && updateQuantity(productId, -1)}
-                                disabled={!productId}
-                              >
-                                <Remove fontSize="small" />
-                              </IconButton>
-                              <Typography variant="body2" sx={{ minWidth: 30, textAlign: "center" }}>
-                                {item.quantity}
-                              </Typography>
-                              <IconButton
-                                size="small"
-                                onClick={() => productId && updateQuantity(productId, 1)}
-                                disabled={!productId}
-                              >
-                                <Add fontSize="small" />
-                              </IconButton>
-                              <IconButton
-                                size="small"
-                                color="error"
-                                onClick={() => productId && removeFromCart(productId)}
-                                disabled={!productId}
-                              >
-                                <Delete fontSize="small" />
-                              </IconButton>
-                            </Box>
-                          </Box>
-
-                          {productId && availableDiscounts[productId]?.length > 0 && (
-                            <TextField
-                              select
-                              size="small"
-                              fullWidth
-                              label="Apply Discount"
-                              value={itemDiscounts[productId] || ""}
-                              onChange={(e) => setItemDiscounts(prev => ({
-                                ...prev,
-                                [productId]: e.target.value
-                              }))}
-                              sx={{ mb: 1 }}
-                            >
-                              <MenuItem value="">No Discount</MenuItem>
-                              {availableDiscounts[productId].map((discount: Discount) => (
-                                <MenuItem key={discount.id} value={discount.id}>
-                                  {discount.name} ({discount.value}% off)
-                                </MenuItem>
-                              ))}
-                            </TextField>
-                          )}
-
-                          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                            <Box>
-                              {discountObj && (
-                                <Typography variant="caption" color="success.main">
-                                  -{discountObj.value}% (${discountAmount.toFixed(2)})
-                                </Typography>
-                              )}
-                            </Box>
-                            <Box sx={{ textAlign: "right" }}>
-                              {discountObj && (
-                                <Typography variant="caption" color="text.secondary" sx={{ textDecoration: "line-through" }}>
-                                  ${item.subtotal.usd.toFixed(2)}
-                                </Typography>
-                              )}
-                              <Typography variant="body2" fontWeight={600} color={discountObj ? "success.main" : "inherit"}>
-                                ${finalAmount.toFixed(2)}
-                              </Typography>
-                            </Box>
+                            <Typography className="num" sx={{ fontWeight: 700 }} color={sessionDiscountObj ? "success.main" : "text.primary"}>
+                              ${finalSessionAmount.toFixed(2)}
+                            </Typography>
                           </Box>
                         </Box>
-                      );
-                    })}
-                  </Box>
+                        {item.isActive && (
+                          <Chip
+                            icon={<AccessTime sx={{ fontSize: 14 }} />}
+                            label={`Live · ${formatSessionDuration(item.sessionData!.startTime)}`}
+                            size="small"
+                            color="info"
+                            variant="outlined"
+                            sx={{ mt: 1, animation: "pos-pulse 2s ease-in-out infinite" }}
+                          />
+                        )}
+                        {sessionDiscounts.length > 0 && (
+                          <TextField
+                            select
+                            size="small"
+                            fullWidth
+                            label="Session discount"
+                            value={sessionItemDiscounts[item.productSku] || ""}
+                            onChange={(e) =>
+                              setSessionItemDiscounts((prev) => ({ ...prev, [item.productSku]: e.target.value }))
+                            }
+                            sx={{ mt: 1.25 }}
+                          >
+                            <MenuItem value="">No discount</MenuItem>
+                            {sessionDiscounts.map((discount: Discount) => (
+                              <MenuItem key={discount.id} value={discount.id}>
+                                {discount.name} ({discount.value}% off)
+                              </MenuItem>
+                            ))}
+                          </TextField>
+                        )}
+                      </Box>
+                    );
+                  })}
 
-                  <Divider sx={{ my: 2 }} />
+                  {/* Product items */}
+                  {cartItems.map((item) => {
+                    const productId = item.productId;
+                    const itemDiscount = productId ? itemDiscounts[productId] : undefined;
+                    const discountObj = productId
+                      ? availableDiscounts[productId]?.find((d: Discount) => d.id === itemDiscount)
+                      : undefined;
+                    const discountAmount = discountObj ? item.subtotal.usd * (discountObj.value / 100) : 0;
+                    const finalAmount = item.subtotal.usd - discountAmount;
+                    return (
+                      <Box key={item.productId || item.productSku} sx={{ py: 1.25, borderBottom: 1, borderColor: "divider" }}>
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                          <Box sx={{ flex: 1, minWidth: 0 }}>
+                            <Typography variant="body2" sx={{ fontWeight: 600 }} noWrap>
+                              {item.productName}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary" className="num">
+                              ${item.unitPrice.usd.toFixed(2)} each
+                            </Typography>
+                          </Box>
+                          <Box
+                            sx={{
+                              display: "flex",
+                              alignItems: "center",
+                              border: 1,
+                              borderColor: "divider",
+                              borderRadius: 2.5,
+                            }}
+                          >
+                            <IconButton
+                              size="small"
+                              onClick={() => productId && updateQuantity(productId, -1)}
+                              disabled={!productId}
+                              aria-label={`Decrease ${item.productName}`}
+                            >
+                              {item.quantity === 1 ? <DeleteOutline fontSize="small" /> : <Remove fontSize="small" />}
+                            </IconButton>
+                            <Typography className="num" sx={{ minWidth: 22, textAlign: "center", fontWeight: 700 }}>
+                              {item.quantity}
+                            </Typography>
+                            <IconButton
+                              size="small"
+                              onClick={() => productId && updateQuantity(productId, 1)}
+                              disabled={!productId}
+                              aria-label={`Increase ${item.productName}`}
+                            >
+                              <Add fontSize="small" />
+                            </IconButton>
+                          </Box>
+                          <Box sx={{ minWidth: 62, textAlign: "right" }}>
+                            {discountObj && (
+                              <Typography variant="caption" color="text.secondary" sx={{ textDecoration: "line-through", display: "block" }}>
+                                ${item.subtotal.usd.toFixed(2)}
+                              </Typography>
+                            )}
+                            <Typography className="num" sx={{ fontWeight: 700 }} color={discountObj ? "success.main" : "text.primary"}>
+                              ${finalAmount.toFixed(2)}
+                            </Typography>
+                          </Box>
+                        </Box>
+                        {productId && availableDiscounts[productId]?.length > 0 && (
+                          <TextField
+                            select
+                            size="small"
+                            fullWidth
+                            label="Item discount"
+                            value={itemDiscounts[productId] || ""}
+                            onChange={(e) => setItemDiscounts((prev) => ({ ...prev, [productId]: e.target.value }))}
+                            sx={{ mt: 1 }}
+                          >
+                            <MenuItem value="">No discount</MenuItem>
+                            {availableDiscounts[productId].map((discount: Discount) => (
+                              <MenuItem key={discount.id} value={discount.id}>
+                                {discount.name} ({discount.value}% off)
+                              </MenuItem>
+                            ))}
+                          </TextField>
+                        )}
+                      </Box>
+                    );
+                  })}
+                </Box>
 
+                <Box sx={{ p: 2, pt: 1.5 }}>
                   {saleDiscounts.length > 0 && (
                     <TextField
                       select
                       size="small"
                       fullWidth
-                      label="Sale Discount (Optional)"
+                      label="Sale discount"
                       value={saleDiscountId}
                       onChange={(e) => setSaleDiscountId(e.target.value)}
-                      sx={{ mb: 2 }}
+                      sx={{ mb: 1.5 }}
                     >
-                      <MenuItem value="">No Sale Discount</MenuItem>
-                      {saleDiscounts.map(discount => (
+                      <MenuItem value="">No sale discount</MenuItem>
+                      {saleDiscounts.map((discount) => (
                         <MenuItem key={discount.id} value={discount.id}>
-                          {discount.name} ({discount.value}% off entire sale)
+                          {discount.name} ({discount.value}% off)
                         </MenuItem>
                       ))}
                     </TextField>
                   )}
 
-                  <Box>
+                  <Stack spacing={0.5} sx={{ mb: 1.5 }}>
                     {totals.totalSavings.usd > 0 && (
-                      <Card sx={{ bgcolor: "background.default", p: 1.5, mb: 2 }}>
-                        <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.5 }}>
+                      <>
+                        <Box sx={{ display: "flex", justifyContent: "space-between" }}>
                           <Typography variant="body2" color="text.secondary">
-                            Subtotal:
+                            Subtotal
                           </Typography>
-                          <Typography variant="body2">
+                          <Typography variant="body2" className="num">
                             ${totals.subtotalBeforeDiscount.usd.toFixed(2)}
                           </Typography>
                         </Box>
                         {totals.totalItemDiscounts.usd > 0 && (
-                          <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.5 }}>
+                          <Box sx={{ display: "flex", justifyContent: "space-between" }}>
                             <Typography variant="body2" color="success.main">
-                              Item Discounts:
+                              Item discounts
                             </Typography>
-                            <Typography variant="body2" color="success.main">
-                              -${totals.totalItemDiscounts.usd.toFixed(2)}
+                            <Typography variant="body2" color="success.main" className="num">
+                              −${totals.totalItemDiscounts.usd.toFixed(2)}
                             </Typography>
                           </Box>
                         )}
                         {totals.saleDiscount.usd > 0 && (
-                          <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.5 }}>
+                          <Box sx={{ display: "flex", justifyContent: "space-between" }}>
                             <Typography variant="body2" color="success.main">
-                              Sale Discount:
+                              Sale discount
                             </Typography>
-                            <Typography variant="body2" color="success.main">
-                              -${totals.saleDiscount.usd.toFixed(2)}
+                            <Typography variant="body2" color="success.main" className="num">
+                              −${totals.saleDiscount.usd.toFixed(2)}
                             </Typography>
                           </Box>
                         )}
-                        <Divider sx={{ my: 1 }} />
-                        <Box sx={{ display: "flex", justifyContent: "space-between" }}>
-                          <Typography variant="body2" fontWeight={600} color="success.main">
-                            Total Savings:
-                          </Typography>
-                          <Typography variant="body2" fontWeight={600} color="success.main">
-                            ${totals.totalSavings.usd.toFixed(2)}
-                          </Typography>
-                        </Box>
-                      </Card>
+                      </>
                     )}
+                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", pt: 0.5 }}>
+                      <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                        Total
+                      </Typography>
+                      <Typography className="num" sx={{ fontFamily: brand.fontDisplay, fontWeight: 700, fontSize: "1.6rem" }}>
+                        ${totals.finalTotal.usd.toFixed(2)}
+                      </Typography>
+                    </Box>
+                    <Typography variant="body2" color="text.secondary" className="num" sx={{ textAlign: "right" }}>
+                      {totals.finalTotal.lbp.toLocaleString()} LBP
+                    </Typography>
+                  </Stack>
 
-                    <Card
-                      sx={{
-                        bgcolor: "primary.main",
-                        color: "white",
-                        p: 2,
-                        mb: 2,
-                      }}
-                    >
-                      <Box
-                        sx={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          mb: 1,
-                        }}
-                      >
-                        <Typography variant="h6" fontWeight={600}>
-                          Total (USD):
-                        </Typography>
-                        <Typography variant="h6" fontWeight={700}>
-                          ${totals.finalTotal.usd.toFixed(2)}
-                        </Typography>
-                      </Box>
-                      <Box
-                        sx={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                        }}
-                      >
-                        <Typography variant="body2">Total (LBP):</Typography>
-                        <Typography variant="body2" fontWeight={600}>
-                          {totals.finalTotal.lbp.toLocaleString()} LBP
-                        </Typography>
-                      </Box>
-                    </Card>
-
-                    <Button
-                      fullWidth
-                      variant="contained"
-                      size="large"
-                      startIcon={<Receipt />}
-                      onClick={handleSaveSale}
-                      disabled={
-                        createSaleMutation.isPending ||
-                        updateSaleMutation.isPending
-                      }
-                    >
-                      {createSaleMutation.isPending ||
-                      updateSaleMutation.isPending
-                        ? "Processing..."
-                        : editingSaleId
-                        ? "Update Sale"
-                        : "Create Sale"}
-                    </Button>
-                  </Box>
-                </>
-              )}
-            </CardContent>
+                  <Button
+                    fullWidth
+                    variant="contained"
+                    size="large"
+                    startIcon={<Payment />}
+                    onClick={handleCharge}
+                    disabled={isSaving}
+                    sx={{ mb: 1 }}
+                  >
+                    {isSaving && chargeAfterSaveRef.current ? "Processing…" : `Charge $${totals.finalTotal.usd.toFixed(2)}`}
+                  </Button>
+                  <Button fullWidth variant="outlined" startIcon={<Receipt />} onClick={handleSaveSale} disabled={isSaving}>
+                    {editingSaleId ? "Update pending sale" : "Save as pending"}
+                  </Button>
+                </Box>
+              </>
+            )}
           </Card>
         </Grid>
       </Grid>
 
-      <Dialog
-        open={openPendingDialog}
-        onClose={() => setOpenPendingDialog(false)}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle>
-          <Box
-            sx={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-          >
-            <Typography variant="h6">Pending Orders</Typography>
-            <Chip label={`${pendingCount} Orders`} color="warning" />
+      {/* Mobile cart bar */}
+      {isMobile && hasItems && (
+        <Paper
+          elevation={0}
+          sx={{
+            position: "fixed",
+            left: 12,
+            right: 12,
+            bottom: "calc(12px + env(safe-area-inset-bottom))",
+            zIndex: 1100,
+            p: 1,
+            pl: 2,
+            borderRadius: 4,
+            display: "flex",
+            alignItems: "center",
+            gap: 1.5,
+            border: 1,
+            borderColor: "divider",
+            boxShadow: "0 12px 32px rgba(0,0,0,0.35)",
+          }}
+        >
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Typography variant="caption" color="text.secondary">
+              {itemCount} item{itemCount === 1 ? "" : "s"}
+            </Typography>
+            <Typography className="num" sx={{ fontWeight: 700, lineHeight: 1.1 }}>
+              ${totals.finalTotal.usd.toFixed(2)}
+            </Typography>
           </Box>
+          <Button variant="contained" onClick={() => cartRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}>
+            Review & charge
+          </Button>
+        </Paper>
+      )}
+
+      {/* Pending orders */}
+      <Dialog open={openPendingDialog} onClose={() => setOpenPendingDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
+          Pending orders
+          <Chip label={pendingCount} color="warning" size="small" />
         </DialogTitle>
-        <DialogContent>
+        <DialogContent dividers>
           {loadingPending ? (
-            <Box sx={{ display: "flex", justifyContent: "center", p: 3 }}>
-              <CircularProgress />
-            </Box>
-          ) : pendingSales?.data?.length === 0 ? (
-            <Alert severity="info">No pending orders</Alert>
+            <Stack spacing={1}>
+              {[0, 1, 2].map((i) => (
+                <Skeleton key={i} variant="rounded" height={72} />
+              ))}
+            </Stack>
+          ) : !pendingSales?.data?.length ? (
+            <EmptyState compact title="No pending orders" description="Saved sales waiting for payment appear here." />
           ) : (
-            <List>
-              {pendingSales?.data.map((sale: any) => (
-                <ListItem
+            <Stack spacing={1}>
+              {pendingSales.data.map((sale: PendingSaleListItem) => (
+                <Box
                   key={sale.id}
                   sx={{
+                    p: 1.5,
                     border: 1,
                     borderColor: "divider",
-                    borderRadius: 1,
-                    mb: 1,
-                    pr: 20, // Add padding-right to make space for buttons
-                    "&:hover": { bgcolor: "action.hover" },
+                    borderRadius: 3,
+                    display: "flex",
+                    flexDirection: { xs: "column", sm: "row" },
+                    alignItems: { xs: "stretch", sm: "center" },
+                    gap: 1.5,
                   }}
                 >
-                  <ListItemText
-                    primaryTypographyProps={{ component: 'div' }}
-                    secondaryTypographyProps={{ component: 'div' }}
-                    primary={
-                      <Box
-                        sx={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                        }}
-                      >
-                        <Typography variant="body1" fontWeight={600}>
-                          {sale.customer?.name || "Walk-in Customer"}
-                        </Typography>
-                        <Chip
-                          label={sale.invoiceNumber}
-                          size="small"
-                          variant="outlined"
-                        />
-                      </Box>
-                    }
-                    secondary={
-                      <Box sx={{ mt: 1 }}>
-                        <Typography variant="body2" color="text.secondary">
-                          Items: {sale.items?.length || 0} | Total: $
-                          {(sale.hasActiveSessions ? sale.currentTotals?.usd : sale.totals.usd)?.toFixed(2)}
-                        </Typography>
-                        {sale.hasActiveSessions && (
-                          <Box sx={{ mt: 0.5, mb: 0.5 }}>
-                            <Chip
-                              label={`⏱️ Active Session - ${sale.activeSessions?.[0]?.currentDuration || 0} min`}
-                              size="small"
-                              color="info"
-                              sx={{
-                                animation: "pulse 2s ease-in-out infinite",
-                                "@keyframes pulse": {
-                                  "0%, 100%": { opacity: 1 },
-                                  "50%": { opacity: 0.7 },
-                                },
-                              }}
-                            />
-                          </Box>
-                        )}
-                        <Typography variant="caption" color="text.secondary" display="block">
-                          Created: {new Date(sale.createdAt).toLocaleString()}
-                        </Typography>
-                      </Box>
-                    }
-                  />
-                  <ListItemSecondaryAction>
-                    <Box
-                      sx={{ display: "flex", gap: 1, flexDirection: "column" }}
-                    >
-                      <Button
-                        variant="outlined"
-                        size="small"
-                        fullWidth
-                        startIcon={<Edit />}
-                        onClick={() => handleLoadPendingSale(sale.id)}
-                      >
-                        Load
-                      </Button>
-                      <Button
-                        variant="contained"
-                        size="small"
-                        fullWidth
-                        color="success"
-                        startIcon={<Payment />}
-                        onClick={() => handleProcessPayment(sale.id)}
-                      >
-                        Pay
-                      </Button>
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+                      <Typography sx={{ fontWeight: 700 }}>{sale.customer?.name || "Walk-in"}</Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {sale.invoiceNumber}
+                      </Typography>
                     </Box>
-                  </ListItemSecondaryAction>
-                </ListItem>
+                    <Typography variant="body2" color="text.secondary" className="num">
+                      {sale.items?.length || 0} item(s) · $
+                      {(sale.hasActiveSessions ? sale.currentTotals?.usd : sale.totals?.usd)?.toFixed(2)} ·{" "}
+                      {new Date(sale.createdAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+                    </Typography>
+                    {sale.hasActiveSessions && (
+                      <Chip
+                        icon={<AccessTime sx={{ fontSize: 14 }} />}
+                        label={`Active session · ${sale.activeSessions?.[0]?.currentDuration || 0} min`}
+                        size="small"
+                        color="info"
+                        variant="outlined"
+                        sx={{ mt: 0.75 }}
+                      />
+                    )}
+                  </Box>
+                  <Stack direction="row" spacing={1} sx={{ flexShrink: 0 }}>
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      startIcon={<Edit />}
+                      onClick={() => handleLoadPendingSale(sale.id)}
+                      sx={{ flex: { xs: 1, sm: "none" } }}
+                    >
+                      Open
+                    </Button>
+                    <Button
+                      variant="contained"
+                      size="small"
+                      color="success"
+                      startIcon={<Payment />}
+                      onClick={() => handleProcessPayment(sale.id)}
+                      sx={{ flex: { xs: 1, sm: "none" } }}
+                    >
+                      Pay
+                    </Button>
+                  </Stack>
+                </Box>
               ))}
-            </List>
+            </Stack>
           )}
         </DialogContent>
         <DialogActions>

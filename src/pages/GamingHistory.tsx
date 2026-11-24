@@ -31,6 +31,8 @@ import LoadingSpinner from "@/components/common/LoadingSpinner";
 import { format } from "date-fns";
 import { toast } from "react-toastify";
 import { handleApiError } from "@/utils/errorHandler";
+import PageHeader from "@/components/common/PageHeader";
+import StatusChip from "@/components/common/StatusChip";
 
 const GamingHistory: React.FC = () => {
   const queryClient = useQueryClient();
@@ -203,7 +205,7 @@ const GamingHistory: React.FC = () => {
     {
       field: "customerName",
       headerName: "Customer",
-      flex: 1,
+      flex: 1, minWidth: 150,
     },
     {
       field: "duration",
@@ -239,35 +241,13 @@ const GamingHistory: React.FC = () => {
       field: "status",
       headerName: "Status",
       width: 120,
-      renderCell: (params) => (
-        <Chip
-          label={params.row.status.toUpperCase()}
-          color={
-            params.row.status === SessionStatus.COMPLETED
-              ? "success"
-              : params.row.status === SessionStatus.ACTIVE
-              ? "primary"
-              : "default"
-          }
-          size="small"
-        />
-      ),
+      renderCell: (params) => <StatusChip status={params.row.status} />,
     },
     {
       field: "paymentStatus",
       headerName: "Payment",
       width: 120,
-      renderCell: (params) => (
-        <Chip
-          label={params.row.paymentStatus.toUpperCase()}
-          color={
-            params.row.paymentStatus === SessionPaymentStatus.PAID
-              ? "success"
-              : "warning"
-          }
-          size="small"
-        />
-      ),
+      renderCell: (params) => <StatusChip status={params.row.paymentStatus} />,
     },
     {
       field: "startTime",
@@ -313,22 +293,14 @@ const GamingHistory: React.FC = () => {
 
   return (
     <Box>
-      <Box sx={{ display: "flex", justifyContent: "space-between", mb: 3 }}>
-        <Box>
-          <Typography variant="h4" fontWeight="bold">
-            Gaming Sessions History
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            View all gaming sessions and payments
-          </Typography>
-        </Box>
-      </Box>
+      <PageHeader title="Gaming Sessions History" subtitle="View all gaming sessions and payments" />
 
-      <Card sx={{ p: 2, mb: 3 }}>
+      <Card sx={{ p: { xs: 1.5, sm: 2 }, mb: 2 }}>
         <Grid container spacing={2}>
-          <Grid size={{ xs: 12, md: 3 }}>
+          <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
             <TextField
               fullWidth
+              size="small"
               placeholder="Search sessions..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -341,9 +313,10 @@ const GamingHistory: React.FC = () => {
               }}
             />
           </Grid>
-          <Grid size={{ xs: 12, md: 2 }}>
+          <Grid size={{ xs: 6, sm: 3, lg: 2 }}>
             <TextField
               fullWidth
+              size="small"
               select
               label="Status"
               value={statusFilter}
@@ -357,9 +330,10 @@ const GamingHistory: React.FC = () => {
               <MenuItem value={SessionStatus.CANCELLED}>Cancelled</MenuItem>
             </TextField>
           </Grid>
-          <Grid size={{ xs: 12, md: 2 }}>
+          <Grid size={{ xs: 6, sm: 3, lg: 2 }}>
             <TextField
               fullWidth
+              size="small"
               select
               label="Payment"
               value={paymentStatusFilter}
@@ -374,7 +348,7 @@ const GamingHistory: React.FC = () => {
               <MenuItem value={SessionPaymentStatus.UNPAID}>Unpaid</MenuItem>
             </TextField>
           </Grid>
-          <Grid size={{ xs: 12, md: 5 }}>
+          <Grid size={{ xs: 12, lg: 5 }}>
             <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
               <ToggleButtonGroup
                 value={dateFilterType}

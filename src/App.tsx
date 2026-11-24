@@ -1,5 +1,7 @@
 import React from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
+import { ThemeProvider } from "@mui/material";
+import getTheme from "./theme/theme";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Layout from "./components/layout/Layout";
@@ -20,6 +22,12 @@ import GamingHistory from "./pages/GamingHistory";
 import PCManagement from "./pages/PCManagement";
 import Discounts from "./pages/Discounts";
 
+// Sign-in screens are always dark (brand look), regardless of the app theme
+const authTheme = getTheme("dark");
+const AuthScreen: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <ThemeProvider theme={authTheme}>{children}</ThemeProvider>
+);
+
 const App: React.FC = () => {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
@@ -27,11 +35,11 @@ const App: React.FC = () => {
     <Routes>
       <Route
         path="/login"
-        element={isAuthenticated ? <Navigate to="/dashboard" /> : <Login />}
+        element={isAuthenticated ? <Navigate to="/dashboard" /> : <AuthScreen><Login /></AuthScreen>}
       />
       <Route
         path="/register"
-        element={isAuthenticated ? <Navigate to="/dashboard" /> : <Register />}
+        element={isAuthenticated ? <Navigate to="/dashboard" /> : <AuthScreen><Register /></AuthScreen>}
       />
 
       <Route

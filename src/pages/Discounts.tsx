@@ -21,8 +21,6 @@ import {
   Edit,
   Delete,
   LocalOffer,
-  CheckCircle,
-  Cancel,
 } from "@mui/icons-material";
 import { DataGrid, GridColDef, GridActionsCellItem } from "@mui/x-data-grid";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -39,7 +37,9 @@ import { Product } from "@/types/product.types";
 import { Category } from "@/types/category.types";
 import { toast } from "react-toastify";
 import { handleApiError } from "@/utils/errorHandler";
+import PageHeader from "@/components/common/PageHeader";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
+import StatusChip from "@/components/common/StatusChip";
 
 const Discounts: React.FC = () => {
   const queryClient = useQueryClient();
@@ -273,14 +273,7 @@ const Discounts: React.FC = () => {
       field: "isActive",
       headerName: "Status",
       width: 100,
-      renderCell: (params) => (
-        <Chip
-          label={params.row.isActive ? "Active" : "Inactive"}
-          color={params.row.isActive ? "success" : "default"}
-          size="small"
-          icon={params.row.isActive ? <CheckCircle /> : <Cancel />}
-        />
-      ),
+      renderCell: (params) => <StatusChip status={params.row.isActive ? "active" : "inactive"} label={params.row.isActive ? "Active" : "Inactive"} />,
     },
     {
       field: "startDate",
@@ -325,26 +318,16 @@ const Discounts: React.FC = () => {
   if (isLoading) return <LoadingSpinner />;
 
   return (
-    <Box sx={{ p: 3 }}>
-      <Box
-        sx={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          mb: 3,
-        }}
-      >
-        <Typography variant="h4" fontWeight="bold">
-          Discounts
-        </Typography>
-        <Button
-          variant="contained"
-          startIcon={<Add />}
-          onClick={() => handleOpenDialog()}
-        >
-          Create Discount
-        </Button>
-      </Box>
+    <Box>
+      <PageHeader
+        title="Discounts"
+        subtitle="Percentage discounts for products, categories, sales and gaming time."
+        actions={
+          <Button variant="contained" startIcon={<Add />} onClick={() => handleOpenDialog()}>
+            Create discount
+          </Button>
+        }
+      />
 
       <Card sx={{ mb: 3, p: 2.5 }}>
         <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>

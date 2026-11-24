@@ -64,7 +64,7 @@ const Register: React.FC = () => {
       sx={{
         minHeight: "100vh",
         display: "flex",
-        background: "#0A1929",
+        background: "#07070A",
         position: "relative",
         overflow: "hidden",
       }}
@@ -79,7 +79,7 @@ const Register: React.FC = () => {
           justifyContent: "center",
           position: "relative",
           background:
-            "linear-gradient(135deg, #0A1929 0%, #1a237e 50%, #0A1929 100%)",
+            "linear-gradient(135deg, #07070A 0%, #1C1033 50%, #07070A 100%)",
           overflow: "hidden",
         }}
       >
@@ -172,7 +172,7 @@ const Register: React.FC = () => {
           >
             <Box
               component="img"
-              src="/logo.png"
+              src="/logo-192.webp"
               alt="Epic Lounge"
               sx={{
                 height: 120,
@@ -319,7 +319,7 @@ const Register: React.FC = () => {
           >
             <Card
               sx={{
-                background: "rgba(10, 25, 41, 0.8)",
+                background: "rgba(15, 15, 20, 0.85)",
                 backdropFilter: "blur(20px)",
                 border: "1px solid rgba(0,206,209,0.3)",
                 borderRadius: 4,
@@ -337,7 +337,7 @@ const Register: React.FC = () => {
                 >
                   <Box
                     component="img"
-                    src="/logo.png"
+                    src="/logo-192.webp"
                     alt="Epic Lounge"
                     sx={{
                       height: 80,

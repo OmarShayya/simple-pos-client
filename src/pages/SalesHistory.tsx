@@ -36,6 +36,8 @@ import { handleApiError } from "@/utils/errorHandler";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
 import { format } from "date-fns";
 import { useSearchParams } from "react-router-dom";
+import PageHeader from "@/components/common/PageHeader";
+import StatusChip from "@/components/common/StatusChip";
 
 const SalesHistory: React.FC = () => {
   const queryClient = useQueryClient();
@@ -560,7 +562,7 @@ const SalesHistory: React.FC = () => {
     {
       field: "customer",
       headerName: "Customer",
-      flex: 1,
+      flex: 1, minWidth: 160,
       renderCell: (params) => params.row.customer?.name || "Walk-in",
     },
     {
@@ -594,19 +596,7 @@ const SalesHistory: React.FC = () => {
       field: "status",
       headerName: "Status",
       width: 120,
-      renderCell: (params) => (
-        <Chip
-          label={params.row.status.toUpperCase()}
-          color={
-            params.row.status === SaleStatus.PAID
-              ? "success"
-              : params.row.status === SaleStatus.PENDING
-              ? "warning"
-              : "error"
-          }
-          size="small"
-        />
-      ),
+      renderCell: (params) => <StatusChip status={params.row.status} />,
     },
     {
       field: "paymentMethod",
@@ -674,22 +664,14 @@ const SalesHistory: React.FC = () => {
 
   return (
     <Box>
-      <Box sx={{ display: "flex", justifyContent: "space-between", mb: 3 }}>
-        <Box>
-          <Typography variant="h4" fontWeight="bold">
-            Sales History
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            View and manage all sales transactions
-          </Typography>
-        </Box>
-      </Box>
+      <PageHeader title="Sales History" subtitle="View and manage all sales transactions" />
 
-      <Card sx={{ p: 2, mb: 3 }}>
+      <Card sx={{ p: { xs: 1.5, sm: 2 }, mb: 2 }}>
         <Grid container spacing={2}>
-          <Grid size={{ xs: 12, md: 4 }}>
+          <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
             <TextField
               fullWidth
+              size="small"
               placeholder="Search by invoice or customer..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -702,9 +684,10 @@ const SalesHistory: React.FC = () => {
               }}
             />
           </Grid>
-          <Grid size={{ xs: 12, md: 3 }}>
+          <Grid size={{ xs: 12, sm: 6, lg: 3 }}>
             <TextField
               fullWidth
+              size="small"
               select
               label="Status"
               value={statusFilter}
@@ -718,7 +701,7 @@ const SalesHistory: React.FC = () => {
               <MenuItem value={SaleStatus.CANCELLED}>Cancelled</MenuItem>
             </TextField>
           </Grid>
-          <Grid size={{ xs: 12, md: 5 }}>
+          <Grid size={{ xs: 12, lg: 5 }}>
             <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
               <ToggleButtonGroup
                 value={dateFilterType}

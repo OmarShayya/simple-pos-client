@@ -11,7 +11,6 @@ import {
   TextField,
   Grid,
   IconButton,
-  Chip,
   Autocomplete,
 } from "@mui/material";
 import { Add, Edit, Delete, Lock, LockOpen } from "@mui/icons-material";
@@ -24,6 +23,8 @@ import { Customer } from "@/types/customer.types";
 import { toast } from "react-toastify";
 import { handleApiError } from "@/utils/errorHandler";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
+import PageHeader from "@/components/common/PageHeader";
+import StatusChip from "@/components/common/StatusChip";
 
 const PCManagement: React.FC = () => {
   const queryClient = useQueryClient();
@@ -212,7 +213,7 @@ const PCManagement: React.FC = () => {
 
   const columns: GridColDef[] = [
     { field: "pcNumber", headerName: "PC Number", width: 130 },
-    { field: "name", headerName: "Name", flex: 1 },
+    { field: "name", headerName: "Name", flex: 1, minWidth: 140 },
     {
       field: "hourlyRate",
       headerName: "Hourly Rate (USD)",
@@ -224,31 +225,13 @@ const PCManagement: React.FC = () => {
       field: "status",
       headerName: "Status",
       width: 130,
-      renderCell: (params) => (
-        <Chip
-          label={params.row.status.toUpperCase()}
-          color={
-            params.row.status === PCStatus.AVAILABLE
-              ? "success"
-              : params.row.status === PCStatus.OCCUPIED
-              ? "error"
-              : "warning"
-          }
-          size="small"
-        />
-      ),
+      renderCell: (params) => <StatusChip status={params.row.status} />,
     },
     {
       field: "isActive",
       headerName: "Active",
       width: 100,
-      renderCell: (params) => (
-        <Chip
-          label={params.row.isActive ? "Yes" : "No"}
-          color={params.row.isActive ? "success" : "default"}
-          size="small"
-        />
-      ),
+      renderCell: (params) => <StatusChip status={params.row.isActive ? "yes" : "no"} />,
     },
     {
       field: "actions",
@@ -299,15 +282,10 @@ const PCManagement: React.FC = () => {
 
   return (
     <Box>
-      <Box sx={{ display: "flex", justifyContent: "space-between", mb: 3 }}>
-        <Box>
-          <Typography variant="h4" fontWeight="bold">
-            PC Management
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Manage gaming station configurations and lock/unlock
-          </Typography>
-        </Box>
+      <PageHeader
+        title="PC Management"
+        subtitle="Manage gaming station configurations and lock/unlock"
+        actions={
         <Button
           variant="contained"
           startIcon={<Add />}
@@ -315,7 +293,8 @@ const PCManagement: React.FC = () => {
         >
           Add PC
         </Button>
-      </Box>
+        }
+      />
 
       <Card>
         <DataGrid

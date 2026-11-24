@@ -57,6 +57,7 @@ import { toast } from "react-toastify";
 import { handleApiError } from "@/utils/errorHandler";
 import LoadingSpinner from "@/components/common/LoadingSpinner";
 import { uploadImageToFirebase } from "@/utils/firebaseUpload";
+import PageHeader from "@/components/common/PageHeader";
 
 const Products: React.FC = () => {
   const queryClient = useQueryClient();
@@ -437,15 +438,10 @@ const Products: React.FC = () => {
 
   return (
     <Box>
-      <Box sx={{ display: "flex", justifyContent: "space-between", mb: 3 }}>
-        <Box>
-          <Typography variant="h4" fontWeight="bold">
-            Products
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Manage your product inventory
-          </Typography>
-        </Box>
+      <PageHeader
+        title="Products"
+        subtitle="Manage your product inventory"
+        actions={
         <Button
           variant="contained"
           startIcon={<Add />}
@@ -453,7 +449,8 @@ const Products: React.FC = () => {
         >
           Add Product
         </Button>
-      </Box>
+        }
+      />
 
       <Card sx={{ p: 2, mb: 3 }}>
         <Grid container spacing={2} alignItems="center">

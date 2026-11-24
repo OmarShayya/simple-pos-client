@@ -1,140 +1,160 @@
 import React from "react";
 import {
   AppBar,
-  Toolbar,
-  IconButton,
-  Typography,
-  Box,
   Avatar,
+  Box,
+  Divider,
+  IconButton,
+  ListItemIcon,
   Menu,
   MenuItem,
-  Divider,
-  ListItemIcon,
+  Toolbar,
   Tooltip,
-  Chip,
+  Typography,
+  alpha,
+  useTheme,
 } from "@mui/material";
-import { Logout, Person, Brightness7, DarkMode } from "@mui/icons-material";
+import {
+  DarkModeOutlined,
+  LightModeOutlined,
+  Logout,
+  MenuRounded,
+  PersonOutline,
+  SettingsOutlined,
+} from "@mui/icons-material";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useAuthStore } from "@/store/authStore";
 import { useThemeStore } from "@/store/themeStore";
-import { useNavigate } from "react-router-dom";
+import { getPageTitle } from "@/config/sidebarConfig";
 
-const DRAWER_WIDTH = 260;
+interface NavbarProps {
+  onMenuClick?: () => void;
+  showMenuButton?: boolean;
+}
 
-const Navbar: React.FC = () => {
+/** Compact top bar: page title on the left, theme + account on the right. */
+const Navbar: React.FC<NavbarProps> = ({ onMenuClick, showMenuButton }) => {
   const navigate = useNavigate();
-  const user = useAuthStore((state) => state.user);
-  const logout = useAuthStore((state) => state.logout);
+  const location = useLocation();
+  const theme = useTheme();
+  const user = useAuthStore((s) => s.user);
+  const logout = useAuthStore((s) => s.logout);
   const { mode, toggleTheme } = useThemeStore();
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
 
-  const handleMenu = (event: React.MouseEvent<HTMLElement>) => {
-    setAnchorEl(event.currentTarget);
+  const close = () => setAnchorEl(null);
+  const goto = (path: string) => {
+    navigate(path);
+    close();
   };
-
-  const handleClose = () => {
-    setAnchorEl(null);
-  };
-
   const handleLogout = () => {
+    close();
     logout();
     navigate("/login");
-    handleClose();
   };
 
-  const handleProfile = () => {
-    navigate("/profile");
-    handleClose();
-  };
+  const today = new Date().toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 
   return (
     <AppBar
-      position="fixed"
+      position="sticky"
       elevation={0}
+      color="inherit"
       sx={{
-        width: `calc(100% - ${DRAWER_WIDTH}px)`,
-        ml: `${DRAWER_WIDTH}px`,
-        backgroundColor: "background.paper",
+        top: 0,
+        bgcolor: alpha(theme.palette.background.default, 0.82),
+        backdropFilter: "saturate(160%) blur(12px)",
         borderBottom: 1,
         borderColor: "divider",
+        color: "text.primary",
       }}
     >
-      <Toolbar>
-        <Box sx={{ flexGrow: 1 }}>
-          <Typography variant="h6" color="text.primary" fontWeight={600}>
-            Welcome back, {user?.name}!
+      <Toolbar sx={{ minHeight: { xs: 56, sm: 64 }, gap: 1, px: { xs: 1.5, sm: 2.5 } }}>
+        {showMenuButton && (
+          <IconButton edge="start" onClick={onMenuClick} aria-label="Open navigation" sx={{ mr: 0.5 }}>
+            <MenuRounded />
+          </IconButton>
+        )}
+        <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+          <Typography variant="h6" noWrap sx={{ fontWeight: 700, lineHeight: 1.2 }}>
+            {getPageTitle(location.pathname)}
           </Typography>
-          <Typography variant="caption" color="text.secondary">
-            {new Date().toLocaleDateString("en-US", {
-              weekday: "long",
-              year: "numeric",
-              month: "long",
-              day: "numeric",
-            })}
+          <Typography variant="caption" color="text.secondary" noWrap sx={{ display: { xs: "none", sm: "block" } }}>
+            {today}
           </Typography>
         </Box>
 
-        <Tooltip title="Toggle theme">
-          <IconButton onClick={toggleTheme} color="inherit" sx={{ mr: 1 }}>
-            {mode === "dark" ? (
-              <Brightness7 />
-            ) : (
-              <DarkMode sx={{ color: "black" }} />
-            )}
+        <Tooltip title={mode === "dark" ? "Light mode" : "Dark mode"}>
+          <IconButton onClick={toggleTheme} aria-label="Toggle colour mode">
+            {mode === "dark" ? <LightModeOutlined /> : <DarkModeOutlined />}
           </IconButton>
         </Tooltip>
 
-        <Chip
-          label={user?.role.toUpperCase()}
-          size="small"
-          color="primary"
-          sx={{ mr: 2, fontWeight: 600 }}
-        />
-
-        <Tooltip title="Account settings">
-          <IconButton onClick={handleMenu}>
-            <Avatar
-              sx={{
-                width: 36,
-                height: 36,
-                bgcolor: "primary.main",
-                fontSize: "1rem",
-              }}
-            >
-              {user?.name?.charAt(0)?.toUpperCase()}
-            </Avatar>
-          </IconButton>
-        </Tooltip>
+        <Box
+          component="button"
+          onClick={(e: React.MouseEvent<HTMLElement>) => setAnchorEl(e.currentTarget)}
+          aria-label="Account menu"
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            gap: 1.25,
+            border: 0,
+            bgcolor: "transparent",
+            color: "inherit",
+            font: "inherit",
+            cursor: "pointer",
+            p: 0.5,
+            pr: { xs: 0.5, md: 1.25 },
+            borderRadius: 3,
+            "&:hover": { bgcolor: "action.hover" },
+          }}
+        >
+          <Avatar sx={{ width: 34, height: 34, bgcolor: "primary.main", color: "primary.contrastText", fontWeight: 700, fontSize: "0.95rem" }}>
+            {user?.name?.charAt(0)?.toUpperCase()}
+          </Avatar>
+          <Box sx={{ display: { xs: "none", md: "block" }, textAlign: "left" }}>
+            <Typography variant="body2" sx={{ fontWeight: 600, lineHeight: 1.2 }} noWrap>
+              {user?.name}
+            </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ textTransform: "capitalize", lineHeight: 1.2 }}>
+              {user?.role}
+            </Typography>
+          </Box>
+        </Box>
 
         <Menu
           anchorEl={anchorEl}
           open={Boolean(anchorEl)}
-          onClose={handleClose}
+          onClose={close}
           transformOrigin={{ horizontal: "right", vertical: "top" }}
           anchorOrigin={{ horizontal: "right", vertical: "bottom" }}
+          slotProps={{ paper: { sx: { minWidth: 220, mt: 1 } } }}
         >
-          <Box sx={{ px: 2, py: 1.5 }}>
-            <Typography variant="subtitle2" fontWeight={600}>
-              {user?.name}
-            </Typography>
+          <Box sx={{ px: 2, py: 1.25 }}>
+            <Typography variant="subtitle2">{user?.name}</Typography>
             <Typography variant="caption" color="text.secondary">
               {user?.email}
             </Typography>
           </Box>
-
           <Divider />
-
-          <MenuItem onClick={handleProfile}>
+          <MenuItem onClick={() => goto("/profile")}>
             <ListItemIcon>
-              <Person fontSize="small" />
+              <PersonOutline fontSize="small" />
             </ListItemIcon>
             Profile
           </MenuItem>
-
-          <MenuItem onClick={handleLogout}>
+          <MenuItem onClick={() => goto("/settings")}>
             <ListItemIcon>
+              <SettingsOutlined fontSize="small" />
+            </ListItemIcon>
+            Settings
+          </MenuItem>
+          <Divider />
+          <MenuItem onClick={handleLogout} sx={{ color: "error.main" }}>
+            <ListItemIcon sx={{ color: "inherit" }}>
               <Logout fontSize="small" />
             </ListItemIcon>
-            Logout
+            Log out
           </MenuItem>
         </Menu>
       </Toolbar>
