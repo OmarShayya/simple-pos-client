@@ -45,7 +45,8 @@ import PageHeader from "@/components/common/PageHeader";
 import StatCard from "@/components/common/StatCard";
 import SectionCard from "@/components/common/SectionCard";
 import EmptyState from "@/components/common/EmptyState";
-import ReservationCard, { getTiming } from "@/components/reservations/ReservationCard";
+import ReservationCard from "@/components/reservations/ReservationCard";
+import { getTiming } from "@/utils/reservationTiming";
 import ReservationTimeline from "@/components/reservations/ReservationTimeline";
 import ReservationDialog from "@/components/reservations/ReservationDialog";
 import { reservationsApi } from "@/api/reservations.api";
@@ -66,6 +67,7 @@ type Confirm =
 const Reservations: React.FC = () => {
   const theme = useTheme();
   const isDesktop = useMediaQuery(theme.breakpoints.up("md"));
+  const isPhone = useMediaQuery(theme.breakpoints.down("sm"));
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [params, setParams] = useSearchParams();
@@ -208,7 +210,7 @@ const Reservations: React.FC = () => {
     <Box>
       <PageHeader
         title="Reservations"
-        subtitle="Bookings from the website and the counter. Check guests in to start their sessions."
+        subtitle={isPhone ? undefined : "Bookings from the website and the counter. Check guests in to start their sessions."}
         actions={
           <>
             {canEditSettings && (
@@ -249,11 +251,6 @@ const Reservations: React.FC = () => {
             </Button>
           </Stack>
 
-          <ToggleButtonGroup size="small" exclusive value={typeFilter} onChange={(_, v) => v && setTypeFilter(v)}>
-            <ToggleButton value="all">All</ToggleButton>
-            <ToggleButton value="pc">PCs</ToggleButton>
-            <ToggleButton value="playstation">PlayStation</ToggleButton>
-          </ToggleButtonGroup>
 
           <TextField
             size="small"
@@ -272,7 +269,12 @@ const Reservations: React.FC = () => {
             }}
           />
 
-          <Stack direction="row" alignItems="center" spacing={1}>
+          <Stack direction="row" alignItems="center" spacing={1} justifyContent="space-between" flexWrap="wrap" useFlexGap>
+            <ToggleButtonGroup size="small" exclusive value={typeFilter} onChange={(_, v) => v && setTypeFilter(v)}>
+              <ToggleButton value="all">All</ToggleButton>
+              <ToggleButton value="pc">PCs</ToggleButton>
+              <ToggleButton value="playstation">PlayStation</ToggleButton>
+            </ToggleButtonGroup>
             {isDesktop && (
               <ToggleButtonGroup size="small" exclusive value={view} onChange={(_, v) => v && setView(v)}>
                 <Tooltip title="Timeline">
@@ -295,7 +297,27 @@ const Reservations: React.FC = () => {
         </Stack>
       </PageHeader>
 
-      {/* KPIs */}
+      {/* KPIs — compact strip on phones so the bookings stay above the fold */}
+      {isPhone ? (
+        <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
+          {[
+            { label: "Attention", value: groups.attention.length, color: "warning.main" },
+            { label: "Upcoming", value: groups.upcoming.length, color: "primary.main" },
+            { label: "Checked in", value: groups.checkedIn.length, color: "success.main" },
+            { label: "No-shows", value: groups.closed.filter((r) => r.status === "no_show").length, color: "error.main" },
+          ].map((k) => (
+            <Box
+              key={k.label}
+              sx={{ flex: 1, minWidth: 0, px: 1, py: 0.75, borderRadius: "12px", border: 1, borderColor: "divider", bgcolor: "background.paper", textAlign: "center" }}
+            >
+              <Typography sx={{ fontWeight: 800, fontSize: "1.15rem", color: k.color, lineHeight: 1.2 }}>{listQ.isLoading ? "–" : k.value}</Typography>
+              <Typography variant="caption" color="text.secondary" noWrap component="div">
+                {k.label}
+              </Typography>
+            </Box>
+          ))}
+        </Stack>
+      ) : (
       <Grid container spacing={1.5} sx={{ mb: 2.5 }}>
         <Grid size={{ xs: 6, md: 3 }}>
           <StatCard label="Needs attention" value={groups.attention.length} icon={<HourglassTop />} tone="warning" loading={listQ.isLoading} hint="Late or arriving within 30 min" />
@@ -317,6 +339,7 @@ const Reservations: React.FC = () => {
           />
         </Grid>
       </Grid>
+      )}
 
       {settings && !settings.enabled && (
         <Alert severity="warning" sx={{ mb: 2 }} action={canEditSettings ? <Button color="inherit" onClick={() => navigate("/reservations/settings")}>Turn on</Button> : undefined}>

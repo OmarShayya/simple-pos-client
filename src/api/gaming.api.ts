@@ -13,9 +13,11 @@ import {
   StartSessionResponse,
 } from "@/types/gaming.types";
 import { PaymentMethod, Currency } from "@/types/sale.types";
+import type { StationType } from "@/types/reservation.types";
 
 interface PCFilters {
   status?: PCStatus;
+  type?: StationType;
   isActive?: boolean;
   page?: number;
   limit?: number;
@@ -32,12 +34,42 @@ interface SessionFilters {
   limit?: number;
 }
 
+type StationSpecs = { cpu?: string; gpu?: string; ram?: string; monitor?: string };
+
+interface TodayStats {
+  activeSessions: number;
+  completedSessions: number;
+  totalRevenue: { usd: number; lbp: number };
+  unpaidSessions: number;
+}
+
+export type UpdateStationPayload = Parameters<typeof updateStation>[1];
+// Declared separately so its payload type can be reused by pages
+async function updateStation(
+  id: string,
+  data: {
+    type?: StationType;
+    pcNumber?: string;
+    name?: string;
+    hourlyRateUsd?: number;
+    specifications?: StationSpecs;
+    location?: string;
+    notes?: string;
+    status?: PCStatus;
+    isActive?: boolean;
+  }
+): Promise<PC> {
+  const response = await apiClient.patch<ApiResponse<PC>>(`/gaming/pcs/${id}`, data);
+  return handleApiResponse(response.data);
+}
+
 export const gamingApi = {
   createPC: async (data: {
+    type?: StationType;
     pcNumber: string;
     name: string;
     hourlyRateUsd?: number;
-    specifications?: any;
+    specifications?: StationSpecs;
     location?: string;
     notes?: string;
   }): Promise<PC> => {
@@ -45,24 +77,7 @@ export const gamingApi = {
     return handleApiResponse(response.data);
   },
 
-  updatePC: async (
-    id: string,
-    data: {
-      name?: string;
-      hourlyRateUsd?: number;
-      specifications?: any;
-      location?: string;
-      notes?: string;
-      status?: PCStatus;
-      isActive?: boolean;
-    }
-  ): Promise<PC> => {
-    const response = await apiClient.patch<ApiResponse<PC>>(
-      `/gaming/pcs/${id}`,
-      data
-    );
-    return handleApiResponse(response.data);
-  },
+  updatePC: updateStation,
 
   getPCById: async (id: string): Promise<PC> => {
     const response = await apiClient.get<ApiResponse<PC>>(`/gaming/pcs/${id}`);
@@ -72,6 +87,7 @@ export const gamingApi = {
   getAllPCs: async (filters: PCFilters = {}) => {
     const params = new URLSearchParams();
     if (filters.status) params.append("status", filters.status);
+    if (filters.type) params.append("type", filters.type);
     if (filters.isActive !== undefined)
       params.append("isActive", filters.isActive.toString());
     if (filters.page) params.append("page", filters.page.toString());
@@ -188,13 +204,8 @@ export const gamingApi = {
     return handleApiResponse(response.data);
   },
 
-  getTodayStats: async (): Promise<{
-    activeSessions: number;
-    completedSessions: number;
-    totalRevenue: { usd: number; lbp: number };
-    unpaidSessions: number;
-  }> => {
-    const response = await apiClient.get<ApiResponse<any>>(
+  getTodayStats: async (): Promise<TodayStats> => {
+    const response = await apiClient.get<ApiResponse<TodayStats>>(
       "/gaming/sessions/today-stats"
     );
     return handleApiResponse(response.data);

@@ -18,7 +18,8 @@ import {
   SportsEsports,
 } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { staffApi } from "@/api/staff.api";
 import { motion } from "framer-motion";
 import { authApi } from "../api/auth.api";
 import { useAuthStore } from "../store/authStore";
@@ -26,6 +27,8 @@ import { handleApiError } from "../utils/errorHandler";
 import { toast } from "react-toastify";
 
 const Login: React.FC = () => {
+  const { data: setup } = useQuery({ queryKey: ["setup-status"], queryFn: staffApi.setupStatus, retry: 1 });
+  const needsSetup = setup?.needsSetup === true;
   const navigate = useNavigate();
   const setAuth = useAuthStore((state) => state.setAuth);
   const [showPassword, setShowPassword] = useState(false);
@@ -479,23 +482,21 @@ const Login: React.FC = () => {
                 {/* Footer */}
                 <Box sx={{ textAlign: "center", mt: 3 }}>
                   <Typography variant="body2" sx={{ color: "#B2BAC2" }}>
-                    Don't have an account?{" "}
-                    <Link
-                      component="button"
-                      variant="body2"
-                      onClick={() => navigate("/register")}
-                      sx={{
-                        cursor: "pointer",
-                        fontWeight: 700,
-                        color: "#00CED1",
-                        textDecoration: "none",
-                        "&:hover": {
-                          color: "#9B51E0",
-                        },
-                      }}
-                    >
-                      Sign up
-                    </Link>
+                    {needsSetup ? (
+                      <>
+                        First time here?{" "}
+                        <Link
+                          component="button"
+                          variant="body2"
+                          onClick={() => navigate("/register")}
+                          sx={{ cursor: "pointer", fontWeight: 700, color: "#00CED1", textDecoration: "none", "&:hover": { color: "#9B51E0" } }}
+                        >
+                          Set up the owner account
+                        </Link>
+                      </>
+                    ) : (
+                      "New staff? Ask an admin to create your account."
+                    )}
                   </Typography>
                 </Box>
               </Box>

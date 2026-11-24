@@ -12,6 +12,8 @@ import {
   InsightsOutlined,
   CurrencyExchangeOutlined,
   SettingsOutlined,
+  EventAvailableOutlined,
+  BadgeOutlined,
 } from "@mui/icons-material";
 import type { SvgIconComponent } from "@mui/icons-material";
 import { UserRole } from "@/types/auth.types";
@@ -57,6 +59,7 @@ export const sidebarGroups: SidebarGroup[] = [
     label: "Gaming",
     items: [
       { id: "gaming", label: "Stations", path: "/gaming", icon: SportsEsportsOutlined, title: "Gaming stations" },
+      { id: "reservations", label: "Reservations", path: "/reservations", icon: EventAvailableOutlined },
       { id: "gaming-history", label: "Session history", path: "/gaming/history", icon: HistoryOutlined },
       {
         id: "pc-management",
@@ -88,6 +91,7 @@ export const sidebarGroups: SidebarGroup[] = [
         icon: CurrencyExchangeOutlined,
         roles: MANAGERS,
       },
+      { id: "staff", label: "Staff", path: "/staff", icon: BadgeOutlined, roles: MANAGERS },
       { id: "settings", label: "Settings", path: "/settings", icon: SettingsOutlined },
     ],
   },
@@ -108,10 +112,14 @@ export const findSidebarItem = (pathname: string): SidebarItem | undefined =>
     .filter((i) => pathname === i.path || pathname.startsWith(i.path + "/"))
     .sort((a, b) => b.path.length - a.path.length)[0];
 
-const EXTRA_TITLES: Record<string, string> = { "/profile": "Profile" };
+const EXTRA_TITLES: Record<string, string> = {
+  "/profile": "Profile",
+  "/reservations/settings": "Booking rules",
+};
 
 /** Title for the top bar. */
 export const getPageTitle = (pathname: string): string => {
+  if (EXTRA_TITLES[pathname]) return EXTRA_TITLES[pathname];
   const item = findSidebarItem(pathname);
-  return item?.title ?? item?.label ?? EXTRA_TITLES[pathname] ?? "Epic Lounge";
+  return item?.title ?? item?.label ?? "Epic Lounge";
 };

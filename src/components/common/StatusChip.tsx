@@ -22,6 +22,14 @@ const STATUS_MAP: Record<string, { tone: Tone; label?: string }> = {
   // sessions
   active: { tone: "info", label: "Active" },
   completed: { tone: "success", label: "Completed" },
+  // reservations
+  confirmed: { tone: "primary", label: "Booked" },
+  checked_in: { tone: "success", label: "Checked in" },
+  no_show: { tone: "error", label: "No-show" },
+  // staff roles
+  admin: { tone: "secondary", label: "Admin" },
+  manager: { tone: "info", label: "Manager" },
+  cashier: { tone: "default", label: "Cashier" },
   // generic
   inactive: { tone: "default", label: "Inactive" },
   yes: { tone: "success", label: "Yes" },

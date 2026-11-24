@@ -15,8 +15,8 @@ import {
 import StatusChip from "@/components/common/StatusChip";
 import type { Reservation } from "@/types/reservation.types";
 import { fmtDuration, fmtTime } from "@/utils/zonedTime";
+import { CHECKIN_EARLY_MIN, getTiming } from "@/utils/reservationTiming";
 
-const CHECKIN_EARLY_MIN = 30;
 
 interface Props {
   reservation: Reservation;
@@ -28,21 +28,6 @@ interface Props {
   onCancel: (r: Reservation) => void;
   onNoShow: (r: Reservation) => void;
 }
-
-/** Tells staff at a glance where a booking stands right now. */
-export const getTiming = (r: Reservation, now: number) => {
-  const start = new Date(r.startTime).getTime();
-  const end = new Date(r.endTime).getTime();
-  const minsToStart = Math.round((start - now) / 60_000);
-  return {
-    start,
-    end,
-    minsToStart,
-    canCheckIn: r.status === "confirmed" && now >= start - CHECKIN_EARLY_MIN * 60_000 && now <= end,
-    isLate: r.status === "confirmed" && now > start,
-    soon: r.status === "confirmed" && minsToStart >= 0 && minsToStart <= 60,
-  };
-};
 
 const ReservationCard: React.FC<Props> = ({ reservation: r, tz, now, highlighted, onCheckIn, onEdit, onCancel, onNoShow }) => {
   const theme = useTheme();

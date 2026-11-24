@@ -37,7 +37,11 @@ import {
   Payment,
   SportsEsports,
   History,
+  EventAvailable,
 } from "@mui/icons-material";
+import { ToggleButton, ToggleButtonGroup } from "@mui/material";
+import type { StationType } from "@/types/reservation.types";
+import { DEFAULT_TZ, fmtTime } from "@/utils/zonedTime";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { gamingApi } from "@/api/gaming.api";
@@ -106,6 +110,7 @@ const GamingStations: React.FC = () => {
   const [gamingDiscounts, setGamingDiscounts] = useState<Discount[]>([]);
   const [quickModePCs, setQuickModePCs] = useState<Set<string>>(new Set());
   const [stationFilter, setStationFilter] = useState<"all" | "available" | "occupied" | "maintenance">("all");
+  const [typeFilter, setTypeFilter] = useState<"all" | StationType>("all");
   const theme = useTheme();
 
   const { data: pcsData, isLoading: loadingPCs } = useQuery({
@@ -209,7 +214,7 @@ const GamingStations: React.FC = () => {
   });
 
   const paymentMutation = useMutation({
-    mutationFn: ({ saleId, data }: { saleId: string; data: any }) =>
+    mutationFn: ({ saleId, data }: { saleId: string; data: Parameters<typeof salesApi.pay>[1] }) =>
       salesApi.pay(saleId, data),
     onSuccess: () => {
       toast.success("Payment processed successfully!");
@@ -390,14 +395,25 @@ const GamingStations: React.FC = () => {
       return { pc, session, isQuickMode, isOccupied, displayStatus };
     });
 
+  const typeCounts = {
+    pc: stationStates.filter((s) => (s.pc.type ?? "pc") === "pc").length,
+    playstation: stationStates.filter((s) => s.pc.type === "playstation").length,
+  };
+  const typedStations = stationStates.filter((s) => typeFilter === "all" || (s.pc.type ?? "pc") === typeFilter);
+
   const counts = {
-    all: stationStates.length,
-    available: stationStates.filter((s) => !s.isOccupied && s.displayStatus === PCStatus.AVAILABLE).length,
-    occupied: stationStates.filter((s) => s.isOccupied).length,
-    maintenance: stationStates.filter((s) => s.displayStatus === PCStatus.MAINTENANCE).length,
+    all: typedStations.length,
+    available: typedStations.filter((s) => !s.isOccupied && s.displayStatus === PCStatus.AVAILABLE).length,
+    occupied: typedStations.filter((s) => s.isOccupied).length,
+    maintenance: typedStations.filter((s) => s.displayStatus === PCStatus.MAINTENANCE).length,
   };
 
-  const visibleStations = stationStates.filter((s) => {
+  /** Upcoming (not yet checked-in) booking on a station, if any. */
+  const bookingOf = (pc: PC) =>
+    pc.upcomingReservation && pc.upcomingReservation.status === "confirmed" ? pc.upcomingReservation : undefined;
+  const minutesUntil = (iso: string) => Math.round((new Date(iso).getTime() - Date.now()) / 60_000);
+
+  const visibleStations = typedStations.filter((s) => {
     if (stationFilter === "all") return true;
     if (stationFilter === "occupied") return s.isOccupied;
     if (stationFilter === "available") return !s.isOccupied && s.displayStatus === PCStatus.AVAILABLE;
@@ -432,12 +448,34 @@ const GamingStations: React.FC = () => {
         title="Gaming stations"
         subtitle="Start, end and charge sessions. Costs update live."
         actions={
-          <Button variant="outlined" startIcon={<History />} onClick={() => navigate("/gaming/history")}>
-            History
-          </Button>
+          <>
+            <Button variant="outlined" startIcon={<EventAvailable />} onClick={() => navigate("/reservations")}>
+              Reservations
+            </Button>
+            <Button variant="outlined" startIcon={<History />} onClick={() => navigate("/gaming/history")}>
+              History
+            </Button>
+          </>
         }
       >
         <Box sx={{ display: "flex", alignItems: "center", gap: 2, flexWrap: "wrap" }}>
+          {typeCounts.playstation > 0 && (
+            <ToggleButtonGroup
+              size="small"
+              exclusive
+              value={typeFilter}
+              onChange={(_, v) => v && setTypeFilter(v)}
+              sx={{ order: { xs: 1, sm: 0 } }}
+            >
+              <ToggleButton value="all">All</ToggleButton>
+              <ToggleButton value="pc" sx={{ gap: 0.75 }}>
+                <Computer sx={{ fontSize: 18 }} /> PCs · {typeCounts.pc}
+              </ToggleButton>
+              <ToggleButton value="playstation" sx={{ gap: 0.75 }}>
+                <SportsEsports sx={{ fontSize: 18 }} /> PlayStation · {typeCounts.playstation}
+              </ToggleButton>
+            </ToggleButtonGroup>
+          )}
           <Stack
             direction="row"
             spacing={1}
@@ -536,7 +574,7 @@ const GamingStations: React.FC = () => {
                           bgcolor: alpha(toneColor, theme.palette.mode === "dark" ? 0.16 : 0.1),
                         }}
                       >
-                        <Computer />
+                        {pc.type === "playstation" ? <SportsEsports /> : <Computer />}
                       </Box>
                       <Box sx={{ flex: 1, minWidth: 0 }}>
                         <Typography sx={{ fontWeight: 700, lineHeight: 1.2 }} noWrap>
@@ -549,6 +587,23 @@ const GamingStations: React.FC = () => {
                       </Box>
                       <StatusChip status={displayStatus} />
                     </Box>
+
+                    {bookingOf(pc) && (
+                      <Chip
+                        clickable
+                        size="small"
+                        icon={<EventAvailable sx={{ fontSize: 16 }} />}
+                        onClick={() => navigate(`/reservations?highlight=${bookingOf(pc)!.id}`)}
+                        label={
+                          minutesUntil(bookingOf(pc)!.startTime) <= 0
+                            ? `Booked now · ${bookingOf(pc)!.customerName} — check in`
+                            : `Booked ${fmtTime(bookingOf(pc)!.startTime, DEFAULT_TZ)} · ${bookingOf(pc)!.customerName}`
+                        }
+                        color={minutesUntil(bookingOf(pc)!.startTime) <= 60 ? "warning" : "secondary"}
+                        variant="outlined"
+                        sx={{ mt: 1.25, alignSelf: "flex-start", maxWidth: "100%", fontWeight: 600 }}
+                      />
+                    )}
 
                     {isQuickMode ? (
                       <Box sx={{ mt: "auto", pt: 2 }}>
@@ -690,6 +745,21 @@ const GamingStations: React.FC = () => {
         <DialogContent>
           {selectedPC && (
             <Box sx={{ mt: 2 }}>
+              {bookingOf(selectedPC) && minutesUntil(bookingOf(selectedPC)!.startTime) <= 120 && (
+                <Alert
+                  severity="warning"
+                  sx={{ mb: 2 }}
+                  action={
+                    <Button color="inherit" size="small" onClick={() => navigate(`/reservations?highlight=${bookingOf(selectedPC)!.id}`)}>
+                      View
+                    </Button>
+                  }
+                >
+                  {selectedPC.pcNumber} is booked at <b>{fmtTime(bookingOf(selectedPC)!.startTime, DEFAULT_TZ)}</b> for{" "}
+                  {bookingOf(selectedPC)!.customerName}. If this is them, check the booking in from Reservations instead —
+                  otherwise keep this session shorter.
+                </Alert>
+              )}
               <Alert severity="info" sx={{ mb: 2 }}>
                 <Typography variant="body2" fontWeight={600}>
                   {selectedPC.name} ({selectedPC.pcNumber})

@@ -21,6 +21,9 @@ import GamingStations from "./pages/GamingStations";
 import GamingHistory from "./pages/GamingHistory";
 import PCManagement from "./pages/PCManagement";
 import Discounts from "./pages/Discounts";
+import Reservations from "./pages/Reservations";
+import ReservationSettings from "./pages/ReservationSettings";
+import Staff from "./pages/Staff";
 
 // Sign-in screens are always dark (brand look), regardless of the app theme
 const authTheme = getTheme("dark");
@@ -64,6 +67,9 @@ const App: React.FC = () => {
         <Route path="profile" element={<Profile />} />
         <Route path="gaming" element={<GamingStations />} />
         <Route path="gaming/history" element={<GamingHistory />} />
+        <Route path="reservations" element={<Reservations />} />
+        <Route path="reservations/settings" element={<ReservationSettings />} />
+        <Route path="staff" element={<Staff />} />
         <Route
           path="/gaming/pc-management"
           element={
