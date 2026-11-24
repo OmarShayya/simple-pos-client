@@ -358,7 +358,7 @@ const Sales: React.FC = () => {
         console.error("Failed to fetch discounts for product:", error);
       }
     }
-    toast.success(`${product.name} added to cart`);
+    // No toast here: the product tile's quantity badge confirms the add
   };
 
   const updateQuantity = (productId: string, change: number) => {
@@ -416,7 +416,7 @@ const Sales: React.FC = () => {
     };
 
     // Calculate item-level discounts (only for regular cart items with productId)
-    let totalItemDiscounts = { usd: 0, lbp: 0 };
+    const totalItemDiscounts = { usd: 0, lbp: 0 };
     cartItems.forEach(item => {
       if (item.productId) {
         const discountId = itemDiscounts[item.productId];
@@ -432,7 +432,7 @@ const Sales: React.FC = () => {
     });
 
     // Calculate session item discounts
-    let totalSessionItemDiscounts = { usd: 0, lbp: 0 };
+    const totalSessionItemDiscounts = { usd: 0, lbp: 0 };
     sessionItems.forEach((item) => {
       const cost = calculateSessionCost(item);
       const discountId = sessionItemDiscounts[item.productSku];
@@ -457,7 +457,7 @@ const Sales: React.FC = () => {
     };
 
     // Calculate sale-level discount
-    let saleDiscount = { usd: 0, lbp: 0 };
+    const saleDiscount = { usd: 0, lbp: 0 };
     if (saleDiscountId) {
       const discount = saleDiscounts.find(d => d.id === saleDiscountId);
       if (discount) {

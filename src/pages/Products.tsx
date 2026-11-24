@@ -30,6 +30,7 @@ import {
   Radio,
 } from "@mui/material";
 import {
+  Inventory2Outlined,
   Add,
   Search,
   Edit,
@@ -68,7 +69,10 @@ const Products: React.FC = () => {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
-  const [viewMode, setViewMode] = useState<"grid" | "card">("grid");
+  // Phones start in the card view (the table needs horizontal scrolling there)
+  const [viewMode, setViewMode] = useState<"grid" | "card">(() =>
+    typeof window !== "undefined" && window.innerWidth < 600 ? "card" : "grid"
+  );
   const [paginationModel, setPaginationModel] = useState({
     page: 0,
     pageSize: 10,
@@ -541,16 +545,32 @@ const Products: React.FC = () => {
                   flexDirection: "column",
                 }}
               >
-                <CardMedia
-                  component="img"
-                  height="200"
-                  image={product.image || "/placeholder-product.png"}
-                  alt={product.name}
-                  sx={{ objectFit: "cover" }}
-                  onError={(e: any) => {
-                    e.target.src = "/placeholder-product.png";
-                  }}
-                />
+                {product.image ? (
+                  <CardMedia
+                    component="img"
+                    height="160"
+                    image={product.image}
+                    alt={product.name}
+                    sx={{ objectFit: "cover" }}
+                    onError={(e: React.SyntheticEvent<HTMLImageElement>) => {
+                      // Missing/broken image: hide it rather than showing a broken icon
+                      e.currentTarget.style.display = "none";
+                    }}
+                  />
+                ) : (
+                  <Box
+                    aria-hidden
+                    sx={{
+                      height: 120,
+                      display: "grid",
+                      placeItems: "center",
+                      bgcolor: "action.hover",
+                      color: "text.secondary",
+                    }}
+                  >
+                    <Inventory2Outlined sx={{ fontSize: 40, opacity: 0.6 }} />
+                  </Box>
+                )}
                 <CardContent sx={{ flexGrow: 1 }}>
                   <Box
                     sx={{

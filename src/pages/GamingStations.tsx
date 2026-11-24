@@ -1096,9 +1096,9 @@ const GamingStations: React.FC = () => {
                 <Typography variant="body2" fontWeight={600} color="success.dark" sx={{ mt: 1 }}>
                   Amount: ${(selectedSession.finalAmount || selectedSession.totalCost)?.usd.toFixed(2)} USD
                 </Typography>
-                {selectedSession.discount && (
+                {(selectedSession.discount?.percentage || 0) > 0 && (
                   <Typography variant="body2" color="success.dark">
-                    Discount Applied: {selectedSession.discount.percentage}% off
+                    Discount applied: {selectedSession.discount?.percentage}% off
                   </Typography>
                 )}
               </Alert>

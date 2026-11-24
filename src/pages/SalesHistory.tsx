@@ -855,7 +855,7 @@ const SalesHistory: React.FC = () => {
 
                 <Grid size={12}>
                   <Card sx={{ bgcolor: "background.default", p: 2 }}>
-                    {(selectedSale.totalItemDiscounts || selectedSale.saleDiscount) && (
+                    {((selectedSale.totalItemDiscounts?.usd || 0) + (selectedSale.saleDiscount?.amount?.usd || 0)) > 0 && (
                       <>
                         {selectedSale.subtotalBeforeDiscount && (
                           <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.5 }}>
@@ -877,10 +877,10 @@ const SalesHistory: React.FC = () => {
                             </Typography>
                           </Box>
                         )}
-                        {selectedSale.saleDiscount && (
+                        {selectedSale.saleDiscount && (selectedSale.saleDiscount.amount?.usd || 0) > 0 && (
                           <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.5 }}>
                             <Typography variant="body2" color="success.main">
-                              {selectedSale.saleDiscount.discountName}:
+                              {selectedSale.saleDiscount.discountName || "Sale discount"}:
                             </Typography>
                             <Typography variant="body2" color="success.main">
                               -${selectedSale.saleDiscount.amount.usd.toFixed(2)}
