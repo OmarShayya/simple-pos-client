@@ -9,7 +9,7 @@ import { ConfirmContext, type ConfirmFn } from "@/components/ui/confirmContext";
  */
 export function useConfirm(): ConfirmFn {
   const ctx = useContext(ConfirmContext);
-  if (!ctx) throw new Error("useConfirm must be used inside <ConfirmProvider> (mounted in main.tsx)");
+  if (!ctx) throw new Error("useConfirm must be used inside <ConfirmProvider> (mounted in Root.tsx)");
   return ctx;
 }
 

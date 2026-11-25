@@ -12,7 +12,7 @@ import type { NewOrderEvent } from "@/types/sale.types";
 import { orderUrl } from "./orderMeta";
 
 /** What a new website order changes: the lists, badges, dashboard, the linked customer and reserved stock. */
-const AFFECTED: QueryDomain[] = ["orders", "counts", "dashboard", "customers", "products"];
+const AFFECTED: QueryDomain[] = ["orders", "counts", "dashboard", "reports", "customers", "products"];
 
 /** Socket server = the API's origin ("https://api.example.com/api/v1" → "https://api.example.com"). */
 const socketOrigin = () => {

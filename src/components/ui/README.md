@@ -80,9 +80,6 @@ is legacy — delete its usages when you migrate a page.)
 
   Presets in `affects`: `order, session, reservation, station, customer, product, category,
   discount, staff, exchangeRate`. When in doubt, invalidate more.
-- `LEGACY_KEYS` in `queryKeys.ts` maps each domain to the old string keys (`"sales"`,
-  `"gaming-pcs"`, …) so migrated and not-yet-migrated pages stay in sync. **When you migrate a page,
-  delete its old keys from `LEGACY_KEYS`.**
 - Error text for people: `friendlyError(error)` (`@/utils/apiError`) — server validation messages
   pass through, network/5xx errors become "Can't reach the server…".
 
@@ -161,7 +158,7 @@ Labels always sit on the outline (never placeholder-only). Use `helperText` for 
 | Component | Use it for |
 |---|---|
 | `FormDialog` | Any form or detail view in a dialog: title + close (×), scrolling content, Cancel / primary. `onSubmit` makes it a real `<form>` (Enter submits). `loading` spins the primary and blocks closing. Full screen on phones automatically. `destructive`, `secondaryActions` (e.g. Delete on the left), `maxWidth` (default `sm`). |
-| `useConfirm()` | Yes/no questions from handlers: `if (await confirm({ title: "Cancel this order?", message, confirmLabel: "Cancel order", tone: "danger" }))`. Provider is mounted in `main.tsx`. |
+| `useConfirm()` | Yes/no questions from handlers: `if (await confirm({ title: "Cancel this order?", message, confirmLabel: "Cancel order", tone: "danger" }))`. Provider is mounted in `Root.tsx`. |
 | `ConfirmDialog` | The same, controlled (when you need `loading` while the action runs). |
 | `DetailDrawer` | Details of one record (a customer, an order): slides in from the right, the list stays visible on desktop, full screen on phones; pinned header (`title`, `subtitle`, `headerActions`) and `footer`, scrolling body, `width` (default 560). Edit in a `FormDialog`; look things up here. |
 
@@ -267,7 +264,6 @@ Phones: `formatPhone`, `normalizePhone`, `isValidPhone`, `phoneHref` in `@/utils
 2. Replace `LoadingSpinner`/full-page spinners with component-level `loading` (§2).
 3. Tables → `DataTable`; native `type="date"` inputs → `DateField`/`DateRangeField`; phone inputs →
    `PhoneField`; country/city text → `CountrySelect`/`CityField`/`AddressFields`; prices → `MoneyField`.
-4. Keys → `queryKeys.*`; `useMutation` → `useApiMutation` with `invalidates: affects.*`; remove the
-   page's keys from `LEGACY_KEYS`.
+4. Keys → `queryKeys.*`; `useMutation` → `useApiMutation` with `invalidates: affects.*`.
 5. Statuses → `StatusChip kind=…`; money → `MoneyText`/`formatUsd`; dates → `format.ts`.
 6. No hard-coded colours, gradients, `secondary.50`-style palette keys or `brand.*` (deprecated).
