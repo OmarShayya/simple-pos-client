@@ -146,6 +146,8 @@ function renderCellContent<R>(col: DataTableColumn<R>, row: R): React.ReactNode 
   }
 }
 
+const NATURAL = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
+
 /* Placeholder rows for the first load: real headers, skeleton cells (never a spinner). */
 const SKELETON_ROWS = Array.from({ length: 6 }, (_, i) => ({ __skeleton: i }));
 const SKELETON_WIDTHS = ["72%", "54%", "84%", "46%", "64%", "58%", "40%"];
@@ -377,6 +379,8 @@ function DataTable<R>(props: DataTableProps<R>) {
         list = [...list].sort((a, b) => {
           const va = sortValue(col, a);
           const vb = sortValue(col, b);
+          // Text sorts the way people count: "PC-2" before "PC-10"
+          if (typeof va === "string" && typeof vb === "string") return dir * NATURAL.compare(va, vb);
           return va < vb ? -dir : va > vb ? dir : 0;
         });
       }
