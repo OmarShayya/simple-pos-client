@@ -1,4 +1,8 @@
-/* Fonts are loaded from index.html (Space Grotesk + Orbitron). */
+/*
+ * Global CSS that the MUI theme can't express. Colours come from CSS variables that the theme
+ * sets on :root (see MuiCssBaseline in src/theme/theme.ts), so this file works in light and dark.
+ * Fonts (IBM Plex Sans / Mono) are loaded from index.html.
+ */
 
 *,
 *::before,
@@ -13,15 +17,31 @@ body {
 }
 
 body {
-  font-family: "Space Grotesk", "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;
 }
 
-/* Tabular numbers for prices, timers and totals */
+/* Tabular numbers for prices, timers and totals (body already uses them; kept for older markup) */
 .num {
   font-variant-numeric: tabular-nums;
+}
+
+/* Scroll areas that should only show their scrollbar while hovered (e.g. the sidebar) */
+.scroll-on-hover {
+  scrollbar-color: transparent transparent;
+}
+.scroll-on-hover:hover,
+.scroll-on-hover:focus-within {
+  scrollbar-color: var(--app-scrollbar) transparent;
+}
+.scroll-on-hover::-webkit-scrollbar-thumb {
+  background-color: transparent !important;
+}
+.scroll-on-hover:hover::-webkit-scrollbar-thumb,
+.scroll-on-hover:focus-within::-webkit-scrollbar-thumb {
+  background-color: var(--app-scrollbar) !important;
 }
 
 @keyframes pos-pulse {
@@ -31,6 +51,90 @@ body {
   }
   50% {
     opacity: 0.45;
+  }
+}
+
+@keyframes pos-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---------------------------------------------------------------- Toasts (react-toastify) */
+:root {
+  --toastify-font-family: "IBM Plex Sans", system-ui, sans-serif;
+  --toastify-toast-width: 380px;
+  --toastify-toast-min-height: 56px;
+  --toastify-toast-bd-radius: 10px;
+  --toastify-z-index: 2000;
+}
+
+.Toastify__toast {
+  font-size: 0.9375rem;
+  line-height: 1.45;
+  padding: 12px 14px;
+  border: 1px solid var(--app-border);
+  box-shadow: var(--app-shadow-popover);
+  align-items: flex-start;
+}
+
+.Toastify__toast-theme--light,
+.Toastify__toast-theme--dark {
+  background: var(--app-surface-raised);
+  color: var(--app-text);
+}
+
+.Toastify__toast-icon {
+  margin-top: 1px;
+  width: 20px;
+}
+
+.Toastify__toast--success .Toastify__toast-icon svg {
+  fill: var(--app-success);
+}
+.Toastify__toast--error .Toastify__toast-icon svg {
+  fill: var(--app-error);
+}
+.Toastify__toast--warning .Toastify__toast-icon svg {
+  fill: var(--app-warning);
+}
+.Toastify__toast--info .Toastify__toast-icon svg {
+  fill: var(--app-info);
+}
+
+.Toastify__progress-bar {
+  height: 3px;
+}
+.Toastify__progress-bar--success {
+  background: var(--app-success);
+}
+.Toastify__progress-bar--error {
+  background: var(--app-error);
+}
+.Toastify__progress-bar--warning {
+  background: var(--app-warning);
+}
+.Toastify__progress-bar--info,
+.Toastify__progress-bar--default {
+  background: var(--app-primary);
+}
+.Toastify__progress-bar--bg {
+  opacity: 0;
+}
+
+.Toastify__close-button {
+  color: var(--app-text-muted);
+  opacity: 0.8;
+  align-self: flex-start;
+}
+
+@media only screen and (max-width: 480px) {
+  .Toastify__toast-container {
+    padding: 8px;
+  }
+  .Toastify__toast {
+    margin-bottom: 8px;
+    border-radius: 10px;
   }
 }
 
