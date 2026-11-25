@@ -514,7 +514,11 @@ function DataTable<R>(props: DataTableProps<R>) {
     [columns, isMdUp, isLgUp]
   );
 
-  const sortModel: GridSortModel = activeSort ? [{ field: activeSort.field, sort: activeSort.direction }] : [];
+  // Stable references: a "new" sort/pagination model on every render makes the grid jump back to page 1
+  const sortField = activeSort?.field;
+  const sortDirection = activeSort?.direction;
+  const sortModel = useMemo<GridSortModel>(() => (sortField ? [{ field: sortField, sort: sortDirection ?? "asc" }] : []), [sortField, sortDirection]);
+  const paginationModel = useMemo(() => ({ page, pageSize }), [page, pageSize]);
   const rowHeight = density === "compact" ? 44 : 52;
   const overlayState: OverlayState = { error, onRetry, empty: empty as OverlayState["empty"], searching, clearSearch: query ? () => setQuery("") : onClearFilters };
   const staleError = Boolean(error) && Boolean(rows && rows.length);
@@ -604,7 +608,7 @@ function DataTable<R>(props: DataTableProps<R>) {
                 if (!serverPaging) setClientPage(0);
               }}
               rowCount={total}
-              paginationModel={{ page, pageSize }}
+              paginationModel={paginationModel}
               onPaginationModelChange={(m) => changePage(m.page, m.pageSize)}
               pageSizeOptions={pageSizeOptions}
               hideFooter={firstLoad || (total <= Math.min(...pageSizeOptions, pageSize) && page === 0)}
