@@ -76,8 +76,8 @@ const CountBadge: React.FC<{ count: number; attention: boolean; rail?: boolean }
         ...(rail
           ? {
               position: "absolute",
-              top: 2,
-              right: 6,
+              top: 1,
+              right: 1,
               border: `2px solid ${t.sidebar}`,
               boxSizing: "content-box",
             }
