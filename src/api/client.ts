@@ -3,6 +3,7 @@ import axios, {
   AxiosError,
   type InternalAxiosRequestConfig,
 } from "axios";
+import { toast } from "react-toastify";
 import { useAuthStore } from "../store/authStore";
 
 // Override with VITE_API_URL (e.g. http://localhost:3000/api/v1) for local development
@@ -29,18 +30,18 @@ apiClient.interceptors.request.use(
   }
 );
 
-let isRedirecting = false;
-
+/**
+ * A 401 on a signed-in request means the session ended (expired or revoked token): sign out —
+ * ProtectedRoute then shows the sign-in screen, no page reload. A 401 from the sign-in form itself
+ * (wrong password) is NOT a session problem: the form shows the message.
+ */
 apiClient.interceptors.response.use(
   (response) => response,
   (error: AxiosError) => {
-    if (error.response?.status === 401 && !isRedirecting) {
-      isRedirecting = true;
+    const signedIn = Boolean(error.config?.headers?.Authorization);
+    if (error.response?.status === 401 && signedIn && useAuthStore.getState().isAuthenticated) {
       useAuthStore.getState().logout();
-      setTimeout(() => {
-        window.location.href = "/login";
-        isRedirecting = false;
-      }, 100);
+      toast.info("Your session ended — please sign in again.", { toastId: "session-ended" });
     }
     return Promise.reject(error);
   }

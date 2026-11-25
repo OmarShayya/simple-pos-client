@@ -49,24 +49,33 @@ const ReservationTimeline: React.FC<Props> = ({ stations, reservations, window, 
       : now > new Date(r.startTime).getTime()
         ? theme.palette.warning.main
         : r.type === "playstation"
-          ? theme.palette.secondary.main
-          : theme.palette.primary.main;
+          ? theme.tokens.series.playstation
+          : theme.tokens.series.pc;
 
   const showNow = now > start && now < end;
 
   return (
-    <Box sx={{ overflowX: "auto", pb: 1 }} className="thin-scrollbar">
+    <Box sx={{ overflowX: "auto", pb: 1 }}>
       <Box sx={{ minWidth: 760, position: "relative" }}>
         {/* Hour ruler */}
         <Box sx={{ display: "flex", height: 28, alignItems: "flex-end", borderBottom: 1, borderColor: "divider" }}>
           <Box sx={{ width: LABEL_W, flexShrink: 0 }} />
           <Box sx={{ position: "relative", flex: 1, height: "100%" }}>
-            {hours.map((h) => (
+            {hours.map((h, i) => (
               <Typography
                 key={h}
                 variant="caption"
                 color="text.secondary"
-                sx={{ position: "absolute", left: pct(h), bottom: 4, transform: "translateX(-50%)", whiteSpace: "nowrap", fontWeight: 600 }}
+                sx={{
+                  position: "absolute",
+                  left: pct(h),
+                  bottom: 4,
+                  // The closing hour sits inside the ruler instead of being cut off
+                  transform: i === hours.length - 1 && h >= end ? "translateX(-100%)" : "translateX(-50%)",
+                  whiteSpace: "nowrap",
+                  fontSize: "0.8125rem",
+                  fontVariantNumeric: "tabular-nums",
+                }}
               >
                 {fmtTime(new Date(h), tz).replace(":00", "")}
               </Typography>
@@ -89,8 +98,8 @@ const ReservationTimeline: React.FC<Props> = ({ stations, reservations, window, 
               }}
             >
               <Box sx={{ width: LABEL_W, flexShrink: 0, display: "flex", alignItems: "center", gap: 0.75, pl: 0.5 }}>
-                <Icon sx={{ fontSize: 16, color: st.type === "playstation" ? "secondary.main" : "primary.main" }} />
-                <Typography variant="body2" sx={{ fontWeight: 700 }} noWrap>
+                <Icon sx={{ fontSize: 16, color: st.type === "playstation" ? theme.tokens.series.playstation : theme.tokens.series.pc }} />
+                <Typography variant="body2" sx={{ fontWeight: 600, fontVariantNumeric: "tabular-nums" }} noWrap>
                   {st.pcNumber}
                 </Typography>
               </Box>
@@ -118,6 +127,7 @@ const ReservationTimeline: React.FC<Props> = ({ stations, reservations, window, 
                       <Box
                         role="button"
                         tabIndex={0}
+                        aria-label={`${r.customerName}, ${fmtTime(r.startTime, tz)} to ${fmtTime(r.endTime, tz)}. Open booking`}
                         onClick={() => onSelect(r)}
                         onKeyDown={(ev) => (ev.key === "Enter" || ev.key === " ") && onSelect(r)}
                         sx={{
@@ -139,7 +149,7 @@ const ReservationTimeline: React.FC<Props> = ({ stations, reservations, window, 
                           "&:hover, &:focus-visible": { bgcolor: alpha(c, 0.36), outline: "none" },
                         }}
                       >
-                        <Typography variant="caption" sx={{ fontWeight: 700, whiteSpace: "nowrap" }} noWrap>
+                        <Typography variant="body2" sx={{ fontWeight: 600, whiteSpace: "nowrap", fontSize: "0.8125rem" }} noWrap>
                           {r.customerName}
                         </Typography>
                       </Box>

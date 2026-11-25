@@ -1,542 +1,163 @@
-import React, { useState } from "react";
-import {
-  Box,
-  Typography,
-  Button,
-  Card,
-  TextField,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  MenuItem,
-  Chip,
-  FormControlLabel,
-  Switch,
-  CircularProgress,
-  Stack,
-} from "@mui/material";
-import {
-  Add,
-  Edit,
-  Delete,
-  LocalOffer,
-} from "@mui/icons-material";
-import { DataGrid, GridColDef, GridActionsCellItem } from "@mui/x-data-grid";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { discountsApi } from "@/api/discounts.api";
-import { productsApi } from "@/api/products.api";
-import { categoriesApi } from "@/api/categories.api";
-import {
-  Discount,
-  CreateDiscountRequest,
-  UpdateDiscountRequest,
-  DiscountTarget,
-} from "@/types/discount.types";
-import { Product } from "@/types/product.types";
-import { Category } from "@/types/category.types";
-import { toast } from "react-toastify";
-import { handleApiError } from "@/utils/errorHandler";
-import PageHeader from "@/components/common/PageHeader";
-import LoadingSpinner from "@/components/common/LoadingSpinner";
-import StatusChip from "@/components/common/StatusChip";
+import React, { useMemo, useState } from "react";
+import { Box, Button, Typography } from "@mui/material";
+import { AddRounded, DeleteOutlineRounded, EditOutlined } from "@mui/icons-material";
+import { DataTable, IconAction, PageHeader, SegmentedControl, SelectField } from "@/components/ui";
+import type { DataTableColumn } from "@/components/ui";
+import DiscountFormDialog from "@/components/discounts/DiscountFormDialog";
+import { TARGET_LABEL, TARGET_OPTIONS, appliesTo, discountState, validityText } from "@/components/discounts/discountFormat";
+import { useAllDiscounts, useDiscountMutations } from "@/components/discounts/discountQueries";
+import { useConfirm } from "@/hooks/useConfirm";
+import { formatPercent } from "@/utils/format";
+import type { Discount, DiscountTarget } from "@/types/discount.types";
 
+type StateFilter = "all" | "on" | "notOn";
+
+/** Percentage discounts staff can apply at the counter (orders, gaming time, a product or a category). */
 const Discounts: React.FC = () => {
-  const queryClient = useQueryClient();
-  const [openDialog, setOpenDialog] = useState(false);
-  const [editingDiscount, setEditingDiscount] = useState<Discount | null>(null);
-  const [targetFilter, setTargetFilter] = useState<string>("");
-  const [activeFilter, setActiveFilter] = useState<string>("");
-  const [paginationModel, setPaginationModel] = useState({
-    page: 0,
-    pageSize: 10,
-  });
+  const confirm = useConfirm();
+  const q = useAllDiscounts();
+  const { remove } = useDiscountMutations();
+  const [target, setTarget] = useState<DiscountTarget | "">("");
+  const [state, setState] = useState<StateFilter>("all");
+  const [form, setForm] = useState<{ discount: Discount | null } | null>(null);
 
-  const [formData, setFormData] = useState<CreateDiscountRequest>({
-    name: "",
-    description: "",
-    value: 0,
-    target: DiscountTarget.PRODUCT,
-    targetId: "",
-    isActive: true,
-    startDate: "",
-    endDate: "",
-  });
-
-  const { data: discountsData, isLoading } = useQuery({
-    queryKey: [
-      "discounts",
-      paginationModel.page + 1,
-      paginationModel.pageSize,
-      targetFilter,
-      activeFilter,
-    ],
-    queryFn: () =>
-      discountsApi.getAll({
-        page: paginationModel.page + 1,
-        limit: paginationModel.pageSize,
-        target: targetFilter as DiscountTarget | undefined,
-        isActive: activeFilter === "" ? undefined : activeFilter === "true",
+  const rows = useMemo(
+    () =>
+      (q.data ?? []).filter((d) => {
+        if (target && d.target !== target) return false;
+        const s = discountState(d);
+        if (state === "on" && s !== "on") return false;
+        if (state === "notOn" && s === "on") return false;
+        return true;
       }),
-  });
+    [q.data, target, state]
+  );
+  const onCount = (q.data ?? []).filter((d) => discountState(d) === "on").length;
 
-  const { data: productsData } = useQuery({
-    queryKey: ["products-for-discount"],
-    queryFn: () => productsApi.getAll({ limit: 1000 }),
-    enabled: formData.target === DiscountTarget.PRODUCT,
-  });
-
-  const { data: categories = [] } = useQuery<Category[]>({
-    queryKey: ["categories"],
-    queryFn: () => categoriesApi.getAll(),
-    enabled: formData.target === DiscountTarget.CATEGORY,
-  });
-
-  const createMutation = useMutation({
-    mutationFn: discountsApi.create,
-    onSuccess: () => {
-      toast.success("Discount created successfully!");
-      queryClient.invalidateQueries({ queryKey: ["discounts"] });
-      handleCloseDialog();
-    },
-    onError: (error) => {
-      toast.error(handleApiError(error));
-    },
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: UpdateDiscountRequest }) =>
-      discountsApi.update(id, data),
-    onSuccess: () => {
-      toast.success("Discount updated successfully!");
-      queryClient.invalidateQueries({ queryKey: ["discounts"] });
-      handleCloseDialog();
-    },
-    onError: (error) => {
-      toast.error(handleApiError(error));
-    },
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: discountsApi.delete,
-    onSuccess: () => {
-      toast.success("Discount deleted successfully!");
-      queryClient.invalidateQueries({ queryKey: ["discounts"] });
-    },
-    onError: (error) => {
-      toast.error(handleApiError(error));
-    },
-  });
-
-  const handleOpenDialog = (discount?: Discount) => {
-    if (discount) {
-      setEditingDiscount(discount);
-      setFormData({
-        name: discount.name,
-        description: discount.description || "",
-        value: discount.value,
-        target: discount.target,
-        targetId: discount.targetId,
-        isActive: discount.isActive,
-        startDate: discount.startDate
-          ? new Date(discount.startDate).toISOString().split("T")[0]
-          : "",
-        endDate: discount.endDate
-          ? new Date(discount.endDate).toISOString().split("T")[0]
-          : "",
-      });
-    } else {
-      setEditingDiscount(null);
-      setFormData({
-        name: "",
-        description: "",
-        value: 0,
-        target: DiscountTarget.PRODUCT,
-        targetId: "",
-        isActive: true,
-        startDate: "",
-        endDate: "",
-      });
-    }
-    setOpenDialog(true);
+  const askDelete = async (d: Discount) => {
+    const ok = await confirm({
+      title: `Delete ${d.name}?`,
+      message: "Staff can no longer pick it. Orders that already used it keep their discount. To pause it instead, edit it and turn it off.",
+      confirmLabel: "Delete discount",
+      tone: "danger",
+    });
+    if (ok) remove.mutate(d);
   };
 
-  const handleCloseDialog = () => {
-    setOpenDialog(false);
-    setEditingDiscount(null);
-  };
-
-  const handleSubmit = () => {
-    if (!formData.name.trim()) {
-      toast.error("Please enter a discount name");
-      return;
-    }
-    if (formData.value <= 0 || formData.value > 100) {
-      toast.error("Discount value must be between 1 and 100");
-      return;
-    }
-    if (
-      (formData.target === DiscountTarget.PRODUCT ||
-        formData.target === DiscountTarget.CATEGORY) &&
-      !formData.targetId
-    ) {
-      toast.error(
-        `Please select a ${
-          formData.target === DiscountTarget.PRODUCT ? "product" : "category"
-        }`
-      );
-      return;
-    }
-
-    const submitData: CreateDiscountRequest = {
-      ...formData,
-      startDate: formData.startDate ? new Date(formData.startDate).toISOString() : undefined,
-      endDate: formData.endDate ? new Date(formData.endDate).toISOString() : undefined,
-    };
-
-    if (
-      formData.target === DiscountTarget.SALE ||
-      formData.target === DiscountTarget.GAMING_SESSION
-    ) {
-      delete submitData.targetId;
-    }
-
-    if (editingDiscount) {
-      updateMutation.mutate({ id: editingDiscount.id, data: submitData });
-    } else {
-      createMutation.mutate(submitData);
-    }
-  };
-
-  const handleDelete = (id: string) => {
-    if (window.confirm("Are you sure you want to delete this discount?")) {
-      deleteMutation.mutate(id);
-    }
-  };
-
-  const columns: GridColDef[] = [
+  const columns: DataTableColumn<Discount>[] = [
     {
       field: "name",
-      headerName: "Name",
-      flex: 1,
-      minWidth: 150,
-    },
-    {
-      field: "value",
-      headerName: "Discount",
-      width: 100,
-      renderCell: (params) => (
-        <Chip
-          label={`${params.row.value}%`}
-          color="secondary"
-          size="small"
-          icon={<LocalOffer />}
-        />
-      ),
-    },
-    {
-      field: "target",
-      headerName: "Target Type",
-      width: 130,
-      renderCell: (params) => {
-        const targetLabels: Record<DiscountTarget, string> = {
-          [DiscountTarget.PRODUCT]: "Product",
-          [DiscountTarget.CATEGORY]: "Category",
-          [DiscountTarget.GAMING_SESSION]: "Gaming",
-          [DiscountTarget.SALE]: "Sale",
-        };
-        return (
-          <Chip label={targetLabels[params.row.target as DiscountTarget]} size="small" />
-        );
-      },
-    },
-    {
-      field: "targetDetails",
-      headerName: "Target",
-      flex: 1,
-      minWidth: 150,
-      renderCell: (params) => {
-        if (
-          params.row.target === DiscountTarget.SALE ||
-          params.row.target === DiscountTarget.GAMING_SESSION
-        ) {
-          return <Typography variant="body2">All</Typography>;
-        }
-        return (
-          <Typography variant="body2">
-            {params.row.targetDetails?.name || "N/A"}
+      header: "Name",
+      flex: 1.3,
+      minWidth: 200,
+      mobile: "title",
+      render: (d) => (
+        <Box sx={{ minWidth: 0, lineHeight: 1.25 }}>
+          <Typography component="div" sx={{ fontWeight: 500 }} noWrap>
+            {d.name}
           </Typography>
-        );
-      },
+          {d.description && (
+            <Typography component="div" variant="body2" color="text.secondary" noWrap>
+              {d.description}
+            </Typography>
+          )}
+        </Box>
+      ),
+      value: (d) => `${d.name} ${d.description ?? ""}`,
+      csv: (d) => d.name,
     },
+    { field: "value", header: "Discount", type: "number", value: (d) => d.value, render: (d) => <b>{formatPercent(d.value)} off</b>, width: 120, csv: (d) => d.value, mobile: "end" },
+    { field: "appliesTo", header: "Applies to", value: (d) => appliesTo(d), render: (d) => (
+        <span>
+          {appliesTo(d)}
+          {(d.target === "product" || d.target === "category") && (
+            <Box component="span" sx={{ color: "text.secondary" }}>
+              {" "}
+              · {d.target === "product" ? "product" : "category"}
+            </Box>
+          )}
+        </span>
+      ), minWidth: 170, mobile: "subtitle" },
+    { field: "validity", header: "When", value: (d) => validityText(d), sortable: false, minWidth: 150, hideBelow: "md" },
     {
-      field: "isActive",
-      headerName: "Status",
-      width: 100,
-      renderCell: (params) => <StatusChip status={params.row.isActive ? "active" : "inactive"} label={params.row.isActive ? "Active" : "Inactive"} />,
-    },
-    {
-      field: "startDate",
-      headerName: "Start Date",
-      width: 120,
-      renderCell: (params) =>
-        params.row.startDate
-          ? new Date(params.row.startDate).toLocaleDateString()
-          : "N/A",
-    },
-    {
-      field: "endDate",
-      headerName: "End Date",
-      width: 120,
-      renderCell: (params) =>
-        params.row.endDate
-          ? new Date(params.row.endDate).toLocaleDateString()
-          : "N/A",
+      field: "state",
+      header: "Status",
+      type: "status",
+      statusKind: "discount",
+      value: (d) => discountState(d),
+      width: 130,
+      mobile: "end",
     },
     {
       field: "actions",
+      header: "Actions",
       type: "actions",
-      headerName: "Actions",
-      width: 100,
-      getActions: (params) => [
-        <GridActionsCellItem
-          key="edit"
-          icon={<Edit />}
-          label="Edit"
-          onClick={() => handleOpenDialog(params.row)}
-        />,
-        <GridActionsCellItem
-          key="delete"
-          icon={<Delete />}
-          label="Delete"
-          onClick={() => handleDelete(params.row.id)}
-        />,
-      ],
+      width: 112,
+      render: (d) => (
+        <>
+          <IconAction title="Edit discount" label={`Edit ${d.name}`} icon={<EditOutlined />} onClick={() => setForm({ discount: d })} />
+          <IconAction title="Delete discount" label={`Delete ${d.name}`} icon={<DeleteOutlineRounded />} onClick={() => askDelete(d)} tone="danger" />
+        </>
+      ),
     },
   ];
-
-  if (isLoading) return <LoadingSpinner />;
 
   return (
     <Box>
       <PageHeader
         title="Discounts"
-        subtitle="Percentage discounts for products, categories, sales and gaming time."
+        subtitle="Percentage discounts staff can pick for a whole order, gaming time, one product or one category."
         actions={
-          <Button variant="contained" startIcon={<Add />} onClick={() => handleOpenDialog()}>
-            Create discount
+          <Button variant="contained" startIcon={<AddRounded />} onClick={() => setForm({ discount: null })}>
+            New discount
           </Button>
         }
       />
-
-      <Card sx={{ mb: 3, p: 2.5 }}>
-        <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-          <TextField
-            select
-            label="Target Type"
-            value={targetFilter}
-            onChange={(e) => setTargetFilter(e.target.value)}
-            size="small"
-            sx={{ minWidth: { xs: "100%", sm: 200 } }}
-          >
-            <MenuItem value="">All Types</MenuItem>
-            <MenuItem value={DiscountTarget.PRODUCT}>Product</MenuItem>
-            <MenuItem value={DiscountTarget.CATEGORY}>Category</MenuItem>
-            <MenuItem value={DiscountTarget.GAMING_SESSION}>Gaming Session</MenuItem>
-            <MenuItem value={DiscountTarget.SALE}>Sale</MenuItem>
-          </TextField>
-          <TextField
-            select
-            label="Status"
-            value={activeFilter}
-            onChange={(e) => setActiveFilter(e.target.value)}
-            size="small"
-            sx={{ minWidth: { xs: "100%", sm: 200 } }}
-          >
-            <MenuItem value="">All Status</MenuItem>
-            <MenuItem value="true">Active</MenuItem>
-            <MenuItem value="false">Inactive</MenuItem>
-          </TextField>
-        </Stack>
-      </Card>
-
-      <Card>
-        <DataGrid
-          rows={discountsData?.data || []}
-          columns={columns}
-          paginationModel={paginationModel}
-          onPaginationModelChange={setPaginationModel}
-          pageSizeOptions={[5, 10, 25, 50]}
-          rowCount={discountsData?.pagination?.total || 0}
-          paginationMode="server"
-          loading={isLoading}
-          disableRowSelectionOnClick
-          autoHeight
-          sx={{
-            "& .MuiDataGrid-cell:focus": {
-              outline: "none",
-            },
-          }}
-        />
-      </Card>
-
-      <Dialog open={openDialog} onClose={handleCloseDialog} maxWidth="sm" fullWidth>
-        <DialogTitle>
-          {editingDiscount ? "Edit Discount" : "Create New Discount"}
-        </DialogTitle>
-        <DialogContent>
-          <Stack spacing={2.5} sx={{ mt: 1 }}>
-            <TextField
-              fullWidth
-              label="Discount Name"
-              value={formData.name}
-              onChange={(e) =>
-                setFormData({ ...formData, name: e.target.value })
-              }
-              required
+      <DataTable<Discount>
+        label="Discounts"
+        rows={rows}
+        columns={columns}
+        loading={q.isLoading}
+        refreshing={q.isFetching && !q.isLoading}
+        error={q.error}
+        onRetry={() => q.refetch()}
+        onRefresh={() => q.refetch()}
+        search={{ placeholder: "Search discounts" }}
+        filters={
+          <>
+            <SegmentedControl<StateFilter>
+              aria-label="Status"
+              value={state}
+              onChange={setState}
+              options={[
+                { value: "all", label: "All" },
+                { value: "on", label: "Active", count: onCount },
+                { value: "notOn", label: "Not active" },
+              ]}
             />
-            <TextField
-              fullWidth
-              label="Description"
-              multiline
-              rows={2}
-              value={formData.description}
-              onChange={(e) =>
-                setFormData({ ...formData, description: e.target.value })
-              }
+            <SelectField<DiscountTarget | "">
+              label="Applies to"
+              size="small"
+              fullWidth={false}
+              minWidth={180}
+              value={target}
+              onChange={setTarget}
+              emptyOption="Anything"
+              options={TARGET_OPTIONS}
             />
-            <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-              <TextField
-                fullWidth
-                label="Discount Percentage"
-                type="number"
-                value={formData.value}
-                onChange={(e) =>
-                  setFormData({ ...formData, value: Number(e.target.value) })
-                }
-                slotProps={{
-                  htmlInput: { min: 0, max: 100, step: 1 }
-                }}
-                required
-              />
-              <TextField
-                select
-                fullWidth
-                label="Target Type"
-                value={formData.target}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    target: e.target.value as DiscountTarget,
-                    targetId: "",
-                  })
-                }
-                required
-              >
-                <MenuItem value={DiscountTarget.PRODUCT}>Product</MenuItem>
-                <MenuItem value={DiscountTarget.CATEGORY}>Category</MenuItem>
-                <MenuItem value={DiscountTarget.GAMING_SESSION}>
-                  Gaming Session
-                </MenuItem>
-                <MenuItem value={DiscountTarget.SALE}>Sale</MenuItem>
-              </TextField>
-            </Stack>
-
-            {formData.target === DiscountTarget.PRODUCT && (
-              <TextField
-                select
-                fullWidth
-                label="Select Product"
-                value={formData.targetId}
-                onChange={(e) =>
-                  setFormData({ ...formData, targetId: e.target.value })
-                }
-                required
-              >
-                {productsData?.data?.map((product: Product) => (
-                  <MenuItem key={product.id} value={product.id}>
-                    {product.name} ({product.sku})
-                  </MenuItem>
-                ))}
-              </TextField>
-            )}
-
-            {formData.target === DiscountTarget.CATEGORY && (
-              <TextField
-                select
-                fullWidth
-                label="Select Category"
-                value={formData.targetId}
-                onChange={(e) =>
-                  setFormData({ ...formData, targetId: e.target.value })
-                }
-                required
-              >
-                {categories.map((category) => (
-                  <MenuItem key={category.id} value={category.id}>
-                    {category.name}
-                  </MenuItem>
-                ))}
-              </TextField>
-            )}
-
-            <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-              <TextField
-                fullWidth
-                label="Start Date"
-                type="date"
-                value={formData.startDate}
-                onChange={(e) =>
-                  setFormData({ ...formData, startDate: e.target.value })
-                }
-                slotProps={{
-                  inputLabel: { shrink: true }
-                }}
-              />
-              <TextField
-                fullWidth
-                label="End Date"
-                type="date"
-                value={formData.endDate}
-                onChange={(e) =>
-                  setFormData({ ...formData, endDate: e.target.value })
-                }
-                slotProps={{
-                  inputLabel: { shrink: true }
-                }}
-              />
-            </Stack>
-
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={formData.isActive}
-                  onChange={(e) =>
-                    setFormData({ ...formData, isActive: e.target.checked })
-                  }
-                />
-              }
-              label="Active"
-            />
-          </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseDialog}>Cancel</Button>
-          <Button
-            onClick={handleSubmit}
-            variant="contained"
-            disabled={createMutation.isPending || updateMutation.isPending}
-          >
-            {createMutation.isPending || updateMutation.isPending ? (
-              <CircularProgress size={24} />
-            ) : editingDiscount ? (
-              "Update"
-            ) : (
-              "Create"
-            )}
-          </Button>
-        </DialogActions>
-      </Dialog>
+          </>
+        }
+        activeFilterCount={(target ? 1 : 0) + (state !== "all" ? 1 : 0)}
+        onClearFilters={() => {
+          setTarget("");
+          setState("all");
+        }}
+        initialSort={{ field: "name", direction: "asc" }}
+        onRowClick={(d) => setForm({ discount: d })}
+        exportCsv={{ filename: "discounts" }}
+        empty={{ title: "No discounts yet", description: `Create one for a ${TARGET_LABEL.sale.toLowerCase()}, gaming time, a product or a category.` }}
+      />
+      <DiscountFormDialog open={Boolean(form)} discount={form?.discount} onClose={() => setForm(null)} />
     </Box>
   );
 };

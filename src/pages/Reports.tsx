@@ -1,142 +1,86 @@
-import React, { useState } from "react";
-import { Box, Grid, Tabs, Tab } from "@mui/material";
-import {
-  CalendarToday,
-  Category,
-  ShoppingCart,
-  SportsEsports,
-} from "@mui/icons-material";
-import { format } from "date-fns";
-import WeeklyReportCard from "@/components/reports/WeeklyReportCard";
-import MonthlyReportCard from "@/components/reports/MonthlyReportCard";
-import YearlyReportCard from "@/components/reports/YearlyReportCard";
-import DailyReportCard from "@/components/reports/DailyReportCard";
-import CategorySalesCard from "@/components/reports/CategorySalesCard";
-import ProductSalesCard from "@/components/reports/ProductSalesCard";
-import DailyTransactionsCard from "@/components/reports/DailyTransactionsCard";
-import GamingRevenueCard from "@/components/reports/GamingRevenueCard";
-import PageHeader from "@/components/common/PageHeader";
+import React from "react";
+import { Box, Button, LinearProgress } from "@mui/material";
+import { FileDownloadOutlined, LockOutlined, PrintOutlined } from "@mui/icons-material";
+import { EmptyState, PageHeader, SectionCard } from "@/components/ui";
+import { useAuthStore } from "@/store/authStore";
+import { UserRole } from "@/types/auth.types";
+import PeriodNavigator from "@/components/reports/PeriodNavigator";
+import ReportView from "@/components/reports/ReportView";
+import ReportPrintView from "@/components/reports/ReportPrint";
+import { useReportParams, useReportSummary } from "@/components/reports/useReportParams";
+import { PERIODS, comparisonLabel } from "@/components/reports/reportPeriods";
+import { downloadReportCsv } from "@/components/reports/reportCsv";
 
+/**
+ * Reports: one page, four period views (Day / Week / Month / Year) built from the same layout.
+ * The selection is in the URL so a report can be bookmarked or sent to someone.
+ */
 const Reports: React.FC = () => {
-  const [activeTab, setActiveTab] = useState(0);
-  const currentYear = new Date().getFullYear();
-  const currentMonth = new Date().getMonth() + 1;
+  const role = useAuthStore((s) => s.user?.role);
+  const canView = role === UserRole.ADMIN || role === UserRole.MANAGER;
+  const { period, date, today, select, isCurrent } = useReportParams();
+  const query = useReportSummary(period, date, { enabled: canView, live: isCurrent });
+  const config = PERIODS[period];
 
-  const [dailyParams, setDailyParams] = useState({
-    date: format(new Date(), "yyyy-MM-dd"),
-  });
+  // The API says whether the comparison is cut to the same point ("to-date"); before it answers, infer it
+  const data = query.data;
+  const comparison = data?.comparison ?? (isCurrent ? "to-date" : "full");
+  const previousLabel = comparisonLabel(period, comparison, data?.previous.label);
+  const note = data
+    ? comparison === "to-date"
+      ? `This ${config.noun} isn't over yet, so changes are compared with the same point of ${data.previous.label}.`
+      : `Changes are compared with ${data.previous.label}.`
+    : undefined;
+  const stale = query.isPlaceholderData || (query.isFetching && !query.isLoading);
+  // Paper shows the report that's on screen, never the previous period's placeholder
+  const printable = data && !query.isPlaceholderData ? data : undefined;
 
-  const [weeklyParams, setWeeklyParams] = useState({
-    week: 1,
-    month: currentMonth,
-    year: currentYear,
-  });
-
-  const [monthlyParams, setMonthlyParams] = useState({
-    month: currentMonth,
-    year: currentYear,
-  });
-
-  const [yearlyParams, setYearlyParams] = useState({
-    year: currentYear,
-  });
+  if (!canView) {
+    return (
+      <Box>
+        <PageHeader title="Reports" />
+        <SectionCard>
+          <EmptyState icon={<LockOutlined />} title="Reports are for managers" description="Ask a manager or the owner if you need sales numbers. Today's activity is on the Dashboard." />
+        </SectionCard>
+      </Box>
+    );
+  }
 
   return (
     <Box>
-      <PageHeader title="Reports & Analytics" subtitle="Comprehensive sales and revenue reports" />
+      <PageHeader
+        title="Reports"
+        subtitle="Sales, gaming and stations for any day, week, month or year"
+        actions={
+          <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", width: { xs: "100%", sm: "auto" }, "& > .MuiButton-root": { flex: { xs: 1, sm: "0 0 auto" } } }}>
+            <Button variant="outlined" startIcon={<PrintOutlined />} onClick={() => window.print()} disabled={!printable}>
+              Print
+            </Button>
+            <Button variant="outlined" startIcon={<FileDownloadOutlined />} onClick={() => printable && downloadReportCsv(printable, date)} disabled={!printable}>
+              Download CSV
+            </Button>
+          </Box>
+        }
+      />
 
-      <Tabs
-        value={activeTab}
-        onChange={(_, v) => setActiveTab(v)}
-        variant="scrollable"
-        scrollButtons="auto"
-        allowScrollButtonsMobile
-        sx={{ mb: 3, borderBottom: 1, borderColor: "divider" }}
-      >
-        <Tab
-          label="Time Reports"
-          icon={<CalendarToday />}
-          iconPosition="start"
+      <PeriodNavigator period={period} date={date} today={today} onChange={select} note={note} />
+
+      <Box sx={{ position: "relative" }}>
+        {stale && <LinearProgress aria-label="Loading report" sx={{ position: "absolute", top: -12, left: 0, right: 0, height: 2, borderRadius: 0 }} />}
+        <ReportView
+          period={period}
+          date={date}
+          today={today}
+          data={data}
+          loading={query.isLoading}
+          error={query.error}
+          onRetry={() => query.refetch()}
+          previousLabel={previousLabel}
+          onSelect={select}
         />
-        <Tab
-          label="Category & Products"
-          icon={<Category />}
-          iconPosition="start"
-        />
-        <Tab
-          label="Transactions"
-          icon={<ShoppingCart />}
-          iconPosition="start"
-        />
-        <Tab
-          label="Gaming Revenue"
-          icon={<SportsEsports />}
-          iconPosition="start"
-        />
-      </Tabs>
+      </Box>
 
-      {activeTab === 0 && (
-        <Grid container spacing={3}>
-          <Grid size={{ xs: 12, md: 6, xl: 3 }}>
-            <DailyReportCard
-              date={dailyParams.date}
-              onDateChange={(date) => setDailyParams({ date })}
-            />
-          </Grid>
-
-          <Grid size={{ xs: 12, md: 6, xl: 3 }}>
-            <WeeklyReportCard
-              week={weeklyParams.week}
-              month={weeklyParams.month}
-              year={weeklyParams.year}
-              onParamsChange={setWeeklyParams}
-            />
-          </Grid>
-
-          <Grid size={{ xs: 12, md: 6, xl: 3 }}>
-            <MonthlyReportCard
-              month={monthlyParams.month}
-              year={monthlyParams.year}
-              onParamsChange={setMonthlyParams}
-            />
-          </Grid>
-
-          <Grid size={{ xs: 12, md: 6, xl: 3 }}>
-            <YearlyReportCard
-              year={yearlyParams.year}
-              onParamsChange={setYearlyParams}
-            />
-          </Grid>
-        </Grid>
-      )}
-
-      {activeTab === 1 && (
-        <Grid container spacing={3}>
-          <Grid size={{ xs: 12, lg: 6 }}>
-            <CategorySalesCard />
-          </Grid>
-
-          <Grid size={{ xs: 12, lg: 6 }}>
-            <ProductSalesCard />
-          </Grid>
-        </Grid>
-      )}
-
-      {activeTab === 2 && (
-        <Grid container spacing={3}>
-          <Grid size={{ xs: 12 }}>
-            <DailyTransactionsCard />
-          </Grid>
-        </Grid>
-      )}
-
-      {activeTab === 3 && (
-        <Grid container spacing={3}>
-          <Grid size={{ xs: 12 }}>
-            <GamingRevenueCard />
-          </Grid>
-        </Grid>
-      )}
+      {printable && note && <ReportPrintView data={printable} period={period} today={today} previousLabel={previousLabel} comparisonNote={note} />}
     </Box>
   );
 };

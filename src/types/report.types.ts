@@ -1,253 +1,127 @@
-// Currency amount
-export interface CurrencyAmount {
-  usd: number;
-  lbp: number;
+/**
+ * `GET /reports/summary?period=day|week|month|year&date=YYYY-MM-DD` (CONTRACT §4, "Changes from v1").
+ * Money is USD unless a field says LBP. Ranges are half-open ISO instants in the lounge timezone.
+ */
+import type { StationType } from "./reservation.types";
+
+export type ReportPeriod = "day" | "week" | "month" | "year";
+
+/** "full" = the period is over; "to-date" = still running, so `previous` is cut to the same elapsed time. */
+export type ReportComparison = "full" | "to-date";
+
+export interface ReportRange {
+  start: string;
+  /** Exclusive. */
+  end: string;
+  /** "Tue 25 Nov 2026", "24–30 Nov 2026", "November 2026", "2026" */
+  label: string;
 }
 
-// Separated revenue (Products vs Gaming)
-export interface SeparatedRevenue {
-  total: CurrencyAmount;
-  products: CurrencyAmount;
-  gaming: CurrencyAmount;
+export interface CountKpi {
+  value: number;
+  previous: number;
 }
 
-// Revenue discount breakdown
-export interface RevenueDiscounts {
-  totalItemDiscounts: CurrencyAmount;
-  totalSaleDiscounts: CurrencyAmount;
-  totalDiscounts: CurrencyAmount;
-  revenueBeforeDiscounts: CurrencyAmount;
+export interface MoneyKpi extends CountKpi {
+  lbp: { value: number; previous: number };
 }
 
-// Revenue breakdown with discount information
-export interface RevenueBreakdown {
-  total: CurrencyAmount;
-  products: CurrencyAmount;
-  gaming: CurrencyAmount;
-  usdPayments: CurrencyAmount;
-  lbpPayments: CurrencyAmount;
-  totalSales: number;
-  productSales: number;
-  gamingSales: number;
-  averageSale: CurrencyAmount;
-  discounts?: RevenueDiscounts;
+export interface ReportKpis {
+  revenue: MoneyKpi;
+  orders: CountKpi;
+  avgOrder: MoneyKpi;
+  gamingRevenue: MoneyKpi;
+  productRevenue: MoneyKpi;
+  /** Station occupancy in hours (2 decimals). */
+  gamingHours: CountKpi;
+  sessions: CountKpi;
+  discounts: MoneyKpi;
+  newCustomers: CountKpi;
+  websiteOrders: CountKpi;
+  reservations: CountKpi;
+  noShows: CountKpi;
 }
 
-// Period information
-export interface ReportPeriod {
-  type: "daily" | "weekly" | "monthly" | "yearly";
-  date?: string;
-  week?: number;
-  month?: number;
-  year?: number;
-  startDate?: string;
-  endDate?: string;
+/** One chart bucket: an hour (day), a day (week/month) or a month (year). */
+export interface ReportSeriesPoint {
+  /** "00"…"23" | "2026-11-24" | "2026-01" */
+  key: string;
+  /** "16:00" | "Mon 24" | "24" | "Jan" */
+  label: string;
+  revenue: number;
+  gaming: number;
+  products: number;
+  orders: number;
 }
 
-// Time-based reports (daily/weekly/monthly/yearly)
-export interface TimeBasedReport {
-  period: ReportPeriod;
-  revenue: RevenueBreakdown;
+export type PaymentMethodKey = "cash" | "card" | "bank_transfer" | "unknown";
+
+export interface PaymentMethodRow {
+  method: PaymentMethodKey | string;
+  amount: number;
+  amountLbp: number;
+  count: number;
 }
 
-// Sales by product report
-export interface ProductSalesReport {
-  productId: string;
-  productName: string;
-  productSku: string;
-  totalQuantitySold: number;
-  revenueBeforeDiscount: {
-    usd: number;
-    lbp: number;
-  };
-  totalDiscounts: {
-    usd: number;
-    lbp: number;
-  };
-  totalRevenue: {
-    usd: number;
-    lbp: number;
-  };
-  salesCount: number;
-}
-
-// Sales by category report
-export interface CategorySalesReport {
-  categoryId: string;
-  categoryName: string;
-  totalQuantitySold: number;
-  revenueBeforeDiscount: {
-    usd: number;
-    lbp: number;
-  };
-  totalDiscounts: {
-    usd: number;
-    lbp: number;
-  };
-  totalRevenue: {
-    usd: number;
-    lbp: number;
-  };
-  salesCount: number;
-}
-
-// Transaction discount breakdown
-export interface TransactionDiscounts {
-  itemDiscounts: {
-    usd: number;
-    lbp: number;
-  };
-  saleDiscount?: {
-    name: string;
-    percentage: number;
-    amount: {
-      usd: number;
-      lbp: number;
-    };
-  };
-  totalDiscounts: {
-    usd: number;
-    lbp: number;
-  };
-}
-
-// Transaction item details
-export interface TransactionItem {
-  id: string;
-  productId?: string;
-  productName: string;
-  sku?: string;
-  type: "product" | "gaming";
+export interface CategoryRow {
+  category: string;
+  revenue: number;
   quantity: number;
-  unitPrice: {
-    usd: number;
-    lbp: number;
-  };
-  subtotal: {
-    usd: number;
-    lbp: number;
-  };
-  discount: {
-    usd: number;
-    lbp: number;
-  };
-  finalAmount: {
-    usd: number;
-    lbp: number;
-  };
-  isGamingSession: boolean;
-  gamingSessionDetails?: {
-    sessionId: string;
-    pcNumber: string;
-    pcName: string;
-    duration: number;
-    startTime: string;
-    endTime: string;
-  };
 }
 
-// Transaction items summary
-export interface TransactionItemsSummary {
-  totalItems: number;
-  productCount: number;
-  gamingCount: number;
-  productTotal: {
-    usd: number;
-    lbp: number;
-  };
-  gamingTotal: {
-    usd: number;
-    lbp: number;
-  };
+export interface TopProductRow {
+  productId: string;
+  name: string;
+  quantity: number;
+  revenue: number;
 }
 
-// Daily transaction
-export interface DailyTransaction {
+export interface StationRow {
   id: string;
-  invoiceNumber: string;
-  customer?: {
-    name: string;
-    phone: string;
-  };
-  subtotalBeforeDiscount: {
-    usd: number;
-    lbp: number;
-  };
-  discounts: TransactionDiscounts;
-  totals: {
-    usd: number;
-    lbp: number;
-  };
-  amountPaid: {
-    usd: number;
-    lbp: number;
-  };
-  paymentMethod: string;
-  paymentCurrency: string;
-  status: string;
-  cashier: string;
-  createdAt: string;
-  notes?: string;
-  items: TransactionItem[];
-  itemsSummary: TransactionItemsSummary;
-}
-
-// Gaming revenue breakdown
-export interface GamingRevenueBreakdown {
-  totalRevenue: {
-    usd: number;
-    lbp: number;
-  };
-  totalSessions: number;
-  averageSessionDuration: number;
-  averageRevenue: {
-    usd: number;
-    lbp: number;
-  };
-  totalDiscounts: {
-    usd: number;
-    lbp: number;
-  };
-  revenueBeforeDiscounts: {
-    usd: number;
-    lbp: number;
-  };
-}
-
-// Hourly gaming breakdown
-export interface HourlyGamingBreakdown {
-  hour: number;
-  totalSessions: number;
-  revenue: {
-    usd: number;
-    lbp: number;
-  };
-  discounts: {
-    usd: number;
-    lbp: number;
-  };
-  totalDuration: number;
-}
-
-// Daily gaming report
-export interface DailyGamingReport {
-  revenue: GamingRevenueBreakdown;
-  hourlyBreakdown: HourlyGamingBreakdown[];
-}
-
-// Gaming revenue by PC
-export interface GamingRevenueByPC {
-  pcId: string;
   pcNumber: string;
-  pcName: string;
-  totalSessions: number;
-  totalRevenue: {
-    usd: number;
-    lbp: number;
-  };
-  totalDiscounts: {
-    usd: number;
-    lbp: number;
-  };
-  averageDuration: number;
+  name: string;
+  type: StationType;
+  sessions: number;
+  hours: number;
+  revenue: number;
+  /** 0–1; null when the lounge was closed for the whole range. */
+  utilization: number | null;
+}
+
+export interface StationTypeTotals {
+  sessions: number;
+  hours: number;
+  revenue: number;
+}
+
+export interface BusiestHourRow {
+  hour: number;
+  orders: number;
+  revenue: number;
+}
+
+export interface CashierRow {
+  id: string;
+  name: string;
+  orders: number;
+  revenue: number;
+}
+
+export interface ReportSummary {
+  period: ReportPeriod;
+  timezone: string;
+  comparison: ReportComparison;
+  range: ReportRange;
+  previous: ReportRange;
+  /** Opening hours inside the range (from the booking schedule). */
+  openHours: number;
+  kpis: ReportKpis;
+  series: ReportSeriesPoint[];
+  byPaymentMethod: PaymentMethodRow[];
+  byCategory: CategoryRow[];
+  topProducts: TopProductRow[];
+  stations: StationRow[];
+  byStationType: { pc: StationTypeTotals; playstation: StationTypeTotals };
+  busiestHours: BusiestHourRow[];
+  cashiers: CashierRow[];
 }

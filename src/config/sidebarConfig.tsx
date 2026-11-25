@@ -1,10 +1,8 @@
 import {
   SpaceDashboardOutlined,
-  PointOfSaleOutlined,
   ReceiptLongOutlined,
   PeopleAltOutlined,
   SportsEsportsOutlined,
-  HistoryOutlined,
   ComputerOutlined,
   Inventory2Outlined,
   CategoryOutlined,
@@ -14,14 +12,22 @@ import {
   SettingsOutlined,
   EventAvailableOutlined,
   BadgeOutlined,
+  AddRounded,
 } from "@mui/icons-material";
 import type { SvgIconComponent } from "@mui/icons-material";
 import { UserRole } from "@/types/auth.types";
+import type { NavCounts } from "@/hooks/useNavCounts";
 
 /**
  * Data-driven navigation. To add a screen: add an item to a group (or a new group).
- * `roles` limits who sees it; `title` overrides the label shown in the top bar.
+ * - `roles` limits who sees it.
+ * - `title` overrides the label shown in the top bar.
+ * - `match` lists extra paths that should highlight this item (e.g. old routes it replaces).
+ * - `badge` shows a count from `GET /sales/counts`; `badgeAttention` turns the badge amber when
+ *   that other count is above zero (e.g. website orders waiting).
  */
+export type NavBadgeKey = keyof NavCounts;
+
 export interface SidebarItem {
   id: string;
   label: string;
@@ -29,28 +35,47 @@ export interface SidebarItem {
   icon: SvgIconComponent;
   roles?: UserRole[];
   title?: string;
+  match?: string[];
+  badge?: NavBadgeKey;
+  badgeAttention?: NavBadgeKey;
+  /** Spoken/tooltip text for the badge, e.g. (n) => `${n} open orders`. */
+  badgeLabel?: (counts: NavCounts) => string;
 }
 
 export interface SidebarGroup {
   id: string;
+  /** Small uppercase heading. Empty = no heading (top group). */
   label: string;
   items: SidebarItem[];
 }
 
 const MANAGERS: UserRole[] = [UserRole.ADMIN, UserRole.MANAGER];
 
+/** The prominent button under the logo. */
+export const newSaleAction = { label: "New sale", path: "/sales", icon: AddRounded } as const;
+
 export const sidebarGroups: SidebarGroup[] = [
   {
     id: "overview",
-    label: "Overview",
+    label: "",
     items: [{ id: "dashboard", label: "Dashboard", path: "/dashboard", icon: SpaceDashboardOutlined }],
   },
   {
     id: "sales",
     label: "Sales",
     items: [
-      { id: "sales", label: "New sale", path: "/sales", icon: PointOfSaleOutlined, title: "Point of sale" },
-      { id: "sales-history", label: "Sales history", path: "/sales/history", icon: ReceiptLongOutlined },
+      {
+        id: "orders",
+        label: "Orders",
+        path: "/orders",
+        icon: ReceiptLongOutlined,
+        match: ["/sales/history", "/gaming/history"],
+        badge: "open",
+        badgeAttention: "websiteOpen",
+        badgeLabel: (c) =>
+          `${c.open ?? 0} open ${c.open === 1 ? "order" : "orders"}` +
+          (c.websiteOpen ? `, ${c.websiteOpen} from the website waiting` : ""),
+      },
       { id: "customers", label: "Customers", path: "/customers", icon: PeopleAltOutlined },
     ],
   },
@@ -59,8 +84,15 @@ export const sidebarGroups: SidebarGroup[] = [
     label: "Gaming",
     items: [
       { id: "gaming", label: "Stations", path: "/gaming", icon: SportsEsportsOutlined, title: "Gaming stations" },
-      { id: "reservations", label: "Reservations", path: "/reservations", icon: EventAvailableOutlined },
-      { id: "gaming-history", label: "Session history", path: "/gaming/history", icon: HistoryOutlined },
+      {
+        id: "reservations",
+        label: "Reservations",
+        path: "/reservations",
+        icon: EventAvailableOutlined,
+        badge: "reservationsAttention",
+        badgeAttention: "reservationsAttention",
+        badgeLabel: (c) => `${c.reservationsAttention ?? 0} reservations need attention`,
+      },
       {
         id: "pc-management",
         label: "Manage stations",
@@ -106,15 +138,19 @@ export const getVisibleGroups = (role?: UserRole): SidebarGroup[] =>
     .map((g) => ({ ...g, items: g.items.filter((i) => !i.roles || (role && i.roles.includes(role))) }))
     .filter((g) => g.items.length > 0);
 
+const matchesPath = (pathname: string, path: string) => pathname === path || pathname.startsWith(path + "/");
+
 /** The nav item that best matches a pathname (longest matching path wins). */
 export const findSidebarItem = (pathname: string): SidebarItem | undefined =>
   sidebarItems
-    .filter((i) => pathname === i.path || pathname.startsWith(i.path + "/"))
-    .sort((a, b) => b.path.length - a.path.length)[0];
+    .flatMap((item) => [item.path, ...(item.match ?? [])].filter((p) => matchesPath(pathname, p)).map((p) => ({ item, len: p.length })))
+    .sort((a, b) => b.len - a.len)[0]?.item;
 
 const EXTRA_TITLES: Record<string, string> = {
-  "/profile": "Profile",
+  "/sales": "New sale",
+  "/profile": "My account",
   "/reservations/settings": "Booking rules",
+  "/ui-kit": "UI kit",
 };
 
 /** Title for the top bar. */
@@ -122,4 +158,16 @@ export const getPageTitle = (pathname: string): string => {
   if (EXTRA_TITLES[pathname]) return EXTRA_TITLES[pathname];
   const item = findSidebarItem(pathname);
   return item?.title ?? item?.label ?? "Epic Lounge";
+};
+
+const EXTRA_GROUPS: Record<string, string> = {
+  "/sales": "Sales",
+  "/reservations/settings": "Gaming",
+};
+
+/** Group label + title for the top-bar breadcrumb ("Sales › Orders"). */
+export const getPageContext = (pathname: string): { group?: string; title: string } => {
+  const item = findSidebarItem(pathname);
+  const group = EXTRA_GROUPS[pathname] ?? (item ? sidebarGroups.find((g) => g.items.includes(item))?.label : undefined);
+  return { group: group || undefined, title: getPageTitle(pathname) };
 };

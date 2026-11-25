@@ -1,587 +1,155 @@
-import React, { useState } from "react";
-import {
-  Box,
-  Typography,
-  Button,
-  Card,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  Grid,
-  IconButton,
-  Autocomplete,
-} from "@mui/material";
-import { Add, Edit, Delete, Lock, LockOpen, Computer, SportsEsports } from "@mui/icons-material";
-import { ToggleButton, ToggleButtonGroup, Stack } from "@mui/material";
-import type { StationType } from "@/types/reservation.types";
-import { DataGrid, GridColDef } from "@mui/x-data-grid";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { gamingApi, type UpdateStationPayload } from "@/api/gaming.api";
-import { customersApi } from "@/api/customers.api";
-import { PC, PCStatus } from "@/types/gaming.types";
-import { Customer } from "@/types/customer.types";
-import { toast } from "react-toastify";
-import { handleApiError } from "@/utils/errorHandler";
-import LoadingSpinner from "@/components/common/LoadingSpinner";
-import PageHeader from "@/components/common/PageHeader";
-import StatusChip from "@/components/common/StatusChip";
+import React, { useMemo, useState } from "react";
+import { Box, Button, Stack, Typography, useTheme } from "@mui/material";
+import { AddRounded, Computer, DeleteOutlineRounded, EditOutlined, SportsEsports } from "@mui/icons-material";
+import { DataTable, IconAction, MoneyText, PageHeader, SegmentedControl, SelectField, StatusChip } from "@/components/ui";
+import type { DataTableColumn } from "@/components/ui";
+import StationFormDialog from "@/components/stations/StationFormDialog";
+import { useAllStations, useStationMutations } from "@/components/stations/stationQueries";
+import { distinctValues } from "@/components/stations/stationFormat";
+import { useConfirm } from "@/hooks/useConfirm";
+import { PCStatus, type PC } from "@/types/gaming.types";
+import { STATION_TYPE_LABEL, type StationType } from "@/types/reservation.types";
 
+type TypeFilter = "all" | StationType;
+
+/** Add and edit gaming stations (PCs and PlayStation rooms): number, rate, zone, specs, maintenance. */
 const PCManagement: React.FC = () => {
-  const queryClient = useQueryClient();
-  const [openDialog, setOpenDialog] = useState(false);
-  const [openLockDialog, setOpenLockDialog] = useState(false);
-  const [editingPC, setEditingPC] = useState<PC | null>(null);
-  const [lockingPC, setLockingPC] = useState<PC | null>(null);
-  const [typeFilter, setTypeFilter] = useState<"all" | StationType>("all");
-  const [formData, setFormData] = useState({
-    type: "pc" as StationType,
-    pcNumber: "",
-    name: "",
-    hourlyRateUsd: 2,
-    location: "",
-    specifications: {
-      cpu: "",
-      gpu: "",
-      ram: "",
-      monitor: "",
-    },
-    notes: "",
-  });
+  const theme = useTheme();
+  const confirm = useConfirm();
+  const q = useAllStations();
+  const { remove } = useStationMutations();
+  const [type, setType] = useState<TypeFilter>("all");
+  const [zone, setZone] = useState("");
+  const [form, setForm] = useState<{ station: PC | null } | null>(null);
 
-  const [lockData, setLockData] = useState({
-    selectedCustomer: null as Customer | null,
-    customerName: "",
-  });
+  const stations = useMemo(() => q.data?.data ?? [], [q.data]);
+  const zones = useMemo(() => distinctValues(stations.map((s) => s.location)), [stations]);
+  const count = (t: StationType) => stations.filter((s) => (s.type ?? "pc") === t).length;
+  const rows = stations.filter((s) => (type === "all" || (s.type ?? "pc") === type) && (!zone || (s.location ?? "").trim().toLowerCase() === zone.toLowerCase()));
 
-  const { data: pcsData, isLoading } = useQuery({
-    queryKey: ["gaming-pcs-management"],
-    queryFn: () => gamingApi.getAllPCs({ limit: 100 }),
-  });
-
-  const { data: customers } = useQuery({
-    queryKey: ["customers-all"],
-    queryFn: () => customersApi.getAll({ limit: 1000 }),
-  });
-
-  const createPCMutation = useMutation({
-    mutationFn: gamingApi.createPC,
-    onSuccess: () => {
-      toast.success("PC created successfully!");
-      setOpenDialog(false);
-      resetForm();
-      queryClient.invalidateQueries({ queryKey: ["gaming-pcs-management"] });
-      queryClient.invalidateQueries({ queryKey: ["gaming-pcs"] });
-    },
-    onError: (error) => toast.error(handleApiError(error)),
-  });
-
-  const updatePCMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: UpdateStationPayload }) =>
-      gamingApi.updatePC(id, data),
-    onSuccess: () => {
-      toast.success("PC updated successfully!");
-      setOpenDialog(false);
-      resetForm();
-      queryClient.invalidateQueries({ queryKey: ["gaming-pcs-management"] });
-      queryClient.invalidateQueries({ queryKey: ["gaming-pcs"] });
-    },
-    onError: (error) => toast.error(handleApiError(error)),
-  });
-
-  const deletePCMutation = useMutation({
-    mutationFn: gamingApi.deletePC,
-    onSuccess: () => {
-      toast.success("PC deleted successfully!");
-      queryClient.invalidateQueries({ queryKey: ["gaming-pcs-management"] });
-      queryClient.invalidateQueries({ queryKey: ["gaming-pcs"] });
-    },
-    onError: (error) => toast.error(handleApiError(error)),
-  });
-
-  const lockPCMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: { customerId?: string; customerName?: string } }) =>
-      gamingApi.lockPC(id, data),
-    onSuccess: () => {
-      toast.success("PC locked successfully!");
-      setOpenLockDialog(false);
-      resetLockData();
-      queryClient.invalidateQueries({ queryKey: ["gaming-pcs-management"] });
-      queryClient.invalidateQueries({ queryKey: ["gaming-pcs"] });
-      queryClient.invalidateQueries({ queryKey: ["active-gaming-sessions"] });
-    },
-    onError: (error) => toast.error(handleApiError(error)),
-  });
-
-  const unlockPCMutation = useMutation({
-    mutationFn: gamingApi.unlockPC,
-    onSuccess: () => {
-      toast.success("PC unlocked successfully!");
-      queryClient.invalidateQueries({ queryKey: ["gaming-pcs-management"] });
-      queryClient.invalidateQueries({ queryKey: ["gaming-pcs"] });
-      queryClient.invalidateQueries({ queryKey: ["active-gaming-sessions"] });
-    },
-    onError: (error) => toast.error(handleApiError(error)),
-  });
-
-  const resetForm = () => {
-    setFormData({
-      type: "pc",
-      pcNumber: "",
-      name: "",
-      hourlyRateUsd: 2,
-      location: "",
-      specifications: {
-        cpu: "",
-        gpu: "",
-        ram: "",
-        monitor: "",
-      },
-      notes: "",
+  const askDelete = async (s: PC) => {
+    const ok = await confirm({
+      title: `Delete ${s.pcNumber}?`,
+      message: "It disappears from the stations screen, the website and bookings. To take it out of service for a while, edit it and switch on \"Under maintenance\" instead.",
+      confirmLabel: "Delete station",
+      tone: "danger",
     });
-    setEditingPC(null);
+    if (ok) remove.mutate(s);
   };
 
-  const resetLockData = () => {
-    setLockData({
-      selectedCustomer: null,
-      customerName: "",
-    });
-    setLockingPC(null);
-  };
-
-  const handleOpenDialog = (pc?: PC) => {
-    if (pc) {
-      setEditingPC(pc);
-      setFormData({
-        type: pc.type ?? "pc",
-        pcNumber: pc.pcNumber,
-        name: pc.name,
-        hourlyRateUsd: pc.hourlyRate.usd,
-        location: pc.location || "",
-        specifications: {
-          cpu: pc?.specifications?.cpu || "",
-          gpu: pc?.specifications?.gpu || "",
-          ram: pc?.specifications?.ram || "",
-          monitor: pc?.specifications?.monitor || "",
-        },
-        notes: pc.notes || "",
-      });
-    }
-    setOpenDialog(true);
-  };
-
-  const handleOpenLockDialog = (pc: PC) => {
-    setLockingPC(pc);
-    setOpenLockDialog(true);
-  };
-
-  const handleSubmit = () => {
-    if (editingPC) {
-      updatePCMutation.mutate({
-        id: editingPC.id,
-        data: formData,
-      });
-    } else {
-      createPCMutation.mutate(
-        formData.type === "playstation"
-          ? { ...formData, specifications: undefined }
-          : formData
-      );
-    }
-  };
-
-  const handleLock = () => {
-    if (!lockingPC) return;
-
-    lockPCMutation.mutate({
-      id: lockingPC.id,
-      data: {
-        customerId: lockData.selectedCustomer?.id,
-        customerName:
-          lockData.selectedCustomer?.name || lockData.customerName || "Walk-in",
-      },
-    });
-  };
-
-  const handleUnlock = (id: string) => {
-    if (
-      window.confirm(
-        "Are you sure you want to unlock this PC? This will end the active session."
-      )
-    ) {
-      unlockPCMutation.mutate(id);
-    }
-  };
-
-  const handleDelete = (id: string) => {
-    if (window.confirm("Are you sure you want to delete this PC?")) {
-      deletePCMutation.mutate(id);
-    }
-  };
-
-  const columns: GridColDef[] = [
+  const columns: DataTableColumn<PC>[] = [
     {
-      field: "type",
-      headerName: "Type",
-      width: 140,
-      renderCell: (params) => {
-        const ps = params.row.type === "playstation";
+      field: "pcNumber",
+      header: "Station",
+      minWidth: 200,
+      flex: 1.2,
+      mobile: "title",
+      value: (s) => `${s.pcNumber} ${s.name}`,
+      csv: (s) => s.pcNumber,
+      render: (s) => {
+        const Icon = s.type === "playstation" ? SportsEsports : Computer;
         return (
-          <Stack direction="row" spacing={1} alignItems="center" sx={{ height: "100%" }}>
-            {ps ? <SportsEsports fontSize="small" color="secondary" /> : <Computer fontSize="small" color="primary" />}
-            <span>{ps ? "PlayStation" : "PC"}</span>
+          <Stack direction="row" spacing={1.25} alignItems="center" sx={{ minWidth: 0 }}>
+            <Icon fontSize="small" sx={{ color: s.type === "playstation" ? theme.tokens.series.playstation : theme.tokens.series.pc }} />
+            <Box sx={{ minWidth: 0, lineHeight: 1.25 }}>
+              <Typography component="div" sx={{ fontWeight: 600, fontVariantNumeric: "tabular-nums" }} noWrap>
+                {s.pcNumber}
+              </Typography>
+              <Typography component="div" variant="body2" color="text.secondary" noWrap>
+                {s.name}
+              </Typography>
+            </Box>
           </Stack>
         );
       },
     },
-    { field: "pcNumber", headerName: "Number", width: 120 },
-    { field: "name", headerName: "Name", flex: 1, minWidth: 140 },
+    { field: "type", header: "Type", value: (s) => STATION_TYPE_LABEL[s.type ?? "pc"], width: 130, hideBelow: "lg", mobile: "hidden" },
+    { field: "location", header: "Zone", value: (s) => s.location, minWidth: 150, mobile: "subtitle" },
     {
       field: "hourlyRate",
-      headerName: "Hourly Rate (USD)",
-      width: 150,
-      renderCell: (params) => `$${params.row.hourlyRate.usd.toFixed(2)}`,
+      header: "Per hour",
+      type: "money",
+      value: (s) => s.hourlyRate.usd,
+      render: (s) => <MoneyText value={s.hourlyRate.usd} />,
+      width: 120,
     },
-    { field: "location", headerName: "Location", width: 150 },
     {
       field: "status",
-      headerName: "Status",
-      width: 130,
-      renderCell: (params) => <StatusChip status={params.row.status} />,
-    },
-    {
-      field: "isActive",
-      headerName: "Active",
-      width: 100,
-      renderCell: (params) => <StatusChip status={params.row.isActive ? "yes" : "no"} />,
+      header: "Status",
+      value: (s) => (s.isActive ? s.status : "hidden"),
+      render: (s) => (s.isActive ? <StatusChip status={s.status} kind="station" /> : <StatusChip status="inactive" kind="generic" label="Not in use" />),
+      width: 140,
+      mobile: "end",
     },
     {
       field: "actions",
-      headerName: "Actions",
-      width: 200,
-      renderCell: (params) => (
-        <Box>
-          {params.row.type !== "playstation" && params.row.status === PCStatus.AVAILABLE && (
-            <IconButton
-              size="small"
-              color="warning"
-              onClick={() => handleOpenLockDialog(params.row)}
-              title="Lock PC"
-            >
-              <Lock fontSize="small" />
-            </IconButton>
-          )}
-          {params.row.type !== "playstation" && params.row.status === PCStatus.OCCUPIED && (
-            <IconButton
-              size="small"
-              color="success"
-              onClick={() => handleUnlock(params.row.id)}
-              title="Unlock PC"
-            >
-              <LockOpen fontSize="small" />
-            </IconButton>
-          )}
-          <IconButton
-            size="small"
-            color="primary"
-            onClick={() => handleOpenDialog(params.row)}
-          >
-            <Edit fontSize="small" />
-          </IconButton>
-          <IconButton
-            size="small"
-            color="error"
-            onClick={() => handleDelete(params.row.id)}
-          >
-            <Delete fontSize="small" />
-          </IconButton>
-        </Box>
+      header: "Actions",
+      type: "actions",
+      width: 112,
+      render: (s) => (
+        <>
+          <IconAction title="Edit station" label={`Edit ${s.pcNumber}`} icon={<EditOutlined />} onClick={() => setForm({ station: s })} />
+          <IconAction title={s.status === PCStatus.OCCUPIED ? "Someone is playing — end the session first" : "Delete station"} label={`Delete ${s.pcNumber}`} icon={<DeleteOutlineRounded />} onClick={() => askDelete(s)} disabled={s.status === PCStatus.OCCUPIED} tone="danger" />
+        </>
       ),
     },
   ];
-
-  if (isLoading) return <LoadingSpinner />;
 
   return (
     <Box>
       <PageHeader
         title="Manage stations"
-        subtitle="Add PCs and PlayStation rooms, set hourly rates, and lock/unlock PCs"
+        subtitle="PCs and PlayStation rooms: numbers, hourly prices, zones and specs. Start sessions from the Stations screen."
         actions={
-        <Button
-          variant="contained"
-          startIcon={<Add />}
-          onClick={() => handleOpenDialog()}
-        >
-          Add station
-        </Button>
+          <Button variant="contained" startIcon={<AddRounded />} onClick={() => setForm({ station: null })}>
+            Add station
+          </Button>
         }
-      >
-        <ToggleButtonGroup size="small" exclusive value={typeFilter} onChange={(_, v) => v && setTypeFilter(v)}>
-          <ToggleButton value="all">All · {(pcsData?.data || []).length}</ToggleButton>
-          <ToggleButton value="pc">PCs · {(pcsData?.data || []).filter((s) => (s.type ?? "pc") === "pc").length}</ToggleButton>
-          <ToggleButton value="playstation">
-            PlayStation · {(pcsData?.data || []).filter((s) => s.type === "playstation").length}
-          </ToggleButton>
-        </ToggleButtonGroup>
-      </PageHeader>
-
-      <Card>
-        <DataGrid
-          rows={(pcsData?.data || []).filter((s) => typeFilter === "all" || (s.type ?? "pc") === typeFilter)}
-          columns={columns}
-          autoHeight
-          disableRowSelectionOnClick
-          pageSizeOptions={[10, 25, 50]}
-          initialState={{
-            pagination: { paginationModel: { pageSize: 10 } },
-          }}
-        />
-      </Card>
-
-      {/* Add/Edit PC Dialog */}
-      <Dialog
-        open={openDialog}
-        onClose={() => setOpenDialog(false)}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle>{editingPC ? `Edit ${editingPC.pcNumber}` : "Add station"}</DialogTitle>
-        <DialogContent>
-          <Grid container spacing={2} sx={{ mt: 1 }}>
-            <Grid size={12}>
-              <ToggleButtonGroup
-                exclusive
-                fullWidth
-                value={formData.type}
-                onChange={(_, v) => v && setFormData({ ...formData, type: v })}
-              >
-                <ToggleButton value="pc" sx={{ gap: 1 }}>
-                  <Computer fontSize="small" /> Gaming PC
-                </ToggleButton>
-                <ToggleButton value="playstation" sx={{ gap: 1 }}>
-                  <SportsEsports fontSize="small" /> PlayStation
-                </ToggleButton>
-              </ToggleButtonGroup>
-            </Grid>
-            <Grid size={{ xs: 12, md: 6 }}>
-              <TextField
-                fullWidth
-                label="Station number"
-                placeholder={formData.type === "playstation" ? "PS-1" : "PC-011"}
-                helperText="Shown on receipts, the website and the reservation screens"
-                value={formData.pcNumber}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    pcNumber: e.target.value.toUpperCase(),
-                  })
-                }
-              />
-            </Grid>
-            <Grid size={{ xs: 12, md: 6 }}>
-              <TextField
-                fullWidth
-                label="Name"
-                value={formData.name}
-                onChange={(e) =>
-                  setFormData({ ...formData, name: e.target.value })
-                }
-              />
-            </Grid>
-            <Grid size={{ xs: 12, md: 6 }}>
-              <TextField
-                fullWidth
-                type="number"
-                label="Hourly Rate (USD)"
-                value={formData.hourlyRateUsd}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    hourlyRateUsd: Number(e.target.value),
-                  })
-                }
-              />
-            </Grid>
-            <Grid size={{ xs: 12, md: 6 }}>
-              <TextField
-                fullWidth
-                label="Location"
-                value={formData.location}
-                onChange={(e) =>
-                  setFormData({ ...formData, location: e.target.value })
-                }
-              />
-            </Grid>
-            {formData.type === "pc" && (
-              <>
-            <Grid size={{ xs: 12, md: 6 }}>
-              <TextField
-                fullWidth
-                label="CPU"
-                value={formData.specifications.cpu}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    specifications: {
-                      ...formData.specifications,
-                      cpu: e.target.value,
-                    },
-                  })
-                }
-              />
-            </Grid>
-            <Grid size={{ xs: 12, md: 6 }}>
-              <TextField
-                fullWidth
-                label="GPU"
-                value={formData.specifications.gpu}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    specifications: {
-                      ...formData.specifications,
-                      gpu: e.target.value,
-                    },
-                  })
-                }
-              />
-            </Grid>
-            <Grid size={{ xs: 12, md: 6 }}>
-              <TextField
-                fullWidth
-                label="RAM"
-                value={formData.specifications.ram}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    specifications: {
-                      ...formData.specifications,
-                      ram: e.target.value,
-                    },
-                  })
-                }
-              />
-            </Grid>
-            <Grid size={{ xs: 12, md: 6 }}>
-              <TextField
-                fullWidth
-                label="Monitor"
-                value={formData.specifications.monitor}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    specifications: {
-                      ...formData.specifications,
-                      monitor: e.target.value,
-                    },
-                  })
-                }
-              />
-            </Grid>
-              </>
+      />
+      <DataTable<PC>
+        label="Stations"
+        rows={rows}
+        columns={columns}
+        loading={q.isLoading}
+        refreshing={q.isFetching && !q.isLoading}
+        error={q.error}
+        onRetry={() => q.refetch()}
+        onRefresh={() => q.refetch()}
+        search={{ placeholder: "Search number or name" }}
+        filters={
+          <>
+            <SegmentedControl<TypeFilter>
+              aria-label="Station type"
+              value={type}
+              onChange={setType}
+              options={[
+                { value: "all", label: "All", count: q.data ? stations.length : undefined },
+                { value: "pc", label: "PCs", count: q.data ? count("pc") : undefined },
+                { value: "playstation", label: "PlayStation", count: q.data ? count("playstation") : undefined },
+              ]}
+            />
+            {zones.length > 1 && (
+              <SelectField<string> label="Zone" size="small" fullWidth={false} minWidth={170} value={zone} onChange={setZone} emptyOption="All zones" options={zones.map((z) => ({ value: z, label: z }))} />
             )}
-            <Grid size={12}>
-              <TextField
-                fullWidth
-                multiline
-                rows={3}
-                label="Notes"
-                value={formData.notes}
-                onChange={(e) =>
-                  setFormData({ ...formData, notes: e.target.value })
-                }
-              />
-            </Grid>
-          </Grid>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpenDialog(false)}>Cancel</Button>
-          <Button
-            variant="contained"
-            onClick={handleSubmit}
-            disabled={createPCMutation.isPending || updatePCMutation.isPending}
-          >
-            {createPCMutation.isPending || updatePCMutation.isPending
-              ? "Saving..."
-              : editingPC
-              ? "Update"
-              : "Create"}
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Lock PC Dialog */}
-      <Dialog
-        open={openLockDialog}
-        onClose={() => setOpenLockDialog(false)}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle>Lock PC</DialogTitle>
-        <DialogContent>
-          {lockingPC && (
-            <Box sx={{ mt: 2 }}>
-              <Typography variant="body2" color="text.secondary" gutterBottom>
-                Locking: {lockingPC.name} ({lockingPC.pcNumber})
-              </Typography>
-
-              <Grid container spacing={2} sx={{ mt: 1 }}>
-                <Grid size={12}>
-                  <Autocomplete
-                    options={customers?.data || []}
-                    getOptionLabel={(option) =>
-                      `${option.name} (${option.phone})`
-                    }
-                    value={lockData.selectedCustomer}
-                    onChange={(_, value) =>
-                      setLockData({ ...lockData, selectedCustomer: value })
-                    }
-                    renderInput={(params) => (
-                      <TextField
-                        {...params}
-                        label="Select Customer (Optional)"
-                        fullWidth
-                      />
-                    )}
-                  />
-                </Grid>
-
-                {!lockData.selectedCustomer && (
-                  <Grid size={12}>
-                    <TextField
-                      fullWidth
-                      label="Customer Name (Walk-in)"
-                      value={lockData.customerName}
-                      onChange={(e) =>
-                        setLockData({
-                          ...lockData,
-                          customerName: e.target.value,
-                        })
-                      }
-                      placeholder="Enter customer name or leave blank"
-                    />
-                  </Grid>
-                )}
-              </Grid>
-            </Box>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpenLockDialog(false)}>Cancel</Button>
-          <Button
-            variant="contained"
-            color="warning"
-            onClick={handleLock}
-            disabled={lockPCMutation.isPending}
-            startIcon={<Lock />}
-          >
-            {lockPCMutation.isPending ? "Locking..." : "Lock PC"}
-          </Button>
-        </DialogActions>
-      </Dialog>
+          </>
+        }
+        activeFilterCount={(type !== "all" ? 1 : 0) + (zone ? 1 : 0)}
+        onClearFilters={() => {
+          setType("all");
+          setZone("");
+        }}
+        initialSort={{ field: "pcNumber", direction: "asc" }}
+        onRowClick={(s) => setForm({ station: s })}
+        exportCsv={{ filename: "stations" }}
+        empty={{ title: "No stations yet", description: "Add your gaming PCs and PlayStation rooms to start sessions and take bookings." }}
+      />
+      <StationFormDialog
+        open={Boolean(form)}
+        station={form?.station}
+        stations={stations}
+        defaultType={type === "all" ? "pc" : type}
+        onClose={() => setForm(null)}
+      />
     </Box>
   );
 };

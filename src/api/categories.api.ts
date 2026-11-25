@@ -1,6 +1,6 @@
 import apiClient from "./client";
 import { type ApiResponse } from "../types/api.types";
-import { CreateCategoryRequest, type Category } from "../types/category.types";
+import type { Category, CreateCategoryRequest, UpdateCategoryRequest } from "../types/category.types";
 import { handleApiResponse } from "../utils/responseHandler";
 
 export const categoriesApi = {
@@ -32,10 +32,7 @@ export const categoriesApi = {
     return handleApiResponse(response.data);
   },
 
-  update: async (
-    id: string,
-    data: { name?: string; description?: string }
-  ): Promise<Category> => {
+  update: async (id: string, data: UpdateCategoryRequest): Promise<Category> => {
     const response = await apiClient.put<ApiResponse<Category>>(
       `/categories/${id}`,
       data

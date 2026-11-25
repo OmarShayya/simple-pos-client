@@ -1,309 +1,180 @@
-import React, { useState } from "react";
-import {
-  Box,
-  Typography,
-  Button,
-  Card,
-  TextField,
-  IconButton,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Avatar,
-  Chip,
-  Tooltip,
-  Grid,
-} from "@mui/material";
-import {
-  Add,
-  Edit,
-  Delete,
-  Category as CategoryIcon,
-} from "@mui/icons-material";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { categoriesApi } from "@/api/categories.api";
-import { Category, CreateCategoryRequest } from "@/types/category.types";
-import { toast } from "react-toastify";
-import { handleApiError } from "@/utils/errorHandler";
-import LoadingSpinner from "@/components/common/LoadingSpinner";
-import PageHeader from "@/components/common/PageHeader";
+import React, { useEffect, useMemo, useState } from "react";
+import { Avatar, Box, Button, Stack, TextField, Typography } from "@mui/material";
+import { AddRounded, CategoryOutlined, DeleteOutlineRounded, EditOutlined } from "@mui/icons-material";
+import { DataTable, FormDialog, IconAction, PageHeader, SegmentedControl, StatusChip } from "@/components/ui";
+import type { DataTableColumn } from "@/components/ui";
+import ImageUploadField from "@/components/pickers/ImageUploadField";
+import { useAllProducts, useCategories, useCategoryMutations } from "@/components/products/productQueries";
+import { useConfirm } from "@/hooks/useConfirm";
+import { plural } from "@/utils/format";
+import type { Category } from "@/types/category.types";
 
+type Show = "active" | "removed";
+
+const CategoryFormDialog: React.FC<{ open: boolean; category: Category | null; onClose: () => void }> = ({ open, category, onClose }) => {
+  const { create, update } = useCategoryMutations();
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [image, setImage] = useState<string | undefined>();
+  const [touched, setTouched] = useState(false);
+  const [uploading, setUploading] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setName(category?.name ?? "");
+    setDescription(category?.description ?? "");
+    setImage(category?.image || undefined);
+    setTouched(false);
+  }, [open, category]);
+
+  const nameError = touched && name.trim().length < 2 ? "Enter a name, e.g. Cold drinks" : undefined;
+  const submit = () => {
+    setTouched(true);
+    if (name.trim().length < 2) return;
+    const data = { name: name.trim(), description: description.trim(), image: image ?? null };
+    if (category) update.mutate({ id: category.id, data }, { onSuccess: onClose });
+    else create.mutate({ name: data.name, description: data.description || undefined, image }, { onSuccess: onClose });
+  };
+
+  return (
+    <FormDialog
+      open={open}
+      onClose={onClose}
+      title={category ? `Edit ${category.name}` : "Add category"}
+      onSubmit={submit}
+      submitLabel={category ? "Save changes" : "Add category"}
+      loading={create.isPending || update.isPending}
+      submitDisabled={uploading}
+    >
+      <Stack spacing={2.5} sx={{ pt: 0.5 }}>
+        <TextField label="Name" value={name} onChange={(e) => setName(e.target.value)} required autoFocus={!category} error={Boolean(nameError)} helperText={nameError} slotProps={{ htmlInput: { maxLength: 50 } }} />
+        <TextField label="Description (optional)" value={description} onChange={(e) => setDescription(e.target.value)} multiline minRows={2} slotProps={{ htmlInput: { maxLength: 200 } }} />
+        <ImageUploadField value={image} onChange={setImage} folder="categories" onUploadingChange={setUploading} />
+      </Stack>
+    </FormDialog>
+  );
+};
+
+/** Product categories (drinks, snacks…): what groups the counter grid and the website menu. */
 const Categories: React.FC = () => {
-  const queryClient = useQueryClient();
-  const [openDialog, setOpenDialog] = useState(false);
-  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
-  const [formData, setFormData] = useState<CreateCategoryRequest>({
-    name: "",
-    description: undefined,
-    image: undefined,
-  });
+  const confirm = useConfirm();
+  const q = useCategories(true);
+  const products = useAllProducts();
+  const { remove } = useCategoryMutations();
+  const [show, setShow] = useState<Show>("active");
+  const [form, setForm] = useState<{ category: Category | null } | null>(null);
 
-  const { data: categories, isLoading } = useQuery({
-    queryKey: ["categories"],
-    queryFn: () => categoriesApi.getAll(true),
-  });
+  const counts = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const p of products.data ?? []) if (p.category?.id) m.set(p.category.id, (m.get(p.category.id) ?? 0) + 1);
+    return m;
+  }, [products.data]);
 
-  const createMutation = useMutation({
-    mutationFn: categoriesApi.create,
-    onSuccess: () => {
-      toast.success("Category created successfully");
-      queryClient.invalidateQueries({ queryKey: ["categories"] });
-      handleCloseDialog();
+  const all = q.data ?? [];
+  const removedCount = all.filter((c) => !c.isActive).length;
+  const rows = all.filter((c) => (show === "active" ? c.isActive : !c.isActive));
+
+  const askRemove = async (c: Category) => {
+    const n = counts.get(c.id) ?? 0;
+    const ok = await confirm({
+      title: `Remove ${c.name}?`,
+      message: n
+        ? `${plural(n, "product")} still use it. They stay on sale, but the category disappears from the counter and the website menu.`
+        : "It disappears from the counter and the website menu.",
+      confirmLabel: "Remove category",
+      tone: "danger",
+    });
+    if (ok) remove.mutate(c);
+  };
+
+  const columns: DataTableColumn<Category>[] = [
+    {
+      field: "name",
+      header: "Category",
+      flex: 1.2,
+      minWidth: 200,
+      mobile: "title",
+      render: (c) => (
+        <Stack direction="row" spacing={1.5} alignItems="center" sx={{ minWidth: 0 }}>
+          <Avatar src={c.image} variant="rounded" alt="" sx={{ width: 36, height: 36, borderRadius: "8px", bgcolor: "action.hover", color: "text.secondary", display: { xs: "none", sm: "flex" } }}>
+            <CategoryOutlined fontSize="small" />
+          </Avatar>
+          <Typography component="span" sx={{ fontWeight: 500 }} noWrap>
+            {c.name}
+          </Typography>
+        </Stack>
+      ),
+      value: (c) => c.name,
     },
-    onError: (error) => toast.error(handleApiError(error)),
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: CreateCategoryRequest }) =>
-      categoriesApi.update(id, data),
-    onSuccess: () => {
-      toast.success("Category updated successfully");
-      queryClient.invalidateQueries({ queryKey: ["categories"] });
-      handleCloseDialog();
+    { field: "description", header: "Description", flex: 2, minWidth: 200, mobile: "subtitle", hideBelow: "md" },
+    { field: "products", header: "Products", type: "number", value: (c) => (products.data ? counts.get(c.id) ?? 0 : null), width: 120 },
+    {
+      field: "isActive",
+      header: "Status",
+      width: 120,
+      value: (c) => (c.isActive ? "active" : "inactive"),
+      render: (c) => <StatusChip status={c.isActive ? "active" : "inactive"} kind="generic" label={c.isActive ? "Active" : "Removed"} />,
+      mobile: "end",
     },
-    onError: (error) => toast.error(handleApiError(error)),
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: categoriesApi.delete,
-    onSuccess: () => {
-      toast.success("Category deleted successfully");
-      queryClient.invalidateQueries({ queryKey: ["categories"] });
+    { field: "createdAt", header: "Added", type: "date", width: 130, hideBelow: "lg", mobile: "hidden" },
+    {
+      field: "actions",
+      header: "Actions",
+      type: "actions",
+      width: 112,
+      render: (c) => (
+        <>
+          <IconAction title="Edit category" label={`Edit ${c.name}`} icon={<EditOutlined />} onClick={() => setForm({ category: c })} />
+          {c.isActive && (
+            <IconAction title="Remove category" label={`Remove ${c.name}`} icon={<DeleteOutlineRounded />} onClick={() => askRemove(c)} tone="danger" />
+          )}
+        </>
+      ),
     },
-    onError: (error) => toast.error(handleApiError(error)),
-  });
-
-  const handleOpenDialog = (category?: Category) => {
-    if (category) {
-      setEditingCategory(category);
-      setFormData({
-        name: category.name,
-        description: category.description || "",
-        image: category.image || "",
-      });
-    } else {
-      setEditingCategory(null);
-      setFormData({
-        name: "",
-        description: "",
-        image: "",
-      });
-    }
-    setOpenDialog(true);
-  };
-
-  const handleCloseDialog = () => {
-    setOpenDialog(false);
-    setEditingCategory(null);
-  };
-
-  const handleSubmit = () => {
-    if (editingCategory) {
-      updateMutation.mutate({ id: editingCategory.id, data: formData });
-    } else {
-      createMutation.mutate(formData);
-    }
-  };
-
-  const handleDelete = (id: string) => {
-    if (window.confirm("Are you sure you want to delete this category?")) {
-      deleteMutation.mutate(id);
-    }
-  };
-
-  if (isLoading) return <LoadingSpinner />;
+  ];
 
   return (
     <Box>
       <PageHeader
         title="Categories"
-        subtitle="Manage product categories"
+        subtitle="Groups for the counter screen and the website menu (Hot drinks, Snacks…)."
         actions={
-        <Button
-          variant="contained"
-          startIcon={<Add />}
-          onClick={() => handleOpenDialog()}
-        >
-          Add Category
-        </Button>
+          <Button variant="contained" startIcon={<AddRounded />} onClick={() => setForm({ category: null })}>
+            Add category
+          </Button>
         }
       />
-
-      <Grid container spacing={3}>
-        {categories?.map((category) => (
-          <Grid size={{ xs: 6, md: 4, lg: 3 }} key={category.id}>
-            <Card
-              sx={{
-                p: 3,
-                height: "100%",
-                display: "flex",
-                flexDirection: "column",
-                position: "relative",
-                "&:hover .action-buttons": {
-                  opacity: 1,
-                },
-              }}
-            >
-              <Box
-                className="action-buttons"
-                sx={{
-                  position: "absolute",
-                  top: 8,
-                  right: 8,
-                  opacity: 0,
-                  transition: "opacity 0.2s",
-                  display: "flex",
-                  gap: 0.5,
-                }}
-              >
-                <Tooltip title="Edit">
-                  <IconButton
-                    size="small"
-                    onClick={() => handleOpenDialog(category)}
-                    sx={{ bgcolor: "background.paper" }}
-                  >
-                    <Edit fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-                <Tooltip title="Delete">
-                  <IconButton
-                    size="small"
-                    color="error"
-                    onClick={() => handleDelete(category.id)}
-                    sx={{ bgcolor: "background.paper" }}
-                  >
-                    <Delete fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-              </Box>
-
-              <Box
-                sx={{
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  mb: 2,
-                }}
-              >
-                {category.image ? (
-                  <Avatar
-                    src={category.image}
-                    sx={{ width: 80, height: 80, mb: 2 }}
-                  />
-                ) : (
-                  <Avatar
-                    sx={{
-                      width: 80,
-                      height: 80,
-                      mb: 2,
-                      bgcolor: "primary.light",
-                    }}
-                  >
-                    <CategoryIcon sx={{ fontSize: 40 }} />
-                  </Avatar>
-                )}
-                <Typography variant="h6" fontWeight={600} textAlign="center">
-                  {category.name}
-                </Typography>
-                {category.description && (
-                  <Typography
-                    variant="body2"
-                    color="text.secondary"
-                    textAlign="center"
-                    sx={{ mt: 1 }}
-                  >
-                    {category.description}
-                  </Typography>
-                )}
-              </Box>
-
-              <Box
-                sx={{ mt: "auto", display: "flex", justifyContent: "center" }}
-              >
-                <Chip
-                  label={category.isActive ? "Active" : "Inactive"}
-                  color={category.isActive ? "success" : "default"}
-                  size="small"
-                />
-              </Box>
-            </Card>
-          </Grid>
-        ))}
-      </Grid>
-
-      {categories?.length === 0 && (
-        <Card sx={{ p: 4, textAlign: "center" }}>
-          <CategoryIcon sx={{ fontSize: 64, color: "text.secondary", mb: 2 }} />
-          <Typography variant="h6" color="text.secondary" gutterBottom>
-            No categories yet
-          </Typography>
-          <Typography variant="body2" color="text.secondary" mb={3}>
-            Create your first category to organize your products
-          </Typography>
-          <Button
-            variant="contained"
-            startIcon={<Add />}
-            onClick={() => handleOpenDialog()}
-          >
-            Add Category
-          </Button>
-        </Card>
-      )}
-
-      {/* Add/Edit Dialog */}
-      <Dialog
-        open={openDialog}
-        onClose={handleCloseDialog}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle>
-          {editingCategory ? "Edit Category" : "Add New Category"}
-        </DialogTitle>
-        <DialogContent>
-          <TextField
-            fullWidth
-            label="Category Name"
-            value={formData.name}
-            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-            margin="normal"
-            required
-            autoFocus
-          />
-          <TextField
-            fullWidth
-            label="Description"
-            value={formData.description}
-            onChange={(e) =>
-              setFormData({ ...formData, description: e.target.value })
-            }
-            margin="normal"
-            multiline
-            rows={3}
-          />
-          <TextField
-            fullWidth
-            label="Image URL"
-            value={formData.image}
-            onChange={(e) =>
-              setFormData({ ...formData, image: e.target.value })
-            }
-            margin="normal"
-            placeholder="https://example.com/image.jpg"
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseDialog}>Cancel</Button>
-          <Button
-            variant="contained"
-            onClick={handleSubmit}
-            disabled={createMutation.isPending || updateMutation.isPending}
-          >
-            {editingCategory ? "Update" : "Create"}
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <DataTable<Category>
+        label="Categories"
+        rows={rows}
+        columns={columns}
+        loading={q.isLoading}
+        refreshing={q.isFetching && !q.isLoading}
+        error={q.error}
+        onRetry={() => q.refetch()}
+        onRefresh={() => {
+          q.refetch();
+          products.refetch();
+        }}
+        search={{ placeholder: "Search categories" }}
+        filters={
+          removedCount > 0 && (
+            <SegmentedControl<Show>
+              aria-label="Show"
+              value={show}
+              onChange={setShow}
+              options={[
+                { value: "active", label: "Active" },
+                { value: "removed", label: "Removed", count: removedCount },
+              ]}
+            />
+          )
+        }
+        initialSort={{ field: "name", direction: "asc" }}
+        onRowClick={(c) => setForm({ category: c })}
+        empty={{ title: show === "removed" ? "No removed categories" : "No categories yet", description: "Create a category to group your products, e.g. Hot drinks, Snacks." }}
+      />
+      <CategoryFormDialog open={Boolean(form)} category={form?.category ?? null} onClose={() => setForm(null)} />
     </Box>
   );
 };
