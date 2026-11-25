@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Avatar, Box, Button, Stack, Typography } from "@mui/material";
 import { AddRounded, DeleteOutlineRounded, EditOutlined, ImageOutlined } from "@mui/icons-material";
 import { CodeText, DataTable, IconAction, MoneyText, PageHeader, SegmentedControl, SelectField, StatusChip } from "@/components/ui";
@@ -12,6 +13,7 @@ import { plural } from "@/utils/format";
 import type { Product } from "@/types/product.types";
 
 type StockFilter = "all" | "low" | "out";
+const STOCK_FILTERS: StockFilter[] = ["all", "low", "out"];
 type MenuFilter = "all" | "shown" | "hidden";
 
 const Products: React.FC = () => {
@@ -21,7 +23,20 @@ const Products: React.FC = () => {
   const { remove } = useProductMutations();
 
   const [category, setCategory] = useState("");
-  const [stock, setStock] = useState<StockFilter>("all");
+  // ?stock=low|out (the Dashboard's low-stock card links here) — kept in the URL so refresh/back keep it
+  const [params, setParams] = useSearchParams();
+  const stockParam = params.get("stock") as StockFilter | null;
+  const stock: StockFilter = stockParam && STOCK_FILTERS.includes(stockParam) ? stockParam : "all";
+  const setStock = (next: StockFilter) =>
+    setParams(
+      (p) => {
+        const out = new URLSearchParams(p);
+        if (next === "all") out.delete("stock");
+        else out.set("stock", next);
+        return out;
+      },
+      { replace: true }
+    );
   const [menu, setMenu] = useState<MenuFilter>("all");
   const [form, setForm] = useState<{ product: Product | null } | null>(null);
 
