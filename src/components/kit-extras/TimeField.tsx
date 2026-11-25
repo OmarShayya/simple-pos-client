@@ -1,5 +1,8 @@
 import React, { useMemo, useState } from "react";
 import { DesktopTimePicker } from "@mui/x-date-pickers/DesktopTimePicker";
+import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
+import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
+import { enGB } from "date-fns/locale";
 import type { TimeValidationError } from "@mui/x-date-pickers/models";
 import { isValid } from "date-fns";
 
@@ -18,6 +21,8 @@ export interface TimeFieldProps {
   size?: "small" | "medium";
   name?: string;
 }
+
+const TIME_FORMATS = { fullTime12h: "h:mm a", hours12h: "h" } as const;
 
 const HHMM = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
@@ -56,6 +61,8 @@ const TimeField: React.FC<TimeFieldProps> = ({
   const message = validation === "invalidDate" ? "Enter a time, e.g. 8:30 PM" : null;
 
   return (
+    // Same adapter as the app, with list items written like the field ("8:30 PM", not "08:30 PM")
+    <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={enGB} dateFormats={TIME_FORMATS}>
     <DesktopTimePicker
       label={label}
       value={dateValue}
@@ -89,6 +96,7 @@ const TimeField: React.FC<TimeFieldProps> = ({
         actionBar: { actions: [] },
       }}
     />
+    </LocalizationProvider>
   );
 };
 
