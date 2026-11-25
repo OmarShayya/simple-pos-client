@@ -11,13 +11,15 @@ export interface DiscountPickerProps {
   onChange: (discountId: string) => void;
   /** What it applies to, for screen readers: "Red Bull", "the whole order". */
   target: string;
+  /** Button text when nothing is applied (default "Add discount"). */
+  addLabel?: string;
 }
 
 /**
- * Compact discount control for cart lines: an "Add discount" link that opens the list, and the
- * applied discount as a removable chip — keeps each cart line one row tall.
+ * Compact discount control for cart lines and the whole order: an "Add discount" link that opens
+ * the list, and the applied discount as a removable chip — keeps each cart line one row tall.
  */
-const DiscountPicker: React.FC<DiscountPickerProps> = ({ options, value, onChange, target }) => {
+const DiscountPicker: React.FC<DiscountPickerProps> = ({ options, value, onChange, target, addLabel = "Add discount" }) => {
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   if (!options.length) return null;
   const current = options.find((d) => d.id === value);
@@ -45,7 +47,7 @@ const DiscountPicker: React.FC<DiscountPickerProps> = ({ options, value, onChang
           aria-label={`Add a discount to ${target}`}
           sx={{ minHeight: 32, px: 1, ml: -1 }}
         >
-          Add discount
+          {addLabel}
         </Button>
       )}
       <Menu anchorEl={anchor} open={Boolean(anchor)} onClose={() => setAnchor(null)}>
