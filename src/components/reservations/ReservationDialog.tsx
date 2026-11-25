@@ -323,7 +323,7 @@ const ReservationDialog: React.FC<ReservationDialogProps> = ({ open, onClose, re
             Customer
           </Typography>
           <Stack spacing={2}>
-            <CustomerPicker value={customer} onChange={setCustomer} required label="Customer" showErrors={touched} />
+            <CustomerPicker value={customer} onChange={setCustomer} required label="Name or phone" showErrors={touched} />
             <TextField label="Notes (optional)" value={notes} onChange={(e) => setNotes(e.target.value)} multiline minRows={2} slotProps={{ htmlInput: { maxLength: 500 } }} />
           </Stack>
         </Box>

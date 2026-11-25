@@ -36,7 +36,7 @@ const Settings: React.FC = () => {
             />
           </SettingRow>
           <SettingRow label="Compact menu" description="Show only icons in the side menu on big screens (hover an icon to see its name).">
-            <Switch checked={sidebarCollapsed} onChange={toggleSidebar} inputProps={{ "aria-label": "Compact menu" }} />
+            <Switch checked={sidebarCollapsed} onChange={toggleSidebar} slotProps={{ input: { role: "switch", "aria-label": "Compact menu" } }} />
           </SettingRow>
         </SectionCard>
 

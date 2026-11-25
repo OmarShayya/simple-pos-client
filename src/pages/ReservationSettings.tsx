@@ -121,16 +121,16 @@ const ReservationSettings: React.FC = () => {
             label="Customers can book on the website"
             description={form && !form.enabled ? "Paused — the website shows your phone number instead." : "Bookings are confirmed instantly when stations are free."}
           >
-            {loading ? <Skeleton variant="rounded" width={58} height={38} /> : <Switch checked={form.enabled} disabled={disabled} onChange={(e) => set("enabled", e.target.checked)} inputProps={{ "aria-label": "Online booking" }} />}
+            {loading ? <Skeleton variant="rounded" width={58} height={38} /> : <Switch checked={form.enabled} disabled={disabled} onChange={(e) => set("enabled", e.target.checked)} slotProps={{ input: { role: "switch", "aria-label": "Online booking" } }} />}
           </SettingRow>
           <SettingRow label="PCs can be booked online">
-            {loading ? <Skeleton variant="rounded" width={58} height={38} /> : <Switch checked={form.bookableTypes.includes("pc")} disabled={disabled} onChange={(e) => toggleType("pc", e.target.checked)} inputProps={{ "aria-label": "PCs can be booked online" }} />}
+            {loading ? <Skeleton variant="rounded" width={58} height={38} /> : <Switch checked={form.bookableTypes.includes("pc")} disabled={disabled} onChange={(e) => toggleType("pc", e.target.checked)} slotProps={{ input: { role: "switch", "aria-label": "PCs can be booked online" } }} />}
           </SettingRow>
           <SettingRow label="PlayStation rooms can be booked online">
             {loading ? (
               <Skeleton variant="rounded" width={58} height={38} />
             ) : (
-              <Switch checked={form.bookableTypes.includes("playstation")} disabled={disabled} onChange={(e) => toggleType("playstation", e.target.checked)} inputProps={{ "aria-label": "PlayStation rooms can be booked online" }} />
+              <Switch checked={form.bookableTypes.includes("playstation")} disabled={disabled} onChange={(e) => toggleType("playstation", e.target.checked)} slotProps={{ input: { role: "switch", "aria-label": "PlayStation rooms can be booked online" } }} />
             )}
           </SettingRow>
         </SectionCard>
@@ -151,7 +151,7 @@ const ReservationSettings: React.FC = () => {
                   }}
                 >
                   <Stack direction="row" alignItems="center" spacing={1} sx={{ gridColumn: { xs: "1 / 2", md: "auto" } }}>
-                    {loading ? <Skeleton variant="rounded" width={58} height={38} /> : <Switch checked={!s.closed} disabled={disabled} onChange={(e) => setDay(d, { closed: !e.target.checked })} inputProps={{ "aria-label": `Open on ${DAYS[d]}` }} />}
+                    {loading ? <Skeleton variant="rounded" width={58} height={38} /> : <Switch checked={!s.closed} disabled={disabled} onChange={(e) => setDay(d, { closed: !e.target.checked })} slotProps={{ input: { role: "switch", "aria-label": `Open on ${DAYS[d]}` } }} />}
                     <Typography sx={{ fontWeight: 600 }}>{DAYS[d]}</Typography>
                   </Stack>
                   <Typography variant="body2" color="text.secondary" sx={{ display: { xs: "block", md: "none" }, textAlign: "right" }}>
