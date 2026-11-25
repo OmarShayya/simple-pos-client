@@ -5,10 +5,10 @@
 |---|---|---|
 | Backend (phones E.164, customer auto-link, unified orders, website orders, reports summary, dashboard overview, counts incl. reservationsAttention, customer list filters, orders type comma list) | simple-pos `claude/exciting-allen-26c9gg`, pushed (last 70f6c76) | yes (GitHub) |
 | POS design system (theme, sidebar, scrollbars, UI kit, DataTable, query layer) + socket.io-client + SegmentedControl fix | simple-pos-client `claude/exciting-allen-26c9gg`, pushed (last af664a2) | yes (GitHub) |
-| POS Orders hub / POS screen / Stations / live website orders | local branch `wt-orders` (worktree /home/user/wt-orders), 4 commits, last = WIP | NO — local only |
-| POS Dashboard + Reports | local branch `wt-insights` (/home/user/wt-insights), 1 WIP commit 8576e08 | NO — local only |
-| POS Customers + all forms + Login/Register | local branch `wt-forms` (/home/user/wt-forms), 3 commits, last = WIP 00d407c | NO — local only |
-| Website: PhoneField, bookings send E.164, menu orders → POST /sales/public | epic-lounge `claude/exciting-allen-26c9gg`, 3 local commits (f121067, ebd3536, 465b23a) on top of PR #3's head | NO — local only (held back: PR #3 is open and these need the new backend live first) |
+| POS Orders hub / POS screen / Stations / live website orders | local branch `wt-orders` (worktree /home/user/wt-orders), 4 commits, last = WIP → merged into simple-pos-client `claude/exciting-allen-26c9gg` | yes (GitHub) |
+| POS Dashboard + Reports | local branch `wt-insights` (/home/user/wt-insights), 1 WIP commit 8576e08 → merged into simple-pos-client `claude/exciting-allen-26c9gg` | yes (GitHub) |
+| POS Customers + all forms + Login/Register | local branch `wt-forms` (/home/user/wt-forms), 3 commits, last = WIP 00d407c → merged into simple-pos-client `claude/exciting-allen-26c9gg` | yes (GitHub) |
+| Website: PhoneField, bookings send E.164, menu orders → POST /sales/public | epic-lounge `claude/exciting-allen-26c9gg`, 3 local commits (f121067, ebd3536, 465b23a) on top of PR #3's head | yes — pushed after PR #3 was merged (bbff11f). No PR yet: open it only AFTER the backend PR is deployed (website now sends phoneCountry, which the old backend rejects). |
 
 UPDATE: owner approved pushing. wt-orders, wt-insights and wt-forms were merged (no conflicts) into simple-pos-client `claude/exciting-allen-26c9gg` and pushed. Combined state: tsc clean, `npm run build` passes, eslint 2 errors (down from 19). Plan + handoff docs are committed under `docs/wip-overhaul/` (delete that folder before the final PR).
 
