@@ -133,7 +133,7 @@ const Reservations: React.FC = () => {
           </>
         }
       >
-        <FilterBar search={<SearchField value={search} onChange={setSearch} placeholder="Search name, phone or booking code" />}>
+        <FilterBar search={<SearchField value={search} onChange={setSearch} placeholder="Name, phone or booking code" />}>
           <Stack direction="row" alignItems="center" spacing={0.5} sx={{ opacity: searching ? 0.45 : 1, flex: "0 0 auto" }}>
             <Tooltip title="Previous night">
               <IconButton aria-label="Previous night" onClick={() => setDate((d) => addDays(d, -1))} disabled={searching}>
@@ -148,7 +148,7 @@ const Reservations: React.FC = () => {
                 <ChevronRightRounded />
               </IconButton>
             </Tooltip>
-            <Button variant={date === tonight ? "contained" : "outlined"} startIcon={<TodayOutlined />} onClick={() => setDate(tonight)} disabled={searching}>
+            <Button variant="outlined" startIcon={<TodayOutlined />} onClick={() => setDate(tonight)} disabled={searching || date === tonight}>
               Tonight
             </Button>
           </Stack>

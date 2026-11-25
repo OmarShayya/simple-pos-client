@@ -61,12 +61,21 @@ const ReservationTimeline: React.FC<Props> = ({ stations, reservations, window, 
         <Box sx={{ display: "flex", height: 28, alignItems: "flex-end", borderBottom: 1, borderColor: "divider" }}>
           <Box sx={{ width: LABEL_W, flexShrink: 0 }} />
           <Box sx={{ position: "relative", flex: 1, height: "100%" }}>
-            {hours.map((h) => (
+            {hours.map((h, i) => (
               <Typography
                 key={h}
                 variant="caption"
                 color="text.secondary"
-                sx={{ position: "absolute", left: pct(h), bottom: 4, transform: "translateX(-50%)", whiteSpace: "nowrap", fontSize: "0.8125rem", fontVariantNumeric: "tabular-nums" }}
+                sx={{
+                  position: "absolute",
+                  left: pct(h),
+                  bottom: 4,
+                  // The closing hour sits inside the ruler instead of being cut off
+                  transform: i === hours.length - 1 && h >= end ? "translateX(-100%)" : "translateX(-50%)",
+                  whiteSpace: "nowrap",
+                  fontSize: "0.8125rem",
+                  fontVariantNumeric: "tabular-nums",
+                }}
               >
                 {fmtTime(new Date(h), tz).replace(":00", "")}
               </Typography>

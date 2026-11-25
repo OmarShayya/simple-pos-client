@@ -185,7 +185,8 @@ const ReservationSettings: React.FC = () => {
                     startIcon={<ContentCopyRounded fontSize="small" />}
                     disabled={disabled}
                     onClick={() => copyToAll(d)}
-                    sx={{ gridColumn: { xs: "1 / -1", md: "auto" }, justifySelf: { xs: "start", md: "end" } }}
+                    // Muted: seven teal links in a column would shout louder than the hours
+                    sx={{ gridColumn: { xs: "1 / -1", md: "auto" }, justifySelf: { xs: "start", md: "end" }, color: "text.secondary", "&:hover": { color: "text.primary" } }}
                   >
                     Copy to all days
                   </Button>

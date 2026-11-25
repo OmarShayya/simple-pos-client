@@ -70,15 +70,18 @@ const StationCard: React.FC<StationCardProps> = ({ view, now, onStart, onEnd, on
           {ps ? <SportsEsportsOutlined /> : <ComputerOutlined />}
         </Box>
         <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Typography sx={{ fontWeight: 700, fontSize: "1.0625rem", lineHeight: 1.25 }} noWrap>
-            {pc.pcNumber}
-          </Typography>
+          {/* Number + status on one line; the name gets the full width below */}
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
+            <Typography sx={{ fontWeight: 700, fontSize: "1.0625rem", lineHeight: 1.25 }} noWrap>
+              {pc.pcNumber}
+            </Typography>
+            <StatusChip status={STATE_STATUS[state]} kind="station" />
+          </Box>
           <Typography variant="body2" color="text.secondary" noWrap title={[pc.name, pc.location].filter(Boolean).join(" · ")}>
             {pc.name}
             {pc.location ? ` · ${pc.location}` : ""}
           </Typography>
         </Box>
-        <StatusChip status={STATE_STATUS[state]} kind="station" />
       </Box>
 
       {booking && bookingIn !== null && (
@@ -129,7 +132,8 @@ const StationCard: React.FC<StationCardProps> = ({ view, now, onStart, onEnd, on
               )}
             </Typography>
           </Box>
-          <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1, mt: "auto" }}>
+          {/* Side by side on wide cards, stacked on narrow ones — never cramped */}
+          <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(136px, 1fr))", gap: 1, mt: "auto" }}>
             <Button variant="outlined" startIcon={<ReceiptLongOutlined />} disabled={!session.orderId} onClick={() => session.orderId && onOpenOrder(session.orderId)}>
               Open order
             </Button>

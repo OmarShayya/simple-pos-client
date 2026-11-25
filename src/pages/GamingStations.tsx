@@ -16,7 +16,7 @@ import { orderUrl } from "@/components/orders/orderMeta";
 type StateFilter = "all" | "available" | "occupied";
 type TypeFilter = "all" | StationType;
 
-const GRID = { display: "grid", gap: 2, alignItems: "start", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 250px), 1fr))", listStyle: "none", m: 0, p: 0 } as const;
+const GRID = { display: "grid", gap: 2, alignItems: "stretch", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 250px), 1fr))", listStyle: "none", m: 0, p: 0 } as const;
 
 /**
  * Gaming stations (PCs + PlayStation rooms): start a session (always opens an order), watch time

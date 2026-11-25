@@ -84,7 +84,7 @@ const CartPanel: React.FC<CartPanelProps> = ({
         )}
       </Box>
 
-      <Box sx={{ px: 2, pb: 1.5 }}>
+      <Box sx={{ px: 2, pt: 1, pb: 1.5 }}>
         <CustomerPicker value={state.customer} onChange={onCustomer} size="small" />
         {!state.customer && state.orderCustomerName && (
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
