@@ -1,7 +1,6 @@
-import React, { useMemo } from "react";
-import { Box, Card, IconButton, ThemeProvider, Tooltip, Typography } from "@mui/material";
+import React from "react";
+import { Box, Card, IconButton, Tooltip, Typography } from "@mui/material";
 import { DarkModeOutlined, LightModeOutlined } from "@mui/icons-material";
-import getTheme from "@/theme/theme";
 import { useThemeStore } from "@/store/themeStore";
 
 export interface AuthLayoutProps {
@@ -18,15 +17,13 @@ export interface AuthLayoutProps {
  */
 const AuthLayout: React.FC<AuthLayoutProps> = ({ title, subtitle, children, footer }) => {
   const { mode, toggleTheme } = useThemeStore();
-  const theme = useMemo(() => getTheme(mode), [mode]);
 
   return (
-    <ThemeProvider theme={theme}>
-      <Box
+    <Box
         component="main"
         sx={{
           minHeight: "100dvh",
-          bgcolor: theme.tokens.surfaceSubtle,
+          bgcolor: (t) => t.tokens.surfaceSubtle,
           color: "text.primary",
           display: "flex",
           flexDirection: "column",
@@ -70,7 +67,6 @@ const AuthLayout: React.FC<AuthLayoutProps> = ({ title, subtitle, children, foot
           )}
         </Box>
       </Box>
-    </ThemeProvider>
   );
 };
 
