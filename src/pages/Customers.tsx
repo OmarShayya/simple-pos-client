@@ -207,7 +207,7 @@ const Customers: React.FC = () => {
       minWidth: 180,
       renderCell: (params) => (
         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-          <Avatar sx={{ width: 32, height: 32, bgcolor: "primary.main" }}>
+          <Avatar sx={{ width: 32, height: 32, bgcolor: "primary.main", color: "primary.contrastText" }}>
             {params.row.name.charAt(0).toUpperCase()}
           </Avatar>
           <Typography variant="body2" fontWeight={500}>
@@ -556,7 +556,7 @@ const Customers: React.FC = () => {
             <Box>
               <Box sx={{ display: "flex", alignItems: "center", mb: 3 }}>
                 <Avatar
-                  sx={{ width: 64, height: 64, bgcolor: "primary.main", mr: 2 }}
+                  sx={{ width: 64, height: 64, bgcolor: "primary.main", color: "primary.contrastText", mr: 2 }}
                 >
                   {selectedCustomer.name.charAt(0).toUpperCase()}
                 </Avatar>

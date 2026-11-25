@@ -198,6 +198,7 @@ const Categories: React.FC = () => {
                       height: 80,
                       mb: 2,
                       bgcolor: "primary.light",
+                      color: "primary.contrastText",
                     }}
                   >
                     <CategoryIcon sx={{ fontSize: 40 }} />
