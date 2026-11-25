@@ -3,6 +3,7 @@ import { DataTable, SectionCard } from "@/components/ui";
 import type { ReportPeriod, ReportSeriesPoint } from "@/types/report.types";
 import { PERIODS } from "./reportPeriods";
 import { timelineColumns } from "./reportColumns";
+import { timelineRows } from "./reportInsights";
 
 export interface TimelineTableProps {
   period: ReportPeriod;
@@ -17,7 +18,7 @@ export interface TimelineTableProps {
 const TimelineTable: React.FC<TimelineTableProps> = ({ period, rows, loading }) => {
   const config = PERIODS[period];
   const columns = useMemo(() => timelineColumns(period), [period]);
-  const visible = useMemo(() => (period === "day" ? rows?.filter((p) => p.orders > 0 || p.revenue > 0) : rows), [rows, period]);
+  const visible = useMemo(() => rows && timelineRows(period, rows), [rows, period]);
   return (
     <SectionCard
       variant="plain"

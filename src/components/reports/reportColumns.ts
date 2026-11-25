@@ -18,6 +18,10 @@ export const PAYMENT_LABELS: Record<string, string> = {
 };
 export const paymentLabel = (method: string) => PAYMENT_LABELS[method] ?? method;
 
+/** Keep only these columns, in this order (paper is narrower than a desktop screen). */
+export const pickColumns = <R,>(columns: DataTableColumn<R>[], fields: string[]): DataTableColumn<R>[] =>
+  fields.map((f) => columns.find((c) => c.field === f)).filter((c): c is DataTableColumn<R> => Boolean(c));
+
 const share = (value: number, total: number) => (total > 0 ? value / total : null);
 
 export const paymentColumns = (total: number): DataTableColumn<PaymentMethodRow>[] => [

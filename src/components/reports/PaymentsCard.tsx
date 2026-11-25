@@ -6,12 +6,13 @@ import { formatUsd, plural } from "@/utils/format";
 import type { PaymentMethodRow } from "@/types/report.types";
 import ShareList from "./ShareList";
 import { paymentLabel } from "./reportColumns";
+import { SECTION_COPY } from "./reportPeriods";
 
 /** Revenue by payment method (cash / card / bank transfer). */
 const PaymentsCard: React.FC<{ rows: PaymentMethodRow[] | undefined; loading: boolean }> = ({ rows, loading }) => {
   const chart = useChartDefaults();
   return (
-    <SectionCard title="How customers paid" subtitle="Revenue by payment method">
+    <SectionCard {...SECTION_COPY.payments}>
       {!loading && rows && rows.length === 0 ? (
         <EmptyState compact icon={<PaymentsOutlined />} title="No payments in this period" />
       ) : (
