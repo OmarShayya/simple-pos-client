@@ -85,13 +85,8 @@ export const productsApi = {
     return handleApiResponse(response.data);
   },
 
+  /** `image: ""` / `description: ""` clear them. */
   update: async (id: string, data: UpdateProductRequest): Promise<Product> => {
-    if (data.image === "") {
-      delete data.image;
-    }
-    if (data.description === "") {
-      delete data.description;
-    }
     const response = await apiClient.put<ApiResponse<Product>>(
       `/products/${id}`,
       data

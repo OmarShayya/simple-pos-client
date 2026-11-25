@@ -1,156 +1,92 @@
 import React from "react";
-import {
-  Box,
-  Button,
-  FormControlLabel,
-  Grid,
-  Stack,
-  Switch,
-  ToggleButton,
-  ToggleButtonGroup,
-  Typography,
-} from "@mui/material";
-import {
-  DarkModeOutlined,
-  LightModeOutlined,
-  PaletteOutlined,
-  PersonOutline,
-  CurrencyExchangeOutlined,
-  InfoOutlined,
-  Logout,
-} from "@mui/icons-material";
-import { useQuery } from "@tanstack/react-query";
+import { Box, Button, Switch, Typography } from "@mui/material";
+import { DarkModeOutlined, LightModeOutlined, LogoutRounded } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
-import PageHeader from "@/components/common/PageHeader";
-import SectionCard from "@/components/common/SectionCard";
+import { PageHeader, SectionCard, SegmentedControl, StatusChip } from "@/components/ui";
+import { SettingRow } from "@/components/kit-extras";
+import { useCurrentRate } from "@/components/exchange/exchangeQueries";
 import { useThemeStore } from "@/store/themeStore";
 import { useUIStore } from "@/store/uiStore";
 import { useAuthStore } from "@/store/authStore";
-import { exchangeRateApi } from "@/api/exchangeRate.api";
-import { UserRole } from "@/types/auth.types";
+import { formatLbp } from "@/utils/format";
 
-const Row: React.FC<{ label: string; description?: string; children: React.ReactNode }> = ({ label, description, children }) => (
-  <Box
-    sx={{
-      display: "flex",
-      alignItems: { xs: "flex-start", sm: "center" },
-      flexDirection: { xs: "column", sm: "row" },
-      justifyContent: "space-between",
-      gap: 1.5,
-      py: 1.5,
-      "&:not(:last-of-type)": { borderBottom: 1, borderColor: "divider" },
-    }}
-  >
-    <Box sx={{ minWidth: 0 }}>
-      <Typography sx={{ fontWeight: 600 }}>{label}</Typography>
-      {description && (
-        <Typography variant="body2" color="text.secondary">
-          {description}
-        </Typography>
-      )}
-    </Box>
-    <Box sx={{ flexShrink: 0 }}>{children}</Box>
-  </Box>
-);
-
-/** App preferences. Sections are plain SectionCards so new ones are easy to add. */
+/** Preferences for this device and the signed-in account. */
 const Settings: React.FC = () => {
   const navigate = useNavigate();
   const { mode, setTheme } = useThemeStore();
   const { sidebarCollapsed, toggleSidebar } = useUIStore();
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
-  const isManager = user?.role === UserRole.ADMIN || user?.role === UserRole.MANAGER;
-
-  const { data: rate } = useQuery({
-    queryKey: ["exchange-rate"],
-    queryFn: exchangeRateApi.getCurrentRate,
-  });
+  const isManager = user?.role === "admin" || user?.role === "manager";
+  const rate = useCurrentRate();
 
   return (
-    <Box>
+    <Box sx={{ maxWidth: 880 }}>
       <PageHeader title="Settings" subtitle="Preferences for this device and your account." />
-      <Grid container spacing={2}>
-        <Grid size={{ xs: 12, lg: 6 }}>
-          <SectionCard title="Appearance" icon={<PaletteOutlined />}>
-            <Row label="Theme" description="Dark mode is easier on the eyes in the lounge.">
-              <ToggleButtonGroup
-                exclusive
-                size="small"
-                value={mode}
-                onChange={(_, v) => v && setTheme(v)}
-                aria-label="Theme"
-              >
-                <ToggleButton value="light" sx={{ px: 2, gap: 0.75 }}>
-                  <LightModeOutlined fontSize="small" /> Light
-                </ToggleButton>
-                <ToggleButton value="dark" sx={{ px: 2, gap: 0.75 }}>
-                  <DarkModeOutlined fontSize="small" /> Dark
-                </ToggleButton>
-              </ToggleButtonGroup>
-            </Row>
-            <Row label="Compact sidebar" description="Show only icons in the sidebar on large screens.">
-              <FormControlLabel
-                control={<Switch checked={sidebarCollapsed} onChange={toggleSidebar} />}
-                label={sidebarCollapsed ? "On" : "Off"}
-              />
-            </Row>
-          </SectionCard>
-        </Grid>
+      <Box sx={{ display: "grid", gap: 2.5 }}>
+        <SectionCard title="This device" divider>
+          <SettingRow label="Colours" description="Light is easiest to read in daylight; dark is calmer at night.">
+            <SegmentedControl<"light" | "dark">
+              aria-label="Colours"
+              value={mode}
+              onChange={setTheme}
+              options={[
+                { value: "light", label: "Light", icon: <LightModeOutlined /> },
+                { value: "dark", label: "Dark", icon: <DarkModeOutlined /> },
+              ]}
+            />
+          </SettingRow>
+          <SettingRow label="Compact menu" description="Show only icons in the side menu on big screens (hover an icon to see its name).">
+            <Switch checked={sidebarCollapsed} onChange={toggleSidebar} inputProps={{ "aria-label": "Compact menu" }} />
+          </SettingRow>
+        </SectionCard>
 
-        <Grid size={{ xs: 12, lg: 6 }}>
-          <SectionCard title="Account" icon={<PersonOutline />}>
-            <Row label={user?.name ?? "—"} description={user?.email}>
-              <Typography variant="body2" sx={{ textTransform: "capitalize", fontWeight: 600 }} color="primary">
-                {user?.role}
-              </Typography>
-            </Row>
-            <Row label="Session" description="Sign out of this device.">
-              <Stack direction="row" spacing={1}>
-                <Button variant="outlined" onClick={() => navigate("/profile")}>
-                  Profile
-                </Button>
-                <Button
-                  variant="outlined"
-                  color="error"
-                  startIcon={<Logout />}
-                  onClick={() => {
-                    logout();
-                    navigate("/login");
-                  }}
-                >
-                  Log out
-                </Button>
-              </Stack>
-            </Row>
-          </SectionCard>
-        </Grid>
-
-        <Grid size={{ xs: 12, lg: 6 }}>
-          <SectionCard title="Exchange rate" icon={<CurrencyExchangeOutlined />}>
-            <Row
-              label={rate ? `1 USD = ${rate.rate.toLocaleString()} LBP` : "Loading…"}
-              description="Used to convert prices and totals to LBP."
+        <SectionCard title="Account" divider>
+          <SettingRow
+            label={user?.name ?? "—"}
+            description={
+              <>
+                {user?.email}
+                {user?.role && <StatusChip status={user.role} kind="role" dot={false} sx={{ ml: 1 }} />}
+              </>
+            }
+          >
+            <Button variant="outlined" onClick={() => navigate("/profile")}>
+              My account
+            </Button>
+            <Button
+              variant="outlined"
+              color="error"
+              startIcon={<LogoutRounded />}
+              onClick={() => {
+                logout();
+                navigate("/login");
+              }}
             >
-              {isManager && (
-                <Button variant="outlined" onClick={() => navigate("/exchange-rate")}>
-                  Manage
-                </Button>
-              )}
-            </Row>
-          </SectionCard>
-        </Grid>
+              Sign out
+            </Button>
+          </SettingRow>
+        </SectionCard>
 
-        <Grid size={{ xs: 12, lg: 6 }}>
-          <SectionCard title="About" icon={<InfoOutlined />}>
-            <Row label="Epic Lounge POS" description="Sales, gaming stations and reports for Epic Lounge.">
-              <Typography variant="body2" color="text.secondary">
-                v1.0
-              </Typography>
-            </Row>
-          </SectionCard>
-        </Grid>
-      </Grid>
+        <SectionCard title="Money" divider>
+          <SettingRow label="Exchange rate" description="Used to show LBP prices and take LBP payments.">
+            <Typography sx={{ fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>{rate.data ? `1 USD = ${formatLbp(rate.data.rate)}` : "—"}</Typography>
+            {isManager && (
+              <Button variant="outlined" onClick={() => navigate("/exchange-rate")}>
+                Change
+              </Button>
+            )}
+          </SettingRow>
+        </SectionCard>
+
+        <SectionCard title="About" divider>
+          <SettingRow label="Epic Lounge POS" description="Sales, gaming stations, bookings and reports for Epic Lounge.">
+            <Typography variant="body2" color="text.secondary">
+              Version 2.0
+            </Typography>
+          </SettingRow>
+        </SectionCard>
+      </Box>
     </Box>
   );
 };

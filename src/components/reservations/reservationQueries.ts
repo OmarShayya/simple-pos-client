@@ -1,6 +1,5 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { reservationsApi, type ReservationFilters } from "@/api/reservations.api";
-import { gamingApi } from "@/api/gaming.api";
 import { queryKeys } from "@/api/queryKeys";
 import type { StationType } from "@/types/reservation.types";
 
@@ -23,14 +22,4 @@ export const useAvailability = (params: { type: StationType; date: string; durat
     enabled,
     refetchInterval: enabled ? 30_000 : false,
     placeholderData: keepPreviousData,
-  });
-
-const STATION_FILTERS = { limit: 200 } as const;
-
-/** Every station (PCs + PlayStation rooms) — shared by the reservations and station screens. */
-export const useAllStations = (options: { refetchInterval?: number } = {}) =>
-  useQuery({
-    queryKey: queryKeys.stations.list({ ...STATION_FILTERS }),
-    queryFn: () => gamingApi.getAllPCs({ ...STATION_FILTERS }),
-    refetchInterval: options.refetchInterval,
   });

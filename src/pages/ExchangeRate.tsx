@@ -1,356 +1,177 @@
-import React, { useState } from "react";
-import {
-  Box,
-  Typography,
-  Card,
-  CardContent,
-  Button,
-  TextField,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableRow,
-  Chip,
-  Alert,
-  InputAdornment,
-  Grid,
-} from "@mui/material";
-import {
-  AttachMoney,
-  TrendingUp,
-  TrendingDown,
-  Edit,
-  History,
-} from "@mui/icons-material";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { exchangeRateApi } from "@/api/exchangeRate.api";
-import { toast } from "react-toastify";
-import { handleApiError } from "@/utils/errorHandler";
-import LoadingSpinner from "@/components/common/LoadingSpinner";
-import PageHeader from "@/components/common/PageHeader";
+import React, { useEffect, useMemo, useState } from "react";
+import { Alert, Box, Button, Stack, TextField, Typography } from "@mui/material";
+import { EditOutlined, SwapHorizRounded } from "@mui/icons-material";
+import { DataTable, DateField, FormDialog, KpiCard, MoneyField, PageHeader, SectionCard, SegmentedControl, StatusChip } from "@/components/ui";
+import type { DataTableColumn } from "@/components/ui";
+import { useCurrentRate, useRateHistory, useUpdateRate } from "@/components/exchange/exchangeQueries";
+import { useAuthStore } from "@/store/authStore";
+import { dayKey, formatDate, formatLbp, formatNumber, formatPercent, formatUsd, percentChange } from "@/utils/format";
+import { todayKey } from "@/utils/dateRanges";
+import type { ExchangeRateRecord } from "@/types/exchangeRate.types";
 
-const ExchangeRate: React.FC = () => {
-  const queryClient = useQueryClient();
-  const [openDialog, setOpenDialog] = useState(false);
-  const [newRate, setNewRate] = useState(0);
+type Direction = "usd" | "lbp";
+
+const UpdateRateDialog: React.FC<{ open: boolean; current?: number; onClose: () => void }> = ({ open, current, onClose }) => {
+  const [rate, setRate] = useState<number | null>(null);
   const [notes, setNotes] = useState("");
-  const [convertAmount, setConvertAmount] = useState(100);
-  const [convertFrom, setConvertFrom] = useState<"USD" | "LBP">("USD");
+  const [touched, setTouched] = useState(false);
+  const save = useUpdateRate();
 
-  const { data: currentRate, isLoading } = useQuery({
-    queryKey: ["exchange-rate"],
-    queryFn: exchangeRateApi.getCurrentRate,
-  });
+  useEffect(() => {
+    if (!open) return;
+    setRate(current ?? null);
+    setNotes("");
+    setTouched(false);
+  }, [open, current]);
 
-  const { data: history } = useQuery({
-    queryKey: ["exchange-rate-history"],
-    queryFn: () => exchangeRateApi.getHistory(20),
-  });
+  const change = rate && current ? percentChange(rate, current) : null;
+  const invalid = !rate || rate < 1000;
+  return (
+    <FormDialog
+      open={open}
+      onClose={onClose}
+      title="Update the exchange rate"
+      subtitle="Applies right away to new prices, orders and LBP payments. Past orders keep their rate."
+      onSubmit={() => {
+        setTouched(true);
+        if (!invalid) save.mutate({ rate: rate!, notes: notes.trim() || undefined }, { onSuccess: onClose });
+      }}
+      submitLabel="Update rate"
+      loading={save.isPending}
+      maxWidth="xs"
+    >
+      <Stack spacing={2.5} sx={{ pt: 0.5 }}>
+        <MoneyField
+          label="LBP for 1 USD"
+          currency="LBP"
+          value={rate}
+          onChange={setRate}
+          required
+          autoFocus
+          error={touched && invalid}
+          helperText={touched && invalid ? "Enter the rate in LBP, e.g. 89,500" : current ? `Now: ${formatLbp(current)}` : undefined}
+        />
+        {change !== null && Math.abs(change) >= 0.01 && (
+          <Alert severity={Math.abs(change) >= 20 ? "warning" : "info"}>
+            {formatLbp(current)} → <b>{formatLbp(rate)}</b> ({formatPercent(change, 1, true)})
+            {Math.abs(change) >= 20 && ". That's a big change — please check the number."}
+          </Alert>
+        )}
+        <TextField label="Note (optional)" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. Market rate this morning" slotProps={{ htmlInput: { maxLength: 200 } }} />
+      </Stack>
+    </FormDialog>
+  );
+};
 
-  const { data: conversion } = useQuery({
-    queryKey: ["convert", convertAmount, convertFrom],
-    queryFn: () => exchangeRateApi.convert(convertAmount, convertFrom),
-    enabled: convertAmount > 0,
-  });
+/** The USD → LBP rate: current value, a quick converter and the history of changes. */
+const ExchangeRate: React.FC = () => {
+  const role = useAuthStore((s) => s.user?.role);
+  const canEdit = role === "admin" || role === "manager";
+  const current = useCurrentRate();
+  const history = useRateHistory(canEdit);
+  const [open, setOpen] = useState(false);
+  const [direction, setDirection] = useState<Direction>("usd");
+  const [amount, setAmount] = useState<number | null>(10);
+  const [since, setSince] = useState<string | null>(null);
 
-  const updateRateMutation = useMutation({
-    mutationFn: (data: { rate: number; notes?: string }) =>
-      exchangeRateApi.updateRate(data.rate, data.notes),
-    onSuccess: () => {
-      toast.success("Exchange rate updated successfully");
-      queryClient.invalidateQueries({ queryKey: ["exchange-rate"] });
-      queryClient.invalidateQueries({ queryKey: ["exchange-rate-history"] });
-      setOpenDialog(false);
-      setNotes("");
+  const rate = current.data?.rate;
+  const latest = history.data?.[0];
+  const rows = useMemo(() => (history.data ?? []).filter((r) => !since || dayKey(r.createdAt) >= since), [history.data, since]);
+  const result = rate && amount !== null ? (direction === "usd" ? formatLbp(amount * rate) : formatUsd(amount / rate)) : "—";
+
+  const columns: DataTableColumn<ExchangeRateRecord>[] = [
+    { field: "createdAt", header: "Changed", type: "datetime", width: 210, mobile: "title" },
+    { field: "rate", header: "Rate", type: "number", value: (r) => r.rate, render: (r) => <b>{formatLbp(r.rate)}</b>, width: 150, mobile: "end" },
+    {
+      field: "change",
+      header: "Change",
+      value: (r) => (r.previousRate ? percentChange(r.rate, r.previousRate) : null),
+      render: (r) => {
+        const c = r.previousRate ? percentChange(r.rate, r.previousRate) : null;
+        if (c === null || Math.abs(c) < 0.005) return <Box component="span" sx={{ color: "text.secondary" }}>No change</Box>;
+        return <StatusChip status="change" label={`${formatPercent(c, 2, true)} (was ${formatNumber(r.previousRate)})`} tone={c > 0 ? "warning" : "info"} dot={false} />;
+      },
+      csv: (r) => (r.previousRate ? percentChange(r.rate, r.previousRate)?.toFixed(2) ?? "" : ""),
+      sortable: false,
+      minWidth: 200,
     },
-    onError: (error) => toast.error(handleApiError(error)),
-  });
-
-  const handleOpenDialog = () => {
-    setNewRate(currentRate?.rate || 0);
-    setOpenDialog(true);
-  };
-
-  const handleUpdateRate = () => {
-    if (newRate <= 0) {
-      toast.error("Please enter a valid rate");
-      return;
-    }
-    updateRateMutation.mutate({ rate: newRate, notes });
-  };
-
-  if (isLoading) return <LoadingSpinner />;
+    { field: "updatedBy", header: "By", value: (r) => r.updatedBy?.name, width: 160, mobile: "subtitle" },
+    { field: "notes", header: "Note", flex: 1, minWidth: 160, hideBelow: "md" },
+  ];
 
   return (
     <Box>
       <PageHeader
-        title="Exchange Rate Management"
-        subtitle="Manage USD to LBP exchange rates"
+        title="Exchange rate"
+        subtitle="The dollar rate used for LBP prices and LBP payments."
         actions={
-        <Button
-          variant="contained"
-          startIcon={<Edit />}
-          onClick={handleOpenDialog}
-        >
-          Update Rate
-        </Button>
+          canEdit && (
+            <Button variant="contained" startIcon={<EditOutlined />} onClick={() => setOpen(true)} disabled={!rate}>
+              Update rate
+            </Button>
+          )
         }
       />
 
-      {/* Current Rate Card */}
-      <Grid container spacing={3} sx={{ mb: 3 }}>
-        <Grid size={{ xs: 12, md: 4 }}>
-          <Card>
-            <CardContent>
-              <Box sx={{ display: "flex", alignItems: "center", mb: 2 }}>
-                <AttachMoney sx={{ color: "primary.main", mr: 1 }} />
-                <Typography variant="h6" fontWeight={600}>
-                  Current Rate
-                </Typography>
-              </Box>
-              <Typography variant="h3" fontWeight="bold" color="primary">
-                {currentRate?.rate.toLocaleString()}
+      <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", md: "minmax(0, 1fr) minmax(0, 2fr)" }, mb: 3 }}>
+        <KpiCard
+          label="1 USD ="
+          value={rate ? formatLbp(rate) : null}
+          loading={current.isLoading}
+          hint={latest ? `Set ${formatDate(latest.createdAt)}${latest.updatedBy?.name ? ` by ${latest.updatedBy.name}` : ""}` : undefined}
+        />
+        <SectionCard title="Quick converter">
+          <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems={{ sm: "center" }}>
+            <SegmentedControl<Direction>
+              aria-label="Convert from"
+              value={direction}
+              onChange={(d) => setDirection(d)}
+              options={[
+                { value: "usd", label: "USD → LBP" },
+                { value: "lbp", label: "LBP → USD" },
+              ]}
+            />
+            <Box sx={{ width: { xs: "100%", sm: 200 } }}>
+              <MoneyField label="Amount" currency={direction === "usd" ? "USD" : "LBP"} value={amount} onChange={setAmount} />
+            </Box>
+            <Stack direction="row" alignItems="center" spacing={1} sx={{ minWidth: 0 }}>
+              <SwapHorizRounded sx={{ color: "text.secondary" }} />
+              <Typography variant="h6" component="output" aria-live="polite" sx={{ fontVariantNumeric: "tabular-nums", fontWeight: 600 }} noWrap>
+                {result}
               </Typography>
-              <Typography variant="body2" color="text.secondary">
-                1 USD = {currentRate?.rate.toLocaleString()} LBP
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
+            </Stack>
+          </Stack>
+        </SectionCard>
+      </Box>
 
-        <Grid size={{ xs: 12, md: 8 }}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" fontWeight={600} gutterBottom>
-                Quick Converter
-              </Typography>
-              <Grid container spacing={2} alignItems="center">
-                <Grid size={{ xs: 12, sm: 4 }}>
-                  <TextField
-                    fullWidth
-                    type="number"
-                    label="Amount"
-                    value={convertAmount}
-                    onChange={(e) => setConvertAmount(Number(e.target.value))}
-                  />
-                </Grid>
-                <Grid size={{ xs: 12, sm: 3 }}>
-                  <Button
-                    fullWidth
-                    variant={convertFrom === "USD" ? "contained" : "outlined"}
-                    onClick={() => setConvertFrom("USD")}
-                  >
-                    USD
-                  </Button>
-                </Grid>
-                <Grid size={{ xs: 12, sm: 5 }}>
-                  {conversion && (
-                    <Card sx={{ bgcolor: "background.default", p: 2 }}>
-                      <Typography variant="caption" color="text.secondary">
-                        Equals
-                      </Typography>
-                      <Typography variant="h6" fontWeight={600}>
-                        {convertFrom === "USD"
-                          ? `${
-                              conversion?.result?.lbp?.toLocaleString() || 0
-                            } LBP`
-                          : `$${conversion?.result?.usd?.toFixed(2) || 0} USD`}
-                      </Typography>
-                    </Card>
-                  )}
-                </Grid>
-              </Grid>
-              <Box sx={{ mt: 2 }}>
-                <Button
-                  variant="outlined"
-                  size="small"
-                  onClick={() =>
-                    setConvertFrom(convertFrom === "USD" ? "LBP" : "USD")
-                  }
-                >
-                  Switch Currency
-                </Button>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+      {canEdit ? (
+        <DataTable<ExchangeRateRecord>
+          title="History"
+          label="Exchange rate history"
+          rows={rows}
+          getRowId={(r) => r.id ?? r._id ?? r.createdAt}
+          columns={columns}
+          loading={history.isLoading}
+          refreshing={history.isFetching && !history.isLoading}
+          error={history.error}
+          onRetry={() => history.refetch()}
+          onRefresh={() => {
+            history.refetch();
+            current.refetch();
+          }}
+          search={{ placeholder: "Search notes or names" }}
+          filters={<DateField label="Changed since" size="small" value={since} onChange={setSince} maxDate={todayKey()} fullWidth={false} />}
+          activeFilterCount={since ? 1 : 0}
+          onClearFilters={() => setSince(null)}
+          initialSort={{ field: "createdAt", direction: "desc" }}
+          exportCsv={{ filename: "exchange-rate-history" }}
+          empty={{ title: since ? "No changes since that day" : "No changes yet" }}
+        />
+      ) : (
+        <Alert severity="info">Only admins and managers can change the rate.</Alert>
+      )}
 
-      {/* Rate History */}
-      <Card>
-        <CardContent>
-          <Box sx={{ display: "flex", alignItems: "center", mb: 3 }}>
-            <History sx={{ mr: 1 }} />
-            <Typography variant="h6" fontWeight={600}>
-              Rate History
-            </Typography>
-          </Box>
-
-          {history && history.length > 0 ? (
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Date</TableCell>
-                  <TableCell>Rate (LBP)</TableCell>
-                  <TableCell>Previous Rate</TableCell>
-                  <TableCell>Change</TableCell>
-                  <TableCell>Updated By</TableCell>
-                  <TableCell>Notes</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {history.map((record: any, index: number) => {
-                  const change = record.previousRate
-                    ? ((record.rate - record.previousRate) /
-                        record.previousRate) *
-                      100
-                    : 0;
-
-                  return (
-                    <TableRow key={index}>
-                      <TableCell>
-                        {new Date(record.createdAt).toLocaleString("en-US", {
-                          month: "short",
-                          day: "numeric",
-                          year: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2" fontWeight={600}>
-                          {record.rate.toLocaleString()}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        {record.previousRate
-                          ? record.previousRate.toLocaleString()
-                          : "-"}
-                      </TableCell>
-                      <TableCell>
-                        {record.previousRate && (
-                          <Chip
-                            label={`${change > 0 ? "+" : ""}${change.toFixed(
-                              2
-                            )}%`}
-                            color={
-                              change > 0
-                                ? "success"
-                                : change < 0
-                                ? "error"
-                                : "default"
-                            }
-                            size="small"
-                            icon={
-                              change > 0 ? (
-                                <TrendingUp />
-                              ) : change < 0 ? (
-                                <TrendingDown />
-                              ) : undefined
-                            }
-                          />
-                        )}
-                      </TableCell>
-                      <TableCell>{record.updatedBy.name}</TableCell>
-                      <TableCell>
-                        <Typography variant="caption" color="text.secondary">
-                          {record.notes || "-"}
-                        </Typography>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          ) : (
-            <Alert severity="info">No rate history available</Alert>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Update Rate Dialog */}
-      <Dialog
-        open={openDialog}
-        onClose={() => setOpenDialog(false)}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle>Update Exchange Rate</DialogTitle>
-        <DialogContent>
-          <Alert severity="warning" sx={{ mb: 3 }}>
-            Updating the exchange rate will affect all future transactions and
-            price calculations.
-          </Alert>
-
-          <TextField
-            fullWidth
-            type="number"
-            label="New Rate (LBP per 1 USD)"
-            value={newRate}
-            onChange={(e) => setNewRate(Number(e.target.value))}
-            margin="normal"
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">1 USD =</InputAdornment>
-              ),
-              endAdornment: <InputAdornment position="end">LBP</InputAdornment>,
-            }}
-          />
-
-          <TextField
-            fullWidth
-            label="Notes (Optional)"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            margin="normal"
-            multiline
-            rows={3}
-            placeholder="Reason for rate change..."
-          />
-
-          {currentRate && (
-            <Card sx={{ mt: 2, bgcolor: "background.default", p: 2 }}>
-              <Typography variant="body2" color="text.secondary">
-                Current Rate: {currentRate.rate.toLocaleString()} LBP
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                New Rate: {newRate.toLocaleString()} LBP
-              </Typography>
-              {newRate > 0 && (
-                <Typography
-                  variant="body2"
-                  color={
-                    newRate > currentRate.rate ? "success.main" : "error.main"
-                  }
-                  fontWeight={600}
-                >
-                  Change:{" "}
-                  {(
-                    ((newRate - currentRate.rate) / currentRate.rate) *
-                    100
-                  ).toFixed(2)}
-                  %
-                </Typography>
-              )}
-            </Card>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpenDialog(false)}>Cancel</Button>
-          <Button
-            variant="contained"
-            onClick={handleUpdateRate}
-            disabled={updateRateMutation.isPending}
-          >
-            Update Rate
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <UpdateRateDialog open={open} current={rate} onClose={() => setOpen(false)} />
     </Box>
   );
 };
