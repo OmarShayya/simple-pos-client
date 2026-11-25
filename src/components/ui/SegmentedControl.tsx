@@ -40,6 +40,7 @@ function SegmentedControl<V extends string>({ value, onChange, options, size = "
       fullWidth={fullWidth}
       sx={[
         { maxWidth: "100%", overflowX: "auto", flexWrap: "nowrap", scrollbarWidth: "none", "&::-webkit-scrollbar": { display: "none" } },
+        fullWidth ? { width: "100%" } : {},
         ...(Array.isArray(sx) ? sx : [sx]),
       ]}
     >
@@ -54,7 +55,8 @@ function SegmentedControl<V extends string>({ value, onChange, options, size = "
             px: size === "large" ? 2.25 : 1.75,
             fontSize: size === "large" ? "0.9375rem" : "0.875rem",
             whiteSpace: "nowrap",
-            flexShrink: 0,
+            // Full width: segments share the row equally; otherwise they keep their size and the row scrolls
+            ...(fullWidth ? { flex: "1 1 0", minWidth: 0 } : { flexShrink: 0 }),
             "& .MuiSvgIcon-root": { fontSize: 18 },
           }}
         >
