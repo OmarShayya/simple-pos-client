@@ -27,7 +27,12 @@ export interface Reservation {
   endTime: string;
   durationMinutes: number;
   customerName: string;
+  /** E.164 ("+96170123456"). */
   customerPhone: string;
+  /** ISO-2 country of the phone ("LB"). */
+  phoneCountry?: string;
+  /** Linked customer record (auto-created/linked by phone). */
+  customerId?: string | null;
   customerEmail?: string;
   notes?: string;
   estimatedCost: { usd: number; lbp: number };
@@ -116,11 +121,13 @@ export interface CreateReservationPayload {
   stationIds?: string[];
   stationCount?: number;
   customerName: string;
+  /** E.164 or a national number (+ `phoneCountry`). */
   customerPhone: string;
+  phoneCountry?: string;
   customerEmail?: string;
   notes?: string;
 }
 
 export type UpdateReservationPayload = Partial<
-  Pick<CreateReservationPayload, "start" | "durationMinutes" | "stationIds" | "customerName" | "customerPhone" | "customerEmail" | "notes">
+  Pick<CreateReservationPayload, "start" | "durationMinutes" | "stationIds" | "customerName" | "customerPhone" | "phoneCountry" | "customerEmail" | "notes">
 >;

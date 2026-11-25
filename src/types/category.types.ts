@@ -16,5 +16,6 @@ export interface CreateCategoryRequest {
 export interface UpdateCategoryRequest {
   name?: string;
   description?: string;
-  image?: string;
+  /** `null` removes the photo. */
+  image?: string | null;
 }

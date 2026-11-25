@@ -58,9 +58,13 @@ export interface UpdateDiscountRequest {
   name?: string;
   description?: string;
   value?: number;
+  target?: DiscountTarget;
+  /** `null` for whole-order / gaming discounts. */
+  targetId?: string | null;
   isActive?: boolean;
-  startDate?: string;
-  endDate?: string;
+  /** ISO instant; `null` removes the limit. */
+  startDate?: string | null;
+  endDate?: string | null;
 }
 
 export interface GetDiscountsFilters {

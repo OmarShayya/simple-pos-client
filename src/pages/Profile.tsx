@@ -1,45 +1,66 @@
 import React from "react";
-import { Avatar, Box, Card, CardContent, Divider, Stack, Typography } from "@mui/material";
+import { Avatar, Box, Button, Stack, Typography } from "@mui/material";
+import { LogoutRounded, SettingsOutlined } from "@mui/icons-material";
+import { useNavigate } from "react-router-dom";
+import { PageHeader, SectionCard, StatusChip } from "@/components/ui";
+import { InfoList } from "@/components/kit-extras";
+import { ROLE_INFO } from "@/components/staff/roles";
 import { useAuthStore } from "@/store/authStore";
-import PageHeader from "@/components/common/PageHeader";
-import StatusChip from "@/components/common/StatusChip";
+import { initials } from "@/utils/format";
 
-const Field: React.FC<{ label: string; value?: React.ReactNode }> = ({ label, value }) => (
-  <Box>
-    <Typography variant="caption" color="text.secondary">
-      {label}
-    </Typography>
-    <Typography sx={{ fontWeight: 600 }}>{value ?? "—"}</Typography>
-  </Box>
-);
-
+/** The signed-in staff member's account. */
 const Profile: React.FC = () => {
-  const user = useAuthStore((state) => state.user);
+  const navigate = useNavigate();
+  const user = useAuthStore((s) => s.user);
+  const logout = useAuthStore((s) => s.logout);
+  const role = user?.role ? ROLE_INFO[user.role] : undefined;
 
   return (
-    <Box>
-      <PageHeader title="Profile" subtitle="Your account details." />
-      <Card sx={{ maxWidth: 640 }}>
-        <CardContent sx={{ p: 3 }}>
-          <Stack direction="row" spacing={2} alignItems="center">
-            <Avatar sx={{ width: 64, height: 64, bgcolor: "primary.main", color: "primary.contrastText", fontSize: "1.6rem", fontWeight: 700 }}>
-              {user?.name?.charAt(0)?.toUpperCase()}
-            </Avatar>
-            <Box sx={{ minWidth: 0 }}>
-              <Typography variant="h5" noWrap>
-                {user?.name}
-              </Typography>
-              <StatusChip status="active" label={user?.role} dot={false} sx={{ mt: 0.5 }} />
-            </Box>
-          </Stack>
-          <Divider sx={{ my: 2.5 }} />
-          <Stack spacing={2}>
-            <Field label="Name" value={user?.name} />
-            <Field label="Email" value={user?.email} />
-            <Field label="Role" value={<Box component="span" sx={{ textTransform: "capitalize" }}>{user?.role}</Box>} />
-          </Stack>
-        </CardContent>
-      </Card>
+    <Box sx={{ maxWidth: 720 }}>
+      <PageHeader
+        title="My account"
+        subtitle="Your sign-in details on this POS."
+        actions={
+          <>
+            <Button variant="outlined" startIcon={<SettingsOutlined />} onClick={() => navigate("/settings")}>
+              Settings
+            </Button>
+            <Button
+              variant="outlined"
+              color="error"
+              startIcon={<LogoutRounded />}
+              onClick={() => {
+                logout();
+                navigate("/login");
+              }}
+            >
+              Sign out
+            </Button>
+          </>
+        }
+      />
+      <SectionCard>
+        <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 3 }}>
+          <Avatar sx={{ width: 56, height: 56, bgcolor: (t) => t.tokens.primaryTint, color: (t) => t.tokens.primaryText, fontWeight: 600, fontSize: "1.25rem" }}>
+            {initials(user?.name)}
+          </Avatar>
+          <Box sx={{ minWidth: 0 }}>
+            <Typography variant="h6" component="h3" noWrap>
+              {user?.name}
+            </Typography>
+            {user?.role && <StatusChip status={user.role} kind="role" dot={false} sx={{ mt: 0.5 }} />}
+          </Box>
+        </Stack>
+        <InfoList
+          items={[
+            { label: "Name", value: user?.name },
+            { label: "Email (sign-in)", value: user?.email },
+            { label: "Role", value: role?.label },
+            { label: "Can use", value: role?.help },
+            { label: "Password", value: "To change your name or password, ask an admin." },
+          ]}
+        />
+      </SectionCard>
     </Box>
   );
 };

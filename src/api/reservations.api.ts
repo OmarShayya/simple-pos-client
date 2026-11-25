@@ -64,8 +64,9 @@ export const reservationsApi = {
     return handleApiResponse(response.data);
   },
 
-  checkIn: async (id: string, createSale?: boolean): Promise<Reservation> => {
-    const response = await apiClient.post<ApiResponse<Reservation>>(`/reservations/${id}/check-in`, { createSale });
+  /** Starts a session on every booked station (each on its own unpaid order). */
+  checkIn: async (id: string): Promise<Reservation> => {
+    const response = await apiClient.post<ApiResponse<Reservation>>(`/reservations/${id}/check-in`, {});
     return handleApiResponse(response.data);
   },
 
