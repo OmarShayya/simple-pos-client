@@ -52,16 +52,18 @@ export const topProductColumns = (total: number): DataTableColumn<RankedProduct>
 export const cashierColumns: DataTableColumn<CashierRow>[] = [
   { field: "name", header: "Staff member", flex: 1.4, minWidth: 120 },
   { field: "orders", header: "Orders", type: "number", width: 90, minWidth: 64 },
-  { field: "revenue", header: "Revenue", type: "money", minWidth: 112 },
+  // Room for the sort arrow: this table starts sorted by revenue
+  { field: "revenue", header: "Revenue", type: "money", minWidth: 132 },
   { field: "avg", header: "Avg. order", type: "money", value: (r) => (r.orders ? r.revenue / r.orders : null), hideBelow: "md" },
 ];
 
 export const stationColumns: DataTableColumn<StationRow>[] = [
-  { field: "pcNumber", header: "Station", type: "code", width: 110, minWidth: 76 },
+  { field: "pcNumber", header: "Station", type: "code", flex: 1, minWidth: 72 },
   { field: "type", header: "Type", value: (r) => STATION_TYPE_LABEL[r.type] ?? r.type, hideBelow: "md" },
   { field: "sessions", header: "Sessions", type: "number", hideBelow: "md" },
   { field: "hours", header: "Hours", type: "number", value: (r) => r.hours, render: (r) => formatNumber(r.hours, 1), minWidth: 72 },
-  { field: "revenue", header: "Revenue", type: "money", minWidth: 112 },
+  // Starts sorted by revenue: room for the sort arrow. Every column fits a 390px phone without scrolling.
+  { field: "revenue", header: "Revenue", type: "money", minWidth: 128 },
   {
     field: "utilization",
     header: "Busy",
@@ -69,7 +71,7 @@ export const stationColumns: DataTableColumn<StationRow>[] = [
     render: (r) => formatRatio(r.utilization),
     csv: (r) => (r.utilization === null ? "" : formatRatio(r.utilization, 1)),
     align: "right",
-    width: 90,
+    width: 72,
     minWidth: 64,
   },
 ];
