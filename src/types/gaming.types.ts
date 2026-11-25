@@ -1,4 +1,5 @@
 import type { StationType, UpcomingReservation } from "./reservation.types";
+import type { Money, OrderCustomer, SaleStatus } from "./sale.types";
 
 export enum PCStatus {
   AVAILABLE = "available",
@@ -19,6 +20,7 @@ export enum SessionPaymentStatus {
   PARTIAL = "partial",
 }
 
+/** A gaming station (PC or PlayStation room). The API still calls them "pcs". */
 export interface PC {
   id: string;
   /** "pc" (default) or "playstation" */
@@ -26,10 +28,7 @@ export interface PC {
   pcNumber: string;
   name: string;
   status: PCStatus;
-  hourlyRate: {
-    usd: number;
-    lbp: number;
-  };
+  hourlyRate: Money;
   specifications?: {
     cpu?: string;
     gpu?: string;
@@ -45,74 +44,61 @@ export interface PC {
   upcomingReservation?: UpcomingReservation;
 }
 
-export interface QuickModeResponse {
-  quickMode: true;
-  pcId: string;
-  message: string;
+/** The order a session bills to (every session has one). */
+export interface SessionOrderRef {
+  id: string;
+  invoiceNumber?: string;
+  status?: SaleStatus;
+  totals?: Money;
 }
 
+/** `GET /gaming/sessions/active` row. */
+export interface ActiveSession {
+  id: string;
+  sessionNumber: string;
+  pc: { id: string; pcNumber: string; name: string; status?: PCStatus };
+  customer: OrderCustomer | null;
+  customerName: string;
+  startTime: string;
+  /** Billed minutes so far (every started minute counts). */
+  currentDuration: number;
+  currentCost: Money;
+  hourlyRate: Money;
+  orderId: string | null;
+  startedBy: { name: string };
+}
+
+/** Response of start / end session. */
 export interface GamingSession {
   id: string;
   sessionNumber: string;
-  pc: {
-    id: string;
-    pcNumber: string;
-    name: string;
-    status?: PCStatus;
-  };
-  customer?: {
-    id: string;
-    name: string;
-    phone?: string;
-  } | null;
+  pc: { id: string; pcNumber: string; name: string };
+  customer: OrderCustomer | null;
   customerName: string;
   startTime: string;
   endTime?: string;
+  /** Minutes (after the session ended). */
   duration?: number;
-  currentDuration?: number;
-  hourlyRate: {
-    usd: number;
-    lbp: number;
-  };
-  discount?: {
-    discountId: string;
-    discountName: string;
-    percentage: number;
-    amount: {
-      usd: number;
-      lbp: number;
-    };
-  };
-  totalCost?: {
-    usd: number;
-    lbp: number;
-  };
-  finalAmount?: {
-    usd: number;
-    lbp: number;
-  };
-  currentCost?: {
-    usd: number;
-    lbp: number;
-  };
+  hourlyRate?: Money;
+  totalCost?: Money;
+  discount?: { discountId: string; discountName: string; percentage: number; amount: Money };
+  finalAmount?: Money;
   status: SessionStatus;
-  paymentStatus: SessionPaymentStatus;
-  sale?: {
-    id: string;
-    invoiceNumber: string;
-    totals?: {
-      usd: number;
-      lbp: number;
-    };
-  };
-  startedBy: {
-    name: string;
-  };
-  endedBy?: {
-    name: string;
-  };
-  notes?: string;
-  createdAt: string;
+  paymentStatus?: SessionPaymentStatus;
+  orderId: string | null;
+  sale: SessionOrderRef | null;
 }
 
-export type StartSessionResponse = GamingSession | QuickModeResponse;
+export interface StartSessionRequest {
+  pcId: string;
+  /** An existing customer (wins over the phone). */
+  customerId?: string;
+  /** Name typed by staff (or "Walk-in"). */
+  customerName?: string;
+  /** E.164 or national; links / creates the customer on the server. */
+  customerPhone?: string;
+  phoneCountry?: string;
+  /** Attach to an existing open order instead of creating one. */
+  saleId?: string;
+  notes?: string;
+}

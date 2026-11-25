@@ -3,7 +3,6 @@ import {
   ReceiptLongOutlined,
   PeopleAltOutlined,
   SportsEsportsOutlined,
-  HistoryOutlined,
   ComputerOutlined,
   Inventory2Outlined,
   CategoryOutlined,
@@ -70,7 +69,7 @@ export const sidebarGroups: SidebarGroup[] = [
         label: "Orders",
         path: "/orders",
         icon: ReceiptLongOutlined,
-        match: ["/sales/history"],
+        match: ["/sales/history", "/gaming/history"],
         badge: "open",
         badgeAttention: "websiteOpen",
         badgeLabel: (c) =>
@@ -94,7 +93,6 @@ export const sidebarGroups: SidebarGroup[] = [
         badgeAttention: "reservationsAttention",
         badgeLabel: (c) => `${c.reservationsAttention ?? 0} reservations need attention`,
       },
-      { id: "gaming-history", label: "Session history", path: "/gaming/history", icon: HistoryOutlined },
       {
         id: "pc-management",
         label: "Manage stations",
@@ -150,7 +148,6 @@ export const findSidebarItem = (pathname: string): SidebarItem | undefined =>
 
 const EXTRA_TITLES: Record<string, string> = {
   "/sales": "New sale",
-  "/sales/history": "Sales history",
   "/profile": "Profile",
   "/reservations/settings": "Booking rules",
   "/ui-kit": "UI kit",

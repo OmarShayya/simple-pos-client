@@ -1,18 +1,7 @@
 import apiClient from "./client";
 import { type ApiResponse, type PaginatedResponse } from "../types/api.types";
-import {
-  handleApiResponse,
-  handlePaginatedResponse,
-} from "../utils/responseHandler";
-import {
-  PC,
-  GamingSession,
-  PCStatus,
-  SessionStatus,
-  SessionPaymentStatus,
-  StartSessionResponse,
-} from "@/types/gaming.types";
-import { PaymentMethod, Currency } from "@/types/sale.types";
+import { handleApiResponse, handlePaginatedResponse } from "../utils/responseHandler";
+import type { ActiveSession, GamingSession, PC, PCStatus, StartSessionRequest } from "@/types/gaming.types";
 import type { StationType } from "@/types/reservation.types";
 
 interface PCFilters {
@@ -23,25 +12,7 @@ interface PCFilters {
   limit?: number;
 }
 
-interface SessionFilters {
-  status?: SessionStatus;
-  pcId?: string;
-  customerId?: string;
-  startDate?: string;
-  endDate?: string;
-  paymentStatus?: SessionPaymentStatus;
-  page?: number;
-  limit?: number;
-}
-
 type StationSpecs = { cpu?: string; gpu?: string; ram?: string; monitor?: string };
-
-interface TodayStats {
-  activeSessions: number;
-  completedSessions: number;
-  totalRevenue: { usd: number; lbp: number };
-  unpaidSessions: number;
-}
 
 export type UpdateStationPayload = Parameters<typeof updateStation>[1];
 // Declared separately so its payload type can be reused by pages
@@ -63,7 +34,9 @@ async function updateStation(
   return handleApiResponse(response.data);
 }
 
+/** Gaming stations (PCs + PlayStation rooms) and their sessions. Every session bills to an order. */
 export const gamingApi = {
+  /* ---------------------------------------------------------------- stations */
   createPC: async (data: {
     type?: StationType;
     pcNumber: string;
@@ -88,146 +61,53 @@ export const gamingApi = {
     const params = new URLSearchParams();
     if (filters.status) params.append("status", filters.status);
     if (filters.type) params.append("type", filters.type);
-    if (filters.isActive !== undefined)
-      params.append("isActive", filters.isActive.toString());
+    if (filters.isActive !== undefined) params.append("isActive", filters.isActive.toString());
     if (filters.page) params.append("page", filters.page.toString());
     if (filters.limit) params.append("limit", filters.limit.toString());
-
-    const response = await apiClient.get<PaginatedResponse<PC>>(
-      `/gaming/pcs?${params}`
-    );
+    const response = await apiClient.get<PaginatedResponse<PC>>(`/gaming/pcs?${params}`);
     return handlePaginatedResponse(response.data);
-  },
-
-  getAvailablePCs: async (): Promise<PC[]> => {
-    const response = await apiClient.get<ApiResponse<PC[]>>(
-      "/gaming/pcs/available"
-    );
-    return handleApiResponse(response.data);
   },
 
   deletePC: async (id: string): Promise<void> => {
-    const response = await apiClient.delete<ApiResponse<void>>(
-      `/gaming/pcs/${id}`
-    );
+    const response = await apiClient.delete<ApiResponse<void>>(`/gaming/pcs/${id}`);
     return handleApiResponse(response.data);
   },
 
-  startSession: async (data: {
-    pcId: string;
-    customerId?: string;
-    customerName?: string;
-    saleId?: string;
-    createSale?: boolean;
-    notes?: string;
-  }): Promise<StartSessionResponse> => {
-    const response = await apiClient.post<ApiResponse<StartSessionResponse>>(
-      "/gaming/sessions",
-      data
-    );
-    return handleApiResponse(response.data);
-  },
-
-  endSession: async (
-    id: string,
-    data?: { discountId?: string }
-  ): Promise<GamingSession> => {
-    // Only send discountId if it's actually provided, otherwise send empty object
-    const body = data?.discountId ? { discountId: data.discountId } : {};
-    const response = await apiClient.put<ApiResponse<GamingSession>>(
-      `/gaming/sessions/${id}/end`,
-      body
-    );
-    return handleApiResponse(response.data);
-  },
-
-  processPayment: async (
-    id: string,
-    data: {
-      paymentMethod: PaymentMethod;
-      paymentCurrency: Currency;
-      amount: number;
-    }
-  ): Promise<GamingSession> => {
-    const response = await apiClient.post<ApiResponse<GamingSession>>(
-      `/gaming/sessions/${id}/payment`,
-      data
-    );
-    return handleApiResponse(response.data);
-  },
-
-  getSessionById: async (id: string): Promise<GamingSession> => {
-    const response = await apiClient.get<ApiResponse<GamingSession>>(
-      `/gaming/sessions/${id}`
-    );
-    return handleApiResponse(response.data);
-  },
-
-  getAllSessions: async (filters: SessionFilters = {}) => {
-    const params = new URLSearchParams();
-    if (filters.status) params.append("status", filters.status);
-    if (filters.pcId) params.append("pcId", filters.pcId);
-    if (filters.customerId) params.append("customerId", filters.customerId);
-    if (filters.startDate) params.append("startDate", filters.startDate);
-    if (filters.endDate) params.append("endDate", filters.endDate);
-    if (filters.paymentStatus)
-      params.append("paymentStatus", filters.paymentStatus);
-    if (filters.page) params.append("page", filters.page.toString());
-    if (filters.limit) params.append("limit", filters.limit.toString());
-
-    const response = await apiClient.get<PaginatedResponse<GamingSession>>(
-      `/gaming/sessions?${params}`
-    );
-    return handlePaginatedResponse(response.data);
-  },
-
-  getActiveSessions: async (): Promise<GamingSession[]> => {
-    const response = await apiClient.get<ApiResponse<GamingSession[]>>(
-      "/gaming/sessions/active"
-    );
-    return handleApiResponse(response.data);
-  },
-
-  getCurrentCost: async (
-    id: string
-  ): Promise<{ duration: number; cost: { usd: number; lbp: number } }> => {
-    const response = await apiClient.get<
-      ApiResponse<{ duration: number; cost: { usd: number; lbp: number } }>
-    >(`/gaming/sessions/${id}/current-cost`);
-    return handleApiResponse(response.data);
-  },
-
-  cancelSession: async (id: string): Promise<void> => {
-    const response = await apiClient.patch<ApiResponse<void>>(
-      `/gaming/sessions/${id}/cancel`
-    );
-    return handleApiResponse(response.data);
-  },
-
-  getTodayStats: async (): Promise<TodayStats> => {
-    const response = await apiClient.get<ApiResponse<TodayStats>>(
-      "/gaming/sessions/today-stats"
-    );
-    return handleApiResponse(response.data);
-  },
-
-  // Add to your existing gaming.api.ts
-
-  lockPC: async (
-    id: string,
-    data?: { customerId?: string; customerName?: string }
-  ): Promise<PC> => {
-    const response = await apiClient.post<ApiResponse<PC>>(
-      `/gaming/pcs/${id}/lock`,
-      data
-    );
+  /** Admin buttons on Manage stations: start / end a real (billed) session. */
+  lockPC: async (id: string, data?: { customerId?: string; customerName?: string }): Promise<PC> => {
+    const response = await apiClient.post<ApiResponse<PC>>(`/gaming/pcs/${id}/lock`, data);
     return handleApiResponse(response.data);
   },
 
   unlockPC: async (id: string): Promise<PC> => {
-    const response = await apiClient.post<ApiResponse<PC>>(
-      `/gaming/pcs/${id}/unlock`
-    );
+    const response = await apiClient.post<ApiResponse<PC>>(`/gaming/pcs/${id}/unlock`);
+    return handleApiResponse(response.data);
+  },
+
+  /* ---------------------------------------------------------------- sessions */
+  /** Starts the clock and ALWAYS opens (or joins, with `saleId`) an order. */
+  startSession: async (data: StartSessionRequest): Promise<GamingSession> => {
+    const response = await apiClient.post<ApiResponse<GamingSession>>("/gaming/sessions", data);
+    return handleApiResponse(response.data);
+  },
+
+  /** Stops the clock and finalizes the order line. The order stays unpaid. */
+  endSession: async (id: string, data?: { discountId?: string }): Promise<GamingSession> => {
+    const body = data?.discountId ? { discountId: data.discountId } : {};
+    const response = await apiClient.put<ApiResponse<GamingSession>>(`/gaming/sessions/${id}/end`, body);
+    return handleApiResponse(response.data);
+  },
+
+  getActiveSessions: async (): Promise<ActiveSession[]> => {
+    const response = await apiClient.get<ApiResponse<ActiveSession[]>>("/gaming/sessions/active");
+    return handleApiResponse(response.data);
+  },
+
+  /** Managers/admins only. Removes the line from its order. */
+  cancelSession: async (id: string): Promise<void> => {
+    const response = await apiClient.patch<ApiResponse<void>>(`/gaming/sessions/${id}/cancel`);
     return handleApiResponse(response.data);
   },
 };
+
+export default gamingApi;
