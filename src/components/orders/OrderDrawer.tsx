@@ -1,15 +1,14 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { Alert, Box, Button, Divider, Drawer, IconButton, Link, Skeleton, Stack, Tooltip, Typography } from "@mui/material";
+import { Alert, Box, Button, Divider, Link, Skeleton, Stack, Typography } from "@mui/material";
 import {
   AddShoppingCartRounded,
-  CloseRounded,
   DeleteOutlineRounded,
   PaymentsOutlined,
   PrintOutlined,
   StopCircleOutlined,
 } from "@mui/icons-material";
-import { CodeText, ErrorState, StatusChip } from "@/components/ui";
+import { CodeText, DetailDrawer, ErrorState, StatusChip } from "@/components/ui";
 import { useConfirm } from "@/hooks/useConfirm";
 import { useNow } from "@/hooks/useNow";
 import { formatDateTime, formatLbp, formatUsd } from "@/utils/format";
@@ -118,122 +117,112 @@ const OrderDrawer: React.FC<OrderDrawerProps> = ({ orderId, onClose, onTakePayme
   };
 
   return (
-    <Drawer
-      anchor="right"
+    <DetailDrawer
       open={Boolean(orderId)}
       onClose={onClose}
-      slotProps={{ paper: { sx: { width: { xs: "100%", sm: 480 }, display: "flex", flexDirection: "column" }, "aria-label": "Order details" } }}
-    >
-      {/* Header renders immediately; only values wait for data */}
-      <Box sx={{ px: 2.5, pt: 2, pb: 1.5, display: "flex", alignItems: "flex-start", gap: 1, borderBottom: 1, borderColor: "divider" }}>
-        <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Typography variant="h6" component="h2" sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
-            Order {order ? <CodeText>{order.invoiceNumber}</CodeText> : <Skeleton width={130} sx={{ display: "inline-block" }} />}
-          </Typography>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, mt: 0.75, flexWrap: "wrap" }}>
-            {order ? (
-              <>
-                <StatusChip status={order.status} kind="order" />
-                <OrderKindLabel kind={orderKind(order)} />
-                <Typography variant="body2" color="text.secondary">
-                  {formatDateTime(order.createdAt)}
-                </Typography>
-              </>
-            ) : (
-              <Skeleton width={200} />
-            )}
-          </Box>
+      width={480}
+      // Header renders immediately; only values wait for data
+      title={
+        <Box component="span" sx={{ display: "inline-flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+          Order {order ? <CodeText>{order.invoiceNumber}</CodeText> : <Skeleton width={130} sx={{ display: "inline-block" }} />}
         </Box>
-        <Tooltip title="Close">
-          <IconButton onClick={onClose} aria-label="Close order details">
-            <CloseRounded />
-          </IconButton>
-        </Tooltip>
-      </Box>
-
-      <Box sx={{ flex: 1, overflowY: "auto", px: 2.5, py: 2, scrollbarGutter: "stable" }}>
-        {query.error ? (
-          <ErrorState error={query.error} onRetry={() => query.refetch()} />
-        ) : !order ? (
-          <DetailSkeleton />
-        ) : (
-          <Stack spacing={2.5} divider={<Divider flexItem />}>
-            <Box>
-              <Label>Customer</Label>
-              <Typography sx={{ fontWeight: 600, fontSize: "1.0625rem" }}>{customerLabel(order)}</Typography>
-              {order.customer?.phone && (
-                <Link href={phoneHref(order.customer.phone) ?? undefined} underline="hover" color="text.secondary">
-                  {formatPhone(order.customer.phone)}
-                </Link>
-              )}
-              {order.notes && (
-                <Alert severity={order.source === "website" ? "info" : "warning"} sx={{ mt: 1.5 }}>
-                  {order.notes}
-                </Alert>
-              )}
-            </Box>
-
-            <Box>
-              <Label>Items</Label>
-              {order.items.length ? <OrderLines items={order.items} now={now} /> : <Typography color="text.secondary">No items.</Typography>}
-            </Box>
-
-            <OrderTotals
-              totals={liveOrderTotals(order, now)}
-              running={running.length > 0}
-              orderDiscountLabel={order.saleDiscount ? `${order.saleDiscount.discountName} (−${order.saleDiscount.percentage}%)` : undefined}
-            />
-
-            {order.status === "paid" ? (
-              <Box>
-                <Label>Payment</Label>
-                <PaymentInfo order={order} />
-              </Box>
-            ) : null}
-
-            <Box>
-              <Label>Details</Label>
-              <Field label="Taken by">{order.cashier?.name ?? (order.source === "website" ? "Website" : "—")}</Field>
-              <Field label="Items">{order.itemCount}</Field>
-              <Field label="Last change">{formatDateTime(order.updatedAt)}</Field>
-            </Box>
-          </Stack>
-        )}
-      </Box>
-
-      {/* Next steps, always at the bottom */}
-      {order && (
-        <Box sx={{ p: 2, borderTop: 1, borderColor: "divider", display: "flex", flexDirection: "column", gap: 1 }}>
-          {pending && (
-            <Button variant="contained" size="large" startIcon={<PaymentsOutlined />} onClick={() => onTakePayment(order.id)} fullWidth>
-              Take payment
-            </Button>
+      }
+      subtitle={
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, mt: 0.25, flexWrap: "wrap" }}>
+          {order ? (
+            <>
+              <StatusChip status={order.status} kind="order" />
+              <OrderKindLabel kind={orderKind(order)} />
+              <span>{formatDateTime(order.createdAt)}</span>
+            </>
+          ) : (
+            <Skeleton width={200} />
           )}
-          <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 1 }}>
+        </Box>
+      }
+      // Next steps, always at the bottom
+      footer={
+        order && (
+          <Box sx={{ width: "100%", display: "flex", flexDirection: "column", gap: 1 }}>
             {pending && (
-              <Button variant="outlined" startIcon={<AddShoppingCartRounded />} onClick={() => navigate(posOrderUrl(order.id))}>
-                Add items
+              <Button variant="contained" size="large" startIcon={<PaymentsOutlined />} onClick={() => onTakePayment(order.id)} fullWidth>
+                Take payment
               </Button>
             )}
-            {pending && running.length > 0 && (
-              <Button variant="outlined" startIcon={<StopCircleOutlined />} onClick={stopSessions} disabled={endSession.isPending}>
-                End session
-              </Button>
-            )}
-            {order.status !== "cancelled" && (
-              <Button variant={pending ? "outlined" : "contained"} startIcon={<PrintOutlined />} onClick={() => onPrint(order.id)}>
-                {pending ? "Print bill" : "Print receipt"}
+            <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 1 }}>
+              {pending && (
+                <Button variant="outlined" startIcon={<AddShoppingCartRounded />} onClick={() => navigate(posOrderUrl(order.id))}>
+                  Add items
+                </Button>
+              )}
+              {pending && running.length > 0 && (
+                <Button variant="outlined" startIcon={<StopCircleOutlined />} onClick={stopSessions} disabled={endSession.isPending}>
+                  End session
+                </Button>
+              )}
+              {order.status !== "cancelled" && (
+                <Button variant={pending ? "outlined" : "contained"} startIcon={<PrintOutlined />} onClick={() => onPrint(order.id)}>
+                  {pending ? "Print bill" : "Print receipt"}
+                </Button>
+              )}
+            </Box>
+            {pending && canCancel && (
+              <Button color="error" startIcon={<DeleteOutlineRounded />} onClick={cancelOrder} disabled={cancel.isPending} sx={{ alignSelf: "flex-start" }}>
+                Cancel order
               </Button>
             )}
           </Box>
-          {pending && canCancel && (
-            <Button color="error" startIcon={<DeleteOutlineRounded />} onClick={cancelOrder} disabled={cancel.isPending} sx={{ alignSelf: "flex-start" }}>
-              Cancel order
-            </Button>
-          )}
-        </Box>
+        )
+      }
+    >
+      {query.error ? (
+        <ErrorState error={query.error} onRetry={() => query.refetch()} />
+      ) : !order ? (
+        <DetailSkeleton />
+      ) : (
+        <Stack spacing={2.5} divider={<Divider flexItem />}>
+          <Box>
+            <Label>Customer</Label>
+            <Typography sx={{ fontWeight: 600, fontSize: "1.0625rem" }}>{customerLabel(order)}</Typography>
+            {order.customer?.phone && (
+              <Link href={phoneHref(order.customer.phone) ?? undefined} underline="hover" color="text.secondary">
+                {formatPhone(order.customer.phone)}
+              </Link>
+            )}
+            {order.notes && (
+              <Alert severity={order.source === "website" ? "info" : "warning"} sx={{ mt: 1.5 }}>
+                {order.notes}
+              </Alert>
+            )}
+          </Box>
+
+          <Box>
+            <Label>Items</Label>
+            {order.items.length ? <OrderLines items={order.items} now={now} /> : <Typography color="text.secondary">No items.</Typography>}
+          </Box>
+
+          <OrderTotals
+            totals={liveOrderTotals(order, now)}
+            running={running.length > 0}
+            orderDiscountLabel={order.saleDiscount ? `${order.saleDiscount.discountName} (−${order.saleDiscount.percentage}%)` : undefined}
+          />
+
+          {order.status === "paid" ? (
+            <Box>
+              <Label>Payment</Label>
+              <PaymentInfo order={order} />
+            </Box>
+          ) : null}
+
+          <Box>
+            <Label>Details</Label>
+            <Field label="Taken by">{order.cashier?.name ?? (order.source === "website" ? "Website" : "—")}</Field>
+            <Field label="Items">{order.itemCount}</Field>
+            <Field label="Last change">{formatDateTime(order.updatedAt)}</Field>
+          </Box>
+        </Stack>
       )}
-    </Drawer>
+    </DetailDrawer>
   );
 };
 
