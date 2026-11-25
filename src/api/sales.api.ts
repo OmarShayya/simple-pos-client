@@ -1,90 +1,84 @@
 import apiClient from "./client";
 import { type ApiResponse, type PaginatedResponse } from "../types/api.types";
-import {
-  type Sale,
-  type CreateSaleRequest,
-  type PaySaleRequest,
-  SaleStatus,
+import type {
+  CreateSaleRequest,
+  Order,
+  OrderCounts,
+  OrderListFilters,
+  OrderRow,
+  PaidOrder,
+  PaySaleRequest,
+  UpdateSaleRequest,
 } from "../types/sale.types";
-import {
-  handleApiResponse,
-  handlePaginatedResponse,
-} from "../utils/responseHandler";
+import { handleApiResponse, handlePaginatedResponse } from "../utils/responseHandler";
 
-interface SaleFilters {
-  page?: number;
-  limit?: number;
-  status?: SaleStatus;
-  customerId?: string;
-  cashierId?: string;
-  startDate?: string;
-  endDate?: string;
-}
+const list = (v: string | string[] | undefined) => (Array.isArray(v) ? v.join(",") : v);
 
+/** Query string of `GET /sales` (empty values are left out). */
+const toParams = (f: OrderListFilters = {}) => {
+  const params = new URLSearchParams();
+  const entries: [string, string | number | undefined][] = [
+    ["status", list(f.status)],
+    ["source", f.source],
+    ["type", list(f.type)],
+    ["search", f.search?.trim() || undefined],
+    ["from", f.from],
+    ["to", f.to],
+    ["customerId", f.customerId],
+    ["cashierId", f.cashierId],
+    ["page", f.page],
+    ["limit", f.limit],
+  ];
+  for (const [key, value] of entries) if (value !== undefined && value !== "") params.append(key, String(value));
+  return params;
+};
+
+/** Orders (= sales): counter sales, gaming orders and website orders. */
 export const salesApi = {
-  getAll: async (filters?: SaleFilters) => {
-    const params = new URLSearchParams();
-    if (filters?.page) params.append("page", filters.page.toString());
-    if (filters?.limit) params.append("limit", filters.limit.toString());
-    if (filters?.status) params.append("status", filters.status);
-    if (filters?.customerId) params.append("customerId", filters.customerId);
-    if (filters?.cashierId) params.append("cashierId", filters.cashierId);
-    if (filters?.startDate) params.append("startDate", filters.startDate);
-    if (filters?.endDate) params.append("endDate", filters.endDate);
-
-    const response = await apiClient.get<PaginatedResponse<Sale>>(
-      `/sales?${params}`
-    );
+  /** Orders list, newest first. */
+  list: async (filters?: OrderListFilters) => {
+    const response = await apiClient.get<PaginatedResponse<OrderRow>>(`/sales?${toParams(filters)}`);
     return handlePaginatedResponse(response.data);
   },
 
-  getById: async (id: string): Promise<Sale> => {
-    const response = await apiClient.get<ApiResponse<Sale>>(`/sales/${id}`);
+  /** Full order incl. gaming lines (live cost while a session runs). */
+  getById: async (id: string): Promise<Order> => {
+    const response = await apiClient.get<ApiResponse<Order>>(`/sales/${id}`);
     return handleApiResponse(response.data);
   },
 
-  getByInvoice: async (invoiceNumber: string): Promise<Sale> => {
-    const response = await apiClient.get<ApiResponse<Sale>>(
-      `/sales/invoice/${invoiceNumber}`
-    );
+  getByInvoice: async (invoiceNumber: string): Promise<Order> => {
+    const response = await apiClient.get<ApiResponse<Order>>(`/sales/invoice/${encodeURIComponent(invoiceNumber)}`);
     return handleApiResponse(response.data);
   },
 
-  create: async (data: CreateSaleRequest): Promise<Sale> => {
-    const response = await apiClient.post<ApiResponse<Sale>>("/sales", data);
+  /** Sidebar badges: open orders / website orders waiting. */
+  counts: async (): Promise<OrderCounts> => {
+    const response = await apiClient.get<ApiResponse<OrderCounts>>("/sales/counts");
     return handleApiResponse(response.data);
   },
 
-  update: async (id: string, data: CreateSaleRequest): Promise<Sale> => {
-    const response = await apiClient.patch<ApiResponse<Sale>>(
-      `/sales/${id}`,
-      data
-    );
+  create: async (data: CreateSaleRequest): Promise<Order> => {
+    const response = await apiClient.post<ApiResponse<Order>>("/sales", data);
     return handleApiResponse(response.data);
   },
 
-  pay: async (id: string, data: PaySaleRequest): Promise<Sale> => {
-    const response = await apiClient.post<ApiResponse<Sale>>(
-      `/sales/${id}/pay`,
-      data
-    );
+  /** Edit an open order. `items` replaces the product lines; gaming lines stay. */
+  update: async (id: string, data: UpdateSaleRequest): Promise<Order> => {
+    const response = await apiClient.patch<ApiResponse<Order>>(`/sales/${id}`, data);
     return handleApiResponse(response.data);
   },
 
+  /** Take payment. Running sessions on the order are stopped and billed first. */
+  pay: async (id: string, data: PaySaleRequest): Promise<PaidOrder> => {
+    const response = await apiClient.post<ApiResponse<PaidOrder>>(`/sales/${id}/pay`, data);
+    return handleApiResponse(response.data);
+  },
+
+  /** Managers/admins only. */
   cancel: async (id: string): Promise<void> => {
     await apiClient.patch(`/sales/${id}/cancel`);
   },
-
-  getTodayStats: async () => {
-    const response = await apiClient.get<
-      ApiResponse<{
-        totalSales: number;
-        revenue: { usd: number; lbp: number };
-        pendingSales: number;
-        paidSales: number;
-        itemsSold: number;
-      }>
-    >("/sales/today");
-    return handleApiResponse(response.data);
-  },
 };
+
+export default salesApi;
