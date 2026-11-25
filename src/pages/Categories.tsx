@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Avatar, Box, IconButton, Stack, TextField, Tooltip, Typography } from "@mui/material";
-import { CategoryOutlined, DeleteOutlineRounded, EditOutlined } from "@mui/icons-material";
-import { DataTable, FormDialog, PageHeader, SegmentedControl, StatusChip } from "@/components/ui";
+import { Avatar, Box, Button, Stack, TextField, Typography } from "@mui/material";
+import { AddRounded, CategoryOutlined, DeleteOutlineRounded, EditOutlined } from "@mui/icons-material";
+import { DataTable, FormDialog, IconAction, PageHeader, SegmentedControl, StatusChip } from "@/components/ui";
 import type { DataTableColumn } from "@/components/ui";
 import ImageUploadField from "@/components/pickers/ImageUploadField";
 import { useAllProducts, useCategories, useCategoryMutations } from "@/components/products/productQueries";
@@ -124,17 +124,9 @@ const Categories: React.FC = () => {
       width: 112,
       render: (c) => (
         <>
-          <Tooltip title="Edit category">
-            <IconButton aria-label={`Edit ${c.name}`} onClick={() => setForm({ category: c })}>
-              <EditOutlined />
-            </IconButton>
-          </Tooltip>
+          <IconAction title="Edit category" label={`Edit ${c.name}`} icon={<EditOutlined />} onClick={() => setForm({ category: c })} />
           {c.isActive && (
-            <Tooltip title="Remove category">
-              <IconButton aria-label={`Remove ${c.name}`} onClick={() => askRemove(c)} sx={{ color: "error.main" }}>
-                <DeleteOutlineRounded />
-              </IconButton>
-            </Tooltip>
+            <IconAction title="Remove category" label={`Remove ${c.name}`} icon={<DeleteOutlineRounded />} onClick={() => askRemove(c)} tone="danger" />
           )}
         </>
       ),
@@ -143,7 +135,15 @@ const Categories: React.FC = () => {
 
   return (
     <Box>
-      <PageHeader title="Categories" subtitle="Groups for the counter screen and the website menu (Hot drinks, Snacks…)." />
+      <PageHeader
+        title="Categories"
+        subtitle="Groups for the counter screen and the website menu (Hot drinks, Snacks…)."
+        actions={
+          <Button variant="contained" startIcon={<AddRounded />} onClick={() => setForm({ category: null })}>
+            Add category
+          </Button>
+        }
+      />
       <DataTable<Category>
         label="Categories"
         rows={rows}
@@ -171,7 +171,6 @@ const Categories: React.FC = () => {
           )
         }
         initialSort={{ field: "name", direction: "asc" }}
-        primaryAction={{ label: "Add category", onClick: () => setForm({ category: null }) }}
         onRowClick={(c) => setForm({ category: c })}
         empty={{ title: show === "removed" ? "No removed categories" : "No categories yet", description: "Create a category to group your products, e.g. Hot drinks, Snacks." }}
       />

@@ -1,7 +1,7 @@
 import React, { useState } from "react";
-import { Alert, Box, IconButton, Tooltip, Typography } from "@mui/material";
+import { Alert, Box, Button, Typography } from "@mui/material";
 import { BlockOutlined, EditOutlined, PersonAddAlt1Outlined, RestoreRounded } from "@mui/icons-material";
-import { DataTable, PageHeader, StatusChip } from "@/components/ui";
+import { DataTable, IconAction, PageHeader, StatusChip } from "@/components/ui";
 import type { DataTableColumn } from "@/components/ui";
 import StaffFormDialog from "@/components/staff/StaffFormDialog";
 import { ROLE_INFO } from "@/components/staff/roles";
@@ -55,7 +55,7 @@ const Staff: React.FC = () => {
     },
     { field: "email", header: "Email", flex: 1.2, minWidth: 200, mobile: "subtitle" },
     { field: "role", header: "Role", width: 130, value: (u) => ROLE_INFO[u.role]?.label ?? u.role, render: (u) => <StatusChip status={u.role} kind="role" dot={false} /> },
-    { field: "isActive", header: "Status", width: 130, value: (u) => (u.isActive ? "active" : "inactive"), render: (u) => <StatusChip status={u.isActive ? "active" : "inactive"} kind="generic" label={u.isActive ? "Can sign in" : "Deactivated"} />, mobile: "end" },
+    { field: "isActive", header: "Status", width: 150, value: (u) => (u.isActive ? "active" : "inactive"), render: (u) => <StatusChip status={u.isActive ? "active" : "inactive"} kind="generic" label={u.isActive ? "Can sign in" : "Deactivated"} />, mobile: "end" },
     { field: "createdAt", header: "Added", type: "date", width: 130, hideBelow: "lg", mobile: "hidden" },
     ...(isAdmin
       ? [
@@ -67,16 +67,8 @@ const Staff: React.FC = () => {
             render: (u: StaffMember) =>
               u.id === me?.id ? null : (
                 <>
-                  <Tooltip title="Edit name or role">
-                    <IconButton aria-label={`Edit ${u.name}`} onClick={() => setForm({ member: u })}>
-                      <EditOutlined />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title={u.isActive ? "Deactivate (can't sign in)" : "Reactivate"}>
-                    <IconButton aria-label={u.isActive ? `Deactivate ${u.name}` : `Reactivate ${u.name}`} onClick={() => toggleActive(u)} sx={{ color: u.isActive ? "error.main" : "success.main" }}>
-                      {u.isActive ? <BlockOutlined /> : <RestoreRounded />}
-                    </IconButton>
-                  </Tooltip>
+                  <IconAction title="Edit name or role" label={`Edit ${u.name}`} icon={<EditOutlined />} onClick={() => setForm({ member: u })} />
+                  <IconAction title={u.isActive ? "Deactivate (can't sign in)" : "Reactivate"} label={u.isActive ? `Deactivate ${u.name}` : `Reactivate ${u.name}`} icon={u.isActive ? <BlockOutlined /> : <RestoreRounded />} onClick={() => toggleActive(u)} tone={u.isActive ? "danger" : "default"} />
                 </>
               ),
           } satisfies DataTableColumn<StaffMember>,
@@ -86,7 +78,15 @@ const Staff: React.FC = () => {
 
   return (
     <Box>
-      <PageHeader title="Staff" subtitle="Who can sign in to the POS. New accounts are only created here." />
+      <PageHeader
+        title="Staff"
+        subtitle="Who can sign in to the POS. New accounts are only created here."
+        actions={
+          <Button variant="contained" startIcon={<PersonAddAlt1Outlined />} onClick={() => setForm({ member: null })}>
+            Add staff
+          </Button>
+        }
+      />
       {!isAdmin && (
         <Alert severity="info" sx={{ mb: 2 }}>
           As a manager you can add cashier accounts. Ask an admin to change roles or deactivate accounts.
@@ -102,7 +102,6 @@ const Staff: React.FC = () => {
         onRetry={() => q.refetch()}
         onRefresh={() => q.refetch()}
         search={{ placeholder: "Search name or email" }}
-        primaryAction={{ label: "Add staff", icon: <PersonAddAlt1Outlined />, onClick: () => setForm({ member: null }) }}
         onRowClick={isAdmin ? (u) => u.id !== me?.id && setForm({ member: u }) : undefined}
         empty={{ title: "No staff yet" }}
       />

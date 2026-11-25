@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Box, IconButton, Stack, Tooltip, Typography } from "@mui/material";
+import { Box, Stack, Typography } from "@mui/material";
 import { PaymentsOutlined, PrintOutlined } from "@mui/icons-material";
-import { DataTable, DateRangeField, PageHeader, SegmentedControl, SelectField, StatusChip, type DataTableColumn } from "@/components/ui";
+import { DataTable, DateRangeField, IconAction, PageHeader, SegmentedControl, SelectField, StatusChip, type DataTableColumn } from "@/components/ui";
 import { defaultDateRange, type DateRangeValue } from "@/utils/dateRanges";
 import { formatPhone } from "@/utils/phone";
 import { salesApi } from "@/api/sales.api";
@@ -129,7 +129,8 @@ const Orders: React.FC = () => {
         header: "Status",
         type: "status",
         statusKind: "order",
-        width: 172,
+        // "Unpaid" + "Running" side by side
+        width: 192,
         sortable: false,
         mobile: "end",
         render: (o) => (
@@ -142,22 +143,14 @@ const Orders: React.FC = () => {
       { field: "total", header: "Total", type: "money", value: (o) => o.totals.usd, width: 100, sortable: false, mobile: "end" },
       {
         field: "actions",
-        header: "",
+        header: "Actions",
         type: "actions",
         width: 64,
         render: (o) =>
           o.status === SaleStatus.PENDING ? (
-            <Tooltip title="Take payment">
-              <IconButton aria-label={`Take payment for ${o.invoiceNumber}`} onClick={() => setPayFor(o.id)}>
-                <PaymentsOutlined />
-              </IconButton>
-            </Tooltip>
+            <IconAction title="Take payment" label={`Take payment for ${o.invoiceNumber}`} icon={<PaymentsOutlined />} onClick={() => setPayFor(o.id)} />
           ) : o.status === SaleStatus.PAID ? (
-            <Tooltip title="Print receipt">
-              <IconButton aria-label={`Print receipt ${o.invoiceNumber}`} onClick={() => setPrintFor(o.id)}>
-                <PrintOutlined />
-              </IconButton>
-            </Tooltip>
+            <IconAction title="Print receipt" label={`Print receipt ${o.invoiceNumber}`} icon={<PrintOutlined />} onClick={() => setPrintFor(o.id)} />
           ) : null,
       },
     ],

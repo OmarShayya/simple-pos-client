@@ -26,7 +26,7 @@ Live preview of everything (light/dark, desktop/phone): **`/ui-kit`** (dev serve
 - Radius 8 (controls) / 12 (cards, dialogs). 1px borders. Shadows only on menus, popovers, dialogs.
 - One level of cards. Prefer `SectionCard variant="plain"` + dividers over cards inside cards.
 - Touch targets ≥ 44px. Primary actions have text ("Charge", "Start session", "Print receipt").
-  Icon-only buttons: `<Tooltip title="Print receipt"><IconButton aria-label="Print receipt">`.
+  Icon-only buttons: `<IconAction title="Print receipt" label={`Print receipt ${code}`} icon={<PrintOutlined />} />`.
 - Buttons: `variant="contained"` = the one main action; `variant="outlined"` = secondary (neutral
   grey in this theme); `variant="text"` = tertiary links ("View all"); `color="error"` = destructive.
 - Write plain, short copy for older staff: "Unpaid", "Start session", "Couldn't save — check the phone number".
@@ -87,7 +87,7 @@ No full-page spinners (`CircularProgress` only inside a busy button or field).
 ### Page structure
 | Component | Use it for | Key props |
 |---|---|---|
-| `PageHeader` | Top of every page | `title`, `subtitle?`, `actions?` (primary last), `children?` (tabs/filters row) |
+| `PageHeader` | Top of every page. The page's main "Add …" / "New …" button goes in `actions` (top right, full width on phones) — always the same place | `title`, `subtitle?`, `actions?` (primary last), `children?` (tabs/filters row) |
 | `SectionCard` | A titled group (list, form section, panel) | `title`, `subtitle?`, `action?`, `divider?`, `flush?` (full-bleed lists), `footer?`, `variant="card" \| "plain"` |
 | `FilterBar` | Search + filters + actions row above custom content (DataTable has its own) | `search?`, `children` (filters), `actions?`, `activeCount?`, `onClear?` |
 | `EmptyState` | Nothing to show. Say what's missing + next step | `title`, `description?`, `action?`, `icon?`, `compact?` |
@@ -103,6 +103,7 @@ No full-page spinners (`CircularProgress` only inside a busy button or field).
 | `StatusChip` | Any status | `status`, `kind` (`order` `payment` `session` `reservation` `station` `source` (`pos` Counter / `website` / `reservation` Booking) `stock` `discount` `role` `generic`), `label?`, `tone?`, `dot?` |
 | `MoneyText` | Every amount | `value`, `currency` (`USD`/`LBP`), `lbp?` (secondary LBP), `lbpLayout?`, `signed?`, `tone` (`default` `sign` `muted`), `strike?`, `compact?` |
 | `CodeText` | Invoice numbers, booking codes, SKUs | children |
+| `IconAction` | Icon-only row/card buttons (edit, delete, print): tooltip + accessible name built in, tooltip still shows when disabled (say why). `tone="danger"` = grey, red on hover — never a column of red icons | `title`, `label` ("Delete Pepsi"), `icon`, `onClick`, `disabled?`, `tone?` |
 | `InfoList` | Read-only "label: value" pairs in detail panels (contact, address, notes) | `items` `{label, value, hideEmpty?}`, `loading?` (labels stay, values skeleton), `layout` (`rows` \| `stacked`) |
 | `CountryFlag` | Flag next to a country name | `code`, `size?` |
 
@@ -137,6 +138,7 @@ defaults) — the legend is `ChartCard legend`.
 | `SelectField` | Short fixed lists (≤ ~10) | `value`, `options` `{value,label,icon?}`, `emptyOption?` ("All statuses") |
 | `SegmentedControl` | 2–5 big labelled choices (period, status filter, station type) | `value`, `options` `{value,label,icon?,count?}`, `size="large"` on counter screens |
 | `SearchField` | Debounced search box | `value` (committed), `onChange` (after 300ms / Enter / clear) |
+| `PasswordField` | Passwords — with a show/hide eye (people mistype on touch screens) | TextField props |
 | `MoneyField` | Prices, amounts | `number \| null`; `currency="USD"` ($ prefix, 2 decimals) or `"LBP"` (suffix, thousands) |
 | `QuantityStepper` | Quantities | `number`; `min`, `max`, `size="large"` for touch |
 | `NumberField` | Plain numbers with a unit (percent, minutes, days) — digits only, numeric keypad, clamped on blur | `number \| null`; `min`, `max`, `decimals`, `suffix` ("%"), `prefix` |
@@ -173,7 +175,7 @@ label: value lines, actions at the bottom). Cards beat horizontal scrolling for 
 is hidden off-screen and every row is one big tap target.
 
 Built in: toolbar (debounced search, your filter controls, **Refresh** with tooltip + spinner,
-**Export CSV**, primary action), typed columns, client or server pagination/sorting/search, row
+**Export CSV**, `primaryAction` — only for tables inside a section; a full-page table puts its "Add …" button in `PageHeader`), typed columns, client or server pagination/sorting/search, row
 click, optional selection, empty state (with "No matches / Clear search" when filtering), error +
 Retry, skeleton rows on first load, progress bar on refetch.
 
@@ -206,7 +208,7 @@ const columns: DataTableColumn<Order>[] = [
   { field: "status", header: "Status", type: "status", statusKind: "order" },
   { field: "total", header: "Total", type: "money", value: (o) => o.totals.usd },
   { field: "actions", header: "Actions", type: "actions", render: (o) => (
-      <Tooltip title="Print receipt"><IconButton size="small" aria-label={`Print receipt ${o.invoiceNumber}`} onClick={() => print(o)}><PrintOutlined /></IconButton></Tooltip>
+      <IconAction title="Print receipt" label={`Print receipt ${o.invoiceNumber}`} icon={<PrintOutlined />} onClick={() => print(o)} />
   ) },
 ];
 
@@ -228,7 +230,6 @@ const columns: DataTableColumn<Order>[] = [
   activeFilterCount={status === "all" ? 0 : 1}
   onClearFilters={() => setStatus("all")}
   pagination={{ ...page, rowCount: q.data?.pagination.total ?? 0, onChange: (p, s) => setPage({ page: p, pageSize: s }) }}
-  primaryAction={{ label: "New sale", onClick: () => navigate("/sales") }}
   exportCsv={{ filename: `orders-${range.from}`, fetchAll: () => salesApi.list({ ...filters, page: 1, limit: 1000 }).then((r) => r.data) }}
   onRowClick={(o) => setOpenOrderId(o.id)}
   empty={{ title: "No orders in this period", description: "Counter sales, gaming sessions and website orders all show up here." }}

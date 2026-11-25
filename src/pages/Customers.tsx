@@ -1,8 +1,8 @@
 import React, { useMemo, useState } from "react";
-import { Box, IconButton, Tooltip, Typography } from "@mui/material";
+import { Box, Button, Typography } from "@mui/material";
 import { EditOutlined, PersonAddAlt1Outlined } from "@mui/icons-material";
 import { useSearchParams } from "react-router-dom";
-import { DataTable, PageHeader, SegmentedControl, SelectField } from "@/components/ui";
+import { DataTable, IconAction, PageHeader, SegmentedControl, SelectField } from "@/components/ui";
 import type { DataTableColumn, DataTableSort } from "@/components/ui";
 import CustomerSourceChip from "@/components/customers/CustomerSourceChip";
 import CustomerFormDialog from "@/components/customers/CustomerFormDialog";
@@ -82,11 +82,7 @@ const Customers: React.FC = () => {
         type: "actions",
         width: 72,
         render: (c) => (
-          <Tooltip title="Edit customer">
-            <IconButton aria-label={`Edit ${c.name}`} onClick={() => setForm({ customer: c })}>
-              <EditOutlined />
-            </IconButton>
-          </Tooltip>
+          <IconAction title="Edit customer" label={`Edit ${c.name}`} icon={<EditOutlined />} onClick={() => setForm({ customer: c })} />
         ),
       },
     ],
@@ -109,6 +105,11 @@ const Customers: React.FC = () => {
               </Typography>
             )}
           </>
+        }
+        actions={
+          <Button variant="contained" startIcon={<PersonAddAlt1Outlined />} onClick={() => setForm({ customer: null })}>
+            Add customer
+          </Button>
         }
       />
 
@@ -177,7 +178,6 @@ const Customers: React.FC = () => {
           resetPage();
         }}
         pagination={{ ...page, rowCount: total ?? 0, onChange: (p, size) => setPage({ page: p, pageSize: size }) }}
-        primaryAction={{ label: "Add customer", icon: <PersonAddAlt1Outlined />, onClick: () => setForm({ customer: null }) }}
         exportCsv={{ filename: "customers", fetchAll: () => customersApi.getAll({ ...filters, page: 1, limit: 100 }).then((r) => r.data) }}
         onRowClick={openCustomer}
         empty={{

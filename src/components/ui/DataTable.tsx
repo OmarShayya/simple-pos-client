@@ -146,6 +146,7 @@ function renderCellContent<R>(col: DataTableColumn<R>, row: R): React.ReactNode 
   }
 }
 
+const VISUALLY_HIDDEN = { position: "absolute", width: 1, height: 1, p: 0, m: -1, overflow: "hidden", clip: "rect(0 0 0 0)", whiteSpace: "nowrap", border: 0 } as const;
 const NATURAL = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
 
 /* Placeholder rows for the first load: real headers, skeleton cells (never a spinner). */
@@ -487,6 +488,8 @@ function DataTable<R>(props: DataTableProps<R>) {
           minWidth: col.minWidth ?? col.width ?? (isActions ? 96 : col.type === "status" ? 120 : numeric ? 100 : 130),
           align,
           headerAlign: align,
+          // Row buttons explain themselves (tooltips); the "Actions" header is for screen readers only
+          renderHeader: isActions ? () => <Box component="span" sx={VISUALLY_HIDDEN}>{col.header || "Actions"}</Box> : undefined,
           renderCell: (p) =>
             isSkeleton(p.row) ? (
               isActions ? null : (

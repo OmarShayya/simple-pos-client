@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
-import { Avatar, Box, IconButton, Stack, Tooltip, Typography } from "@mui/material";
-import { DeleteOutlineRounded, EditOutlined, ImageOutlined } from "@mui/icons-material";
-import { CodeText, DataTable, MoneyText, PageHeader, SegmentedControl, SelectField, StatusChip } from "@/components/ui";
+import { Avatar, Box, Button, Stack, Typography } from "@mui/material";
+import { AddRounded, DeleteOutlineRounded, EditOutlined, ImageOutlined } from "@mui/icons-material";
+import { CodeText, DataTable, IconAction, MoneyText, PageHeader, SegmentedControl, SelectField, StatusChip } from "@/components/ui";
 import type { DataTableColumn } from "@/components/ui";
 import ProductFormDialog from "@/components/products/ProductFormDialog";
 import StockChip from "@/components/products/StockChip";
@@ -101,16 +101,8 @@ const Products: React.FC = () => {
         width: 112,
         render: (p) => (
           <>
-            <Tooltip title="Edit product">
-              <IconButton aria-label={`Edit ${p.name}`} onClick={() => setForm({ product: p })}>
-                <EditOutlined />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="Delete product">
-              <IconButton aria-label={`Delete ${p.name}`} onClick={() => askDelete(p)} sx={{ color: "error.main" }}>
-                <DeleteOutlineRounded />
-              </IconButton>
-            </Tooltip>
+            <IconAction title="Edit product" label={`Edit ${p.name}`} icon={<EditOutlined />} onClick={() => setForm({ product: p })} />
+            <IconAction title="Delete product" label={`Delete ${p.name}`} icon={<DeleteOutlineRounded />} onClick={() => askDelete(p)} tone="danger" />
           </>
         ),
       },
@@ -127,6 +119,11 @@ const Products: React.FC = () => {
           q.data
             ? `${plural(q.data.length, "product")} · ${lowCount ? `${plural(lowCount, "item")} low on stock` : "stock is fine"}`
             : "Snacks, drinks and everything sold at the counter and on the website menu."
+        }
+        actions={
+          <Button variant="contained" startIcon={<AddRounded />} onClick={() => setForm({ product: null })}>
+            Add product
+          </Button>
         }
       />
       <DataTable<Product>
@@ -183,7 +180,6 @@ const Products: React.FC = () => {
           setMenu("all");
         }}
         initialSort={{ field: "name", direction: "asc" }}
-        primaryAction={{ label: "Add product", onClick: () => setForm({ product: null }) }}
         exportCsv={{ filename: "products" }}
         onRowClick={(p) => setForm({ product: p })}
         empty={{ title: "No products yet", description: "Add the snacks and drinks you sell — they appear at the counter and on the website menu." }}

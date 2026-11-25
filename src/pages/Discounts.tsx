@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
-import { Box, IconButton, Tooltip, Typography } from "@mui/material";
-import { DeleteOutlineRounded, EditOutlined } from "@mui/icons-material";
-import { DataTable, PageHeader, SegmentedControl, SelectField } from "@/components/ui";
+import { Box, Button, Typography } from "@mui/material";
+import { AddRounded, DeleteOutlineRounded, EditOutlined } from "@mui/icons-material";
+import { DataTable, IconAction, PageHeader, SegmentedControl, SelectField } from "@/components/ui";
 import type { DataTableColumn } from "@/components/ui";
 import DiscountFormDialog from "@/components/discounts/DiscountFormDialog";
 import { TARGET_LABEL, TARGET_OPTIONS, appliesTo, discountState, validityText } from "@/components/discounts/discountFormat";
@@ -95,16 +95,8 @@ const Discounts: React.FC = () => {
       width: 112,
       render: (d) => (
         <>
-          <Tooltip title="Edit discount">
-            <IconButton aria-label={`Edit ${d.name}`} onClick={() => setForm({ discount: d })}>
-              <EditOutlined />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="Delete discount">
-            <IconButton aria-label={`Delete ${d.name}`} onClick={() => askDelete(d)} sx={{ color: "error.main" }}>
-              <DeleteOutlineRounded />
-            </IconButton>
-          </Tooltip>
+          <IconAction title="Edit discount" label={`Edit ${d.name}`} icon={<EditOutlined />} onClick={() => setForm({ discount: d })} />
+          <IconAction title="Delete discount" label={`Delete ${d.name}`} icon={<DeleteOutlineRounded />} onClick={() => askDelete(d)} tone="danger" />
         </>
       ),
     },
@@ -112,7 +104,15 @@ const Discounts: React.FC = () => {
 
   return (
     <Box>
-      <PageHeader title="Discounts" subtitle="Percentage discounts staff can pick for a whole order, gaming time, one product or one category." />
+      <PageHeader
+        title="Discounts"
+        subtitle="Percentage discounts staff can pick for a whole order, gaming time, one product or one category."
+        actions={
+          <Button variant="contained" startIcon={<AddRounded />} onClick={() => setForm({ discount: null })}>
+            New discount
+          </Button>
+        }
+      />
       <DataTable<Discount>
         label="Discounts"
         rows={rows}
@@ -153,7 +153,6 @@ const Discounts: React.FC = () => {
           setState("all");
         }}
         initialSort={{ field: "name", direction: "asc" }}
-        primaryAction={{ label: "New discount", onClick: () => setForm({ discount: null }) }}
         onRowClick={(d) => setForm({ discount: d })}
         exportCsv={{ filename: "discounts" }}
         empty={{ title: "No discounts yet", description: `Create one for a ${TARGET_LABEL.sale.toLowerCase()}, gaming time, a product or a category.` }}

@@ -34,6 +34,8 @@ export { default as CreatableSelect } from "./CreatableSelect";
 export { default as DetailDrawer } from "./DetailDrawer";
 export { default as InfoList } from "./InfoList";
 export { default as SettingRow } from "./SettingRow";
+export { default as IconAction } from "./IconAction";
+export { default as PasswordField } from "./PasswordField";
 
 export type { PageHeaderProps } from "./PageHeader";
 export type { SectionCardProps } from "./SectionCard";
@@ -66,6 +68,7 @@ export type { CreatableSelectProps } from "./CreatableSelect";
 export type { DetailDrawerProps } from "./DetailDrawer";
 export type { InfoListProps, InfoItem } from "./InfoList";
 export type { SettingRowProps } from "./SettingRow";
+export type { IconActionProps } from "./IconAction";
 
 export { STATUS_MAP, getStatusInfo, statusOptions } from "./statusConfig";
 export type { StatusKind, StatusTone, StatusInfo } from "./statusConfig";
