@@ -9,6 +9,7 @@ export interface PickedCustomer {
   id: string;
   name: string;
   phone?: string;
+  phoneCountry?: string;
 }
 
 /** Either an existing customer, or a new one typed in (created by whoever submits the form). */

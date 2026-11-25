@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Alert, Box, Button, Chip, Skeleton, Stack, TextField, Typography } from "@mui/material";
 import { Computer, EventBusyOutlined, LoginRounded, PersonOffOutlined, SportsEsports } from "@mui/icons-material";
-import { CodeText, DateField, FormDialog, PhoneField, SegmentedControl, SelectField, StatusChip } from "@/components/ui";
+import { CodeText, DateField, FormDialog, SegmentedControl, SelectField, StatusChip, TimeField } from "@/components/ui";
 import type { PhoneValue } from "@/components/ui";
-import { TimeField } from "@/components/kit-extras";
-import CustomerPicker from "@/components/customers/CustomerPicker";
+import CustomerPicker from "@/components/pickers/CustomerPicker";
+import { customerChoiceError, type CustomerChoice } from "@/components/pickers/customerChoice";
 import { reservationsApi } from "@/api/reservations.api";
 import { affects } from "@/api/queryKeys";
 import { useApiMutation } from "@/hooks/useApiMutation";
@@ -13,7 +13,6 @@ import { asCountryCode, normalizePhone } from "@/utils/phone";
 import { getTiming } from "@/utils/reservationTiming";
 import { businessWindow, timeToMinutes, zonedToUtc } from "@/utils/zonedTime";
 import type { PC } from "@/types/gaming.types";
-import type { Customer } from "@/types/customer.types";
 import type { Reservation, ReservationSettings, StationType } from "@/types/reservation.types";
 import { useAvailability } from "./reservationQueries";
 import { businessDateOf, formatClock, hhmmIn } from "./reservationDates";
@@ -37,11 +36,16 @@ export interface ReservationDialogProps {
   actions?: { checkIn: (r: Reservation) => void; noShow: (r: Reservation) => void; cancel: (r: Reservation) => void };
 }
 
-const emptyPhone = (): PhoneValue => ({ e164: "", country: "LB", national: "", isValid: false });
 const phoneOf = (phone: string, country?: string): PhoneValue => {
   const n = normalizePhone(phone, asCountryCode(country));
-  return n ? { e164: n.e164, country: n.country, national: n.national, isValid: n.isValid } : { ...emptyPhone(), e164: phone };
+  return n ? { e164: n.e164, country: n.country, national: n.national, isValid: n.isValid } : { e164: phone, country: asCountryCode(country), national: "", isValid: false };
 };
+
+/** Name + phone the booking is saved with (an existing customer's, or the ones typed in). */
+const contactOf = (c: CustomerChoice | null) =>
+  c?.mode === "existing"
+    ? { name: c.customer.name, phone: c.customer.phone ?? "", country: c.customer.phoneCountry }
+    : { name: c?.name.trim() ?? "", phone: c?.phone?.e164 ?? "", country: c?.phone?.country };
 
 /** New / edit booking: station type, night, start time, length, stations, and the customer. */
 const ReservationDialog: React.FC<ReservationDialogProps> = ({ open, onClose, reservation, defaultDate, defaultType = "pc", preset, settings, stations, tz, onSaved, actions }) => {
@@ -52,9 +56,7 @@ const ReservationDialog: React.FC<ReservationDialogProps> = ({ open, onClose, re
   const [time, setTime] = useState<string | null>(null);
   const [duration, setDuration] = useState(120);
   const [stationIds, setStationIds] = useState<string[]>([]);
-  const [linked, setLinked] = useState<Customer | null>(null);
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState<PhoneValue>(emptyPhone());
+  const [customer, setCustomer] = useState<CustomerChoice | null>(null);
   const [notes, setNotes] = useState("");
   const [touched, setTouched] = useState(false);
 
@@ -62,7 +64,6 @@ const ReservationDialog: React.FC<ReservationDialogProps> = ({ open, onClose, re
   useEffect(() => {
     if (!open) return;
     setTouched(false);
-    setLinked(null);
     if (reservation) {
       const start = new Date(reservation.startTime);
       setType(reservation.type);
@@ -70,8 +71,7 @@ const ReservationDialog: React.FC<ReservationDialogProps> = ({ open, onClose, re
       setTime(hhmmIn(start, tz));
       setDuration(reservation.durationMinutes);
       setStationIds(reservation.stations.map((s) => s.id));
-      setName(reservation.customerName);
-      setPhone(phoneOf(reservation.customerPhone, reservation.phoneCountry));
+      setCustomer({ mode: "new", name: reservation.customerName, phone: phoneOf(reservation.customerPhone, reservation.phoneCountry) });
       setNotes(reservation.notes ?? "");
     } else {
       const presetStation = preset?.stationId ? stations.find((s) => s.id === preset.stationId) : undefined;
@@ -80,8 +80,7 @@ const ReservationDialog: React.FC<ReservationDialogProps> = ({ open, onClose, re
       setTime(preset?.start ? hhmmIn(preset.start, tz) : null);
       setDuration(Math.max(settings?.minDurationMinutes ?? 60, 60));
       setStationIds(presetStation ? [presetStation.id] : []);
-      setName("");
-      setPhone(emptyPhone());
+      setCustomer(null);
       setNotes("");
     }
     // Only when it opens (or switches booking) — not on every refetch of stations/settings
@@ -115,13 +114,14 @@ const ReservationDialog: React.FC<ReservationDialogProps> = ({ open, onClose, re
 
   const save = useApiMutation({
     mutationFn: async () => {
+      const contact = contactOf(customer);
       const payload = {
         start: startDate!.toISOString(),
         durationMinutes: duration,
         stationIds,
-        customerName: name.trim(),
-        customerPhone: phone.e164,
-        phoneCountry: phone.country,
+        customerName: contact.name,
+        customerPhone: contact.phone,
+        phoneCountry: contact.country,
         notes: notes.trim() || undefined,
       };
       return editing ? reservationsApi.update(reservation!.id, payload) : reservationsApi.create({ type, ...payload });
@@ -138,19 +138,10 @@ const ReservationDialog: React.FC<ReservationDialogProps> = ({ open, onClose, re
   const errors = {
     time: !startDate ? "Pick a start time" : undefined,
     stations: stationIds.length === 0 ? "Pick at least one station" : undefined,
-    name: name.trim() ? undefined : "Enter the customer's name",
-    phone: !phone.national && !phone.e164 ? "Enter a phone number" : !phone.isValid ? "Check the phone number" : undefined,
+    customer: customer ? customerChoiceError(customer) ?? undefined : "Find the customer or add a new one",
   };
   const valid = !Object.values(errors).some(Boolean);
   const show = (k: keyof typeof errors) => (touched ? errors[k] : undefined);
-
-  const pickCustomer = (c: Customer | null) => {
-    setLinked(c);
-    if (c) {
-      setName(c.name);
-      setPhone(phoneOf(c.phone, c.phoneCountry));
-    }
-  };
 
   const toggleStation = (id: string) => setStationIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]));
   const slots = (availability.data?.slots ?? []).filter((s) => s.status !== "past" || editing);
@@ -332,40 +323,7 @@ const ReservationDialog: React.FC<ReservationDialogProps> = ({ open, onClose, re
             Customer
           </Typography>
           <Stack spacing={2}>
-            {!editing && (
-              <CustomerPicker
-                value={linked}
-                onChange={pickCustomer}
-                label="Existing customer? Search"
-                helperText={linked ? "Their name and phone are filled in below." : "Or just type the name and phone below — new customers are saved automatically."}
-              />
-            )}
-            <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" } }}>
-              <TextField
-                label="Name"
-                value={name}
-                onChange={(e) => {
-                  setName(e.target.value);
-                  if (linked) setLinked(null);
-                }}
-                required
-                error={Boolean(show("name"))}
-                helperText={show("name")}
-                slotProps={{ htmlInput: { maxLength: 80, autoComplete: "off" } }}
-              />
-              <PhoneField
-                label="Phone"
-                value={phone.e164}
-                country={phone.country}
-                onChange={(v) => {
-                  setPhone(v);
-                  if (linked && v.e164 !== linked.phone) setLinked(null);
-                }}
-                required
-                error={Boolean(show("phone"))}
-                helperText={show("phone")}
-              />
-            </Box>
+            <CustomerPicker value={customer} onChange={setCustomer} required label="Customer" showErrors={touched} />
             <TextField label="Notes (optional)" value={notes} onChange={(e) => setNotes(e.target.value)} multiline minRows={2} slotProps={{ htmlInput: { maxLength: 500 } }} />
           </Stack>
         </Box>

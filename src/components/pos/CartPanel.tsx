@@ -3,14 +3,14 @@ import { Box, Button, CircularProgress, Divider, IconButton, Stack, Tooltip, Typ
 import { ComputerOutlined, DeleteSweepOutlined, PaymentsOutlined, SaveOutlined, ShoppingCartOutlined, SportsEsportsOutlined } from "@mui/icons-material";
 import { CodeText, EmptyState, MoneyText, QuantityStepper, SelectField } from "@/components/ui";
 import { formatDuration, formatTime } from "@/utils/format";
-import CustomerPicker from "@/components/orders/CustomerPicker";
+import CustomerPicker from "@/components/pickers/CustomerPicker";
 import { RunningChip } from "@/components/orders/OrderBadges";
 import { OrderTotals } from "@/components/orders/OrderLines";
 import { liveGamingLine, type LiveTotals } from "@/components/orders/orderMath";
 import type { Discount } from "@/types/discount.types";
 import type { Money } from "@/types/sale.types";
 import type { CartState, DiscountLookup } from "./usePosCart";
-import type { CustomerChoice } from "@/components/orders/customerChoice";
+import type { CustomerChoice } from "@/components/pickers/customerChoice";
 import DiscountPicker from "./DiscountPicker";
 
 export interface CartPanelProps {

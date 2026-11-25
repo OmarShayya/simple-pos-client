@@ -6,8 +6,8 @@ import { affects } from "@/api/queryKeys";
 import { useApiMutation } from "@/hooks/useApiMutation";
 import { formatTime, formatUsd } from "@/utils/format";
 import type { StartSessionRequest } from "@/types/gaming.types";
-import CustomerPicker from "@/components/orders/CustomerPicker";
-import { customerChoiceError, type CustomerChoice } from "@/components/orders/customerChoice";
+import CustomerPicker from "@/components/pickers/CustomerPicker";
+import { customerChoiceError, type CustomerChoice } from "@/components/pickers/customerChoice";
 import { minutesUntil, type StationView } from "./useStationBoard";
 
 export interface StartSessionDialogProps {

@@ -7,7 +7,7 @@ import { formatNumber, roundMoney } from "@/utils/format";
 import { fonts } from "@/theme/tokens";
 import type { Category } from "@/types/category.types";
 import type { CreateProductRequest, Product, ProductType, UpdateProductRequest } from "@/types/product.types";
-import ImageUploadField from "./ImageUploadField";
+import ImageUploadField from "@/components/pickers/ImageUploadField";
 import { useProductMutations } from "./productQueries";
 
 export interface ProductFormDialogProps {

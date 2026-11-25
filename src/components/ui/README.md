@@ -96,6 +96,7 @@ is legacy — delete its usages when you migrate a page.)
 | `FilterBar` | Search + filters + actions row above custom content (DataTable has its own) | `search?`, `children` (filters), `actions?`, `activeCount?`, `onClear?` |
 | `EmptyState` | Nothing to show. Say what's missing + next step | `title`, `description?`, `action?`, `icon?`, `compact?` |
 | `ErrorState` | A data area failed | `error?` / `message?`, `onRetry?`, `compact?` |
+| `SettingRow` | One setting in a settings section: label + plain description left, its control right (stacked on phones), dividers between rows | `label`, `description?`, `children` (Switch, SegmentedControl…), `htmlFor?` |
 
 ### Data display
 | Component | Use it for | Key props |
@@ -106,6 +107,7 @@ is legacy — delete its usages when you migrate a page.)
 | `StatusChip` | Any status | `status`, `kind` (`order` `payment` `session` `reservation` `station` `source` (`pos` Counter / `website` / `reservation` Booking) `stock` `role` `generic`), `label?`, `tone?`, `dot?` |
 | `MoneyText` | Every amount | `value`, `currency` (`USD`/`LBP`), `lbp?` (secondary LBP), `lbpLayout?`, `signed?`, `tone` (`default` `sign` `muted`), `strike?`, `compact?` |
 | `CodeText` | Invoice numbers, booking codes, SKUs | children |
+| `InfoList` | Read-only "label: value" pairs in detail panels (contact, address, notes) | `items` `{label, value, hideEmpty?}`, `loading?` (labels stay, values skeleton), `layout` (`rows` \| `stacked`) |
 | `CountryFlag` | Flag next to a country name | `code`, `size?` |
 
 Status labels/colours live **only** in `statusConfig.ts` (`STATUS_MAP`, `getStatusInfo`,
@@ -141,8 +143,11 @@ defaults) — the legend is `ChartCard legend`.
 | `SearchField` | Debounced search box | `value` (committed), `onChange` (after 300ms / Enter / clear) |
 | `MoneyField` | Prices, amounts | `number \| null`; `currency="USD"` ($ prefix, 2 decimals) or `"LBP"` (suffix, thousands) |
 | `QuantityStepper` | Quantities | `number`; `min`, `max`, `size="large"` for touch |
+| `NumberField` | Plain numbers with a unit (percent, minutes, days) — digits only, numeric keypad, clamped on blur | `number \| null`; `min`, `max`, `decimals`, `suffix` ("%"), `prefix` |
+| `CreatableSelect` | Values that must stay consistent but can grow (station zones): pick one or "Add new zone “Terrace”" — no near-duplicates | `string \| null`; `options` (existing values), `noun` |
 | `DateField` | A calendar day | `"YYYY-MM-DD" \| null` (shows "25 Nov 2026"); `minDate`, `maxDate`, `disablePast`, `clearable` |
 | `DateTimeField` | Date + time | `Date \| null` (device local time = Beirut on POS devices); `minutesStep` |
+| `TimeField` | A time of day (opening hours, booking start) — one tappable list, no clock face | `"HH:mm" \| null` (shows "8:30 PM"); `minutesStep` (default 15) |
 | `DateRangeField` | Report/list periods | `{ preset, from, to }` (YYYY-MM-DD, lounge tz); init with `defaultDateRange("today")` from `@/utils/dateRanges` |
 | `PhoneField` | Every phone number | in: E.164 or legacy (`value`, `country`); out: `{ e164, country, national, isValid }` → send `e164` as `phone`, `country` as `phoneCountry` |
 | `CountrySelect` | Country | ISO-2 (`"LB"`) |
@@ -158,6 +163,7 @@ Labels always sit on the outline (never placeholder-only). Use `helperText` for 
 | `FormDialog` | Any form or detail view in a dialog: title + close (×), scrolling content, Cancel / primary. `onSubmit` makes it a real `<form>` (Enter submits). `loading` spins the primary and blocks closing. Full screen on phones automatically. `destructive`, `secondaryActions` (e.g. Delete on the left), `maxWidth` (default `sm`). |
 | `useConfirm()` | Yes/no questions from handlers: `if (await confirm({ title: "Cancel this order?", message, confirmLabel: "Cancel order", tone: "danger" }))`. Provider is mounted in `main.tsx`. |
 | `ConfirmDialog` | The same, controlled (when you need `loading` while the action runs). |
+| `DetailDrawer` | Details of one record (a customer, an order): slides in from the right, the list stays visible on desktop, full screen on phones; pinned header (`title`, `subtitle`, `headerActions`) and `footer`, scrolling body, `width` (default 560). Edit in a `FormDialog`; look things up here. |
 
 Raw MUI `Dialog` is fine only for special layouts (e.g. a receipt preview) — keep `maxWidth="xs"`
 for small centred dialogs (they don't go full screen on phones).
@@ -236,6 +242,12 @@ const columns: DataTableColumn<Order>[] = [
 ### Client-side (small lists: categories, staff, discounts)
 Pass all `rows`, `search` (true or `{ placeholder }`), optional `initialSort` and `pageSize`; the
 table filters, sorts and pages itself. Omit `pagination` / `onSortChange` / `search.onChange`.
+
+### Domain pickers (`src/components/pickers/`)
+Shared fields that know about our data (they query the API), so they live outside the kit:
+`CustomerPicker` (search by name/phone or add a new customer with name + `PhoneField`; value is a
+`CustomerChoice`, resolve it with `useResolveCustomer` or send name + phone), `ProductPicker`
+(searchable product list grouped by category) and `ImageUploadField` (photo upload + preview).
 
 ## 6. Formatting (`@/utils/format`)
 

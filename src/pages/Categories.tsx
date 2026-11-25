@@ -3,7 +3,7 @@ import { Avatar, Box, IconButton, Stack, TextField, Tooltip, Typography } from "
 import { CategoryOutlined, DeleteOutlineRounded, EditOutlined } from "@mui/icons-material";
 import { DataTable, FormDialog, PageHeader, SegmentedControl, StatusChip } from "@/components/ui";
 import type { DataTableColumn } from "@/components/ui";
-import ImageUploadField from "@/components/products/ImageUploadField";
+import ImageUploadField from "@/components/pickers/ImageUploadField";
 import { useAllProducts, useCategories, useCategoryMutations } from "@/components/products/productQueries";
 import { useConfirm } from "@/hooks/useConfirm";
 import { plural } from "@/utils/format";

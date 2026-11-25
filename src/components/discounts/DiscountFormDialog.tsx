@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Box, FormControlLabel, Stack, Switch, TextField, Typography } from "@mui/material";
-import { DateField, FormDialog, SelectField } from "@/components/ui";
-import { NumberField } from "@/components/kit-extras";
-import ProductPicker from "@/components/products/ProductPicker";
+import { DateField, FormDialog, NumberField, SelectField } from "@/components/ui";
+import ProductPicker from "@/components/pickers/ProductPicker";
 import { useAllProducts, useCategories } from "@/components/products/productQueries";
 import { dayKey } from "@/utils/format";
 import { todayKey } from "@/utils/dateRanges";

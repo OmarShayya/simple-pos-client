@@ -12,9 +12,15 @@ import { customerChoiceError, type CustomerChoice, type PickedCustomer } from ".
 export interface CustomerPickerProps {
   value: CustomerChoice | null;
   onChange: (value: CustomerChoice | null) => void;
-  /** Gaming: a name alone is fine ("Team Phoenix"). Counter sales: a new customer needs a phone. */
+  /** Gaming: a name alone is fine ("Team Phoenix"). Counter sales and bookings: a new customer needs a phone. */
   nameOnlyOk?: boolean;
+  /** A customer must be chosen (bookings). Changes the labels; the parent validates on submit. */
+  required?: boolean;
   label?: string;
+  /** Show validation messages now (e.g. after the parent's form was submitted). */
+  showErrors?: boolean;
+  /** Message for "nothing chosen yet" when `showErrors` is on (required pickers). */
+  missingText?: string;
   autoFocus?: boolean;
   size?: "small" | "medium";
 }
@@ -22,10 +28,21 @@ export interface CustomerPickerProps {
 const looksLikePhone = (s: string) => /^[+\d][\d\s-]{3,}$/.test(s.trim());
 
 /**
- * Optional customer: search existing ones by name or phone (any format), or add a new one with
- * name + phone (country code dropdown). Used by the POS cart and the "Start session" dialog.
+ * THE customer field (counter cart, "Start session", bookings): search existing customers by name or
+ * phone (any format), or add a new one with name + phone (country code dropdown). The choice is
+ * resolved by whoever submits (`useResolveCustomer`, or the API links by phone).
  */
-const CustomerPicker: React.FC<CustomerPickerProps> = ({ value, onChange, nameOnlyOk, label = "Customer (optional)", autoFocus, size = "medium" }) => {
+const CustomerPicker: React.FC<CustomerPickerProps> = ({
+  value,
+  onChange,
+  nameOnlyOk,
+  required,
+  label = required ? "Customer" : "Customer (optional)",
+  showErrors,
+  missingText = "Find the customer or add a new one",
+  autoFocus,
+  size = "medium",
+}) => {
   const [input, setInput] = useState("");
   const term = useDebouncedValue(input.trim(), 250);
   const enabled = term.length >= 2 && value?.mode !== "new";
@@ -35,7 +52,9 @@ const CustomerPicker: React.FC<CustomerPickerProps> = ({ value, onChange, nameOn
     enabled,
     staleTime: 30_000,
   });
-  const options: PickedCustomer[] = enabled ? (search.data?.data ?? []).map((c) => ({ id: c.id, name: c.name, phone: c.phone })) : [];
+  const options: PickedCustomer[] = enabled
+    ? (search.data?.data ?? []).map((c) => ({ id: c.id, name: c.name, phone: c.phone, phoneCountry: c.phoneCountry }))
+    : [];
 
   const startNew = () => {
     const typed = input.trim();
@@ -45,18 +64,19 @@ const CustomerPicker: React.FC<CustomerPickerProps> = ({ value, onChange, nameOn
 
   if (value?.mode === "new") {
     const error = customerChoiceError(value, nameOnlyOk);
+    const typed = Boolean(value.phone?.national || value.name);
     return (
       <Box>
         <Stack spacing={1.5}>
           <TextField
-            label={nameOnlyOk ? "Customer name" : "New customer name"}
+            label="Customer name"
             value={value.name}
             onChange={(e) => onChange({ ...value, name: e.target.value })}
             autoFocus={!value.name}
             size={size}
             required={!nameOnlyOk}
             fullWidth
-            slotProps={{ htmlInput: { maxLength: 80 } }}
+            slotProps={{ htmlInput: { maxLength: 80, autoComplete: "off" } }}
           />
           <PhoneField
             label={nameOnlyOk ? "Phone (optional)" : "Phone"}
@@ -69,8 +89,8 @@ const CustomerPicker: React.FC<CustomerPickerProps> = ({ value, onChange, nameOn
           />
         </Stack>
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, mt: 0.75, flexWrap: "wrap" }}>
-          <Typography variant="body2" color={error && value.phone?.national ? "error" : "text.secondary"}>
-            {error && (value.phone?.national || value.name) ? error : ""}
+          <Typography variant="body2" color={error && (showErrors || value.phone?.national) ? "error" : "text.secondary"} role={error ? "alert" : undefined}>
+            {error && (showErrors || typed) ? error : ""}
           </Typography>
           <Button variant="text" startIcon={<SearchRounded />} onClick={() => onChange(null)}>
             Find an existing customer
@@ -80,6 +100,7 @@ const CustomerPicker: React.FC<CustomerPickerProps> = ({ value, onChange, nameOn
     );
   }
 
+  const missing = showErrors && required && !value;
   return (
     <Box>
       <Autocomplete<PickedCustomer>
@@ -89,7 +110,7 @@ const CustomerPicker: React.FC<CustomerPickerProps> = ({ value, onChange, nameOn
         inputValue={input}
         onInputChange={(_, v) => setInput(v)}
         filterOptions={(x) => x}
-        getOptionLabel={(c) => (c.phone ? `${c.name} · ${formatPhone(c.phone)}` : c.name)}
+        getOptionLabel={(c) => (c.phone ? `${c.name} · ${formatPhone(c.phone, c.phoneCountry)}` : c.name)}
         isOptionEqualToValue={(a, b) => a.id === b.id}
         loading={enabled && search.isFetching}
         noOptionsText={
@@ -113,8 +134,8 @@ const CustomerPicker: React.FC<CustomerPickerProps> = ({ value, onChange, nameOn
               <Box sx={{ minWidth: 0 }}>
                 <Typography sx={{ fontWeight: 500 }}>{c.name}</Typography>
                 {c.phone && (
-                  <Typography variant="body2" color="text.secondary">
-                    {formatPhone(c.phone)}
+                  <Typography variant="body2" color="text.secondary" sx={{ fontVariantNumeric: "tabular-nums" }}>
+                    {formatPhone(c.phone, c.phoneCountry)}
                   </Typography>
                 )}
               </Box>
@@ -128,6 +149,9 @@ const CustomerPicker: React.FC<CustomerPickerProps> = ({ value, onChange, nameOn
             placeholder="Search by name or phone"
             autoFocus={autoFocus}
             size={size}
+            required={required}
+            error={missing}
+            helperText={missing ? missingText : undefined}
             slotProps={{
               input: {
                 ...params.InputProps,
