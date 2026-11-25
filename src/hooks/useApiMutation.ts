@@ -5,7 +5,7 @@ import {
   type UseMutationResult,
 } from "@tanstack/react-query";
 import { toast } from "react-toastify";
-import { handleApiError } from "@/utils/errorHandler";
+import { friendlyError } from "@/utils/apiError";
 import { expandInvalidations, type Invalidation } from "@/api/queryKeys";
 
 export interface ApiMutationOptions<TData, TVariables, TContext = unknown>
@@ -57,7 +57,7 @@ export function useApiMutation<TData = unknown, TVariables = void, TContext = un
     },
     onError: async (error, variables, context, mutation) => {
       if (errorMessage !== false) {
-        const reason = handleApiError(error);
+        const reason = friendlyError(error);
         toast.error(errorMessage ? `${errorMessage}: ${reason}` : reason);
       }
       if (invalidates.length) void invalidate();

@@ -68,6 +68,9 @@ export const getPresetRange = (preset: DateRangePreset, now: Date = new Date()):
   }
 };
 
+/** Initial value for a DateRangeField: `useState(() => defaultDateRange("today"))`. */
+export const defaultDateRange = (preset: DateRangePreset = "today"): DateRangeValue => getPresetRange(preset);
+
 /** Today in the lounge timezone, as "YYYY-MM-DD". */
 export const todayKey = () => dayKey(new Date());
 
