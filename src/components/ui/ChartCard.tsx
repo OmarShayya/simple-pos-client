@@ -53,7 +53,7 @@ const ChartCard: React.FC<ChartCardProps> = ({
   children,
 }) => {
   let plot: React.ReactNode = children;
-  if (loading) plot = <Skeleton variant="rounded" width="100%" height={height} sx={{ borderRadius: 2 }} />;
+  if (loading) plot = <Skeleton variant="rounded" width="100%" height={height} sx={{ borderRadius: "8px" }} />;
   else if (error) plot = <ErrorState compact error={error} onRetry={onRetry} />;
   else if (empty) plot = <EmptyState compact icon={<ShowChartRounded />} title={emptyTitle} description={emptyDescription} />;
 

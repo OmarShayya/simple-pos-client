@@ -1,16 +1,25 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Box } from "@mui/material";
 import { PublicRounded } from "@mui/icons-material";
 
-// One small SVG file per country (from country-flag-icons, MIT). Vite emits them as separate
-// assets, so only the flags actually shown are downloaded.
-const FLAG_URLS = import.meta.glob("/node_modules/country-flag-icons/3x2/*.svg", {
-  query: "?url",
-  import: "default",
-  eager: true,
-}) as Record<string, string>;
+// All flags (country-flag-icons, MIT; ~50 KB gzipped) live in their own chunk that is only
+// downloaded the first time a flag is shown (phone / country fields).
+type FlagMap = Record<string, string>;
+let flagCache: FlagMap | null = null;
+let flagPromise: Promise<FlagMap> | null = null;
+const loadFlags = () =>
+  (flagPromise ??= import("country-flag-icons/string/3x2").then((m) => (flagCache = m as unknown as FlagMap)));
 
-const urlFor = (code: string) => FLAG_URLS[`/node_modules/country-flag-icons/3x2/${code.toUpperCase()}.svg`];
+const uriCache = new Map<string, string>();
+const flagUri = (flags: FlagMap, code: string) => {
+  const key = code.toUpperCase();
+  let uri = uriCache.get(key);
+  if (!uri && flags[key]) {
+    uri = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(flags[key])}`;
+    uriCache.set(key, uri);
+  }
+  return uri;
+};
 
 export interface CountryFlagProps {
   /** ISO 3166-1 alpha-2 code ("LB"). */
@@ -19,25 +28,25 @@ export interface CountryFlagProps {
   size?: number;
 }
 
-/** A country flag image (3:2), with a neutral globe when the code is unknown. Decorative: pair it with the country name. */
+/** A country flag (3:2). Decorative — always show the country name or dial code next to it. */
 const CountryFlag: React.FC<CountryFlagProps> = ({ code, size = 20 }) => {
-  const src = code ? urlFor(code) : undefined;
+  const [flags, setFlags] = useState<FlagMap | null>(flagCache);
+  useEffect(() => {
+    if (flags) return;
+    let alive = true;
+    loadFlags().then((f) => alive && setFlags(f));
+    return () => {
+      alive = false;
+    };
+  }, [flags]);
+
   const height = Math.round((size * 2) / 3);
-  if (!src) {
-    return <PublicRounded aria-hidden sx={{ fontSize: height + 2, color: "text.secondary", flexShrink: 0 }} />;
-  }
-  return (
-    <Box
-      component="img"
-      src={src}
-      alt=""
-      aria-hidden
-      loading="lazy"
-      width={size}
-      height={height}
-      sx={{ width: size, height, flexShrink: 0, borderRadius: "2px", objectFit: "cover", boxShadow: (t) => `0 0 0 1px ${t.tokens.border}` }}
-    />
-  );
+  const frame = { width: size, height, flexShrink: 0, borderRadius: "2px", boxShadow: (t: { tokens: { border: string } }) => `0 0 0 1px ${t.tokens.border}` };
+  const src = flags && code ? flagUri(flags, code) : undefined;
+
+  if (!flags) return <Box aria-hidden sx={{ ...frame, bgcolor: "action.hover" }} />;
+  if (!src) return <PublicRounded aria-hidden sx={{ fontSize: height + 2, color: "text.secondary", flexShrink: 0 }} />;
+  return <Box component="img" src={src} alt="" aria-hidden width={size} height={height} sx={{ ...frame, objectFit: "cover" }} />;
 };
 
 export default CountryFlag;

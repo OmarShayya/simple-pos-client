@@ -23,7 +23,7 @@ const EmptyState: React.FC<EmptyStateProps> = ({ title, description, icon, actio
         height: compact ? 40 : 48,
         mx: "auto",
         mb: 1.5,
-        borderRadius: 2.5,
+        borderRadius: "10px",
         display: "grid",
         placeItems: "center",
         border: 1,

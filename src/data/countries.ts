@@ -55,6 +55,26 @@ export const getCountry = (code: string | null | undefined): Country | undefined
 
 export const countryName = (code: string | null | undefined): string => getCountry(code)?.name ?? code ?? "";
 
+const fold = (s: string) => s.toLowerCase().normalize("NFD").replace(/\p{M}/gu, "");
+
+/** Lower = better: name starts with the query, then a word in it does, then anything else. */
+export const countryRank = (c: Country, query: string): number => {
+  const q = fold(query.trim());
+  const name = fold(c.name);
+  if (!q) return 0;
+  if (name.startsWith(q) || c.code.toLowerCase() === q) return 0;
+  if (name.split(/[\s-]+/).some((w) => w.startsWith(q))) return 1;
+  return 2;
+};
+
+/** Filter + rank for pickers (keeps the Common group first so group headers stay together). */
+export const searchCountries = (options: Country[], query: string): Country[] =>
+  options
+    .filter((c) => matchesCountry(c, query))
+    .map((c, i) => ({ c, i, k: (c.common ? 0 : 10) + countryRank(c, query) }))
+    .sort((a, b) => a.k - b.k || a.i - b.i)
+    .map((x) => x.c);
+
 /** Case/diacritic-insensitive match on name, ISO code or dial code ("leb", "lb", "961", "+961"). */
 export const matchesCountry = (c: Country, query: string): boolean => {
   const q = query.trim().toLowerCase();

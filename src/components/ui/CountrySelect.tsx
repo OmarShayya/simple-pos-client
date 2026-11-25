@@ -1,7 +1,7 @@
 import React, { useMemo } from "react";
 import { Autocomplete, Box, InputAdornment, TextField, Typography, createFilterOptions } from "@mui/material";
 import CountryFlag from "./CountryFlag";
-import { COUNTRIES, getCountry, matchesCountry, type Country } from "@/data/countries";
+import { COUNTRIES, getCountry, searchCountries, type Country } from "@/data/countries";
 
 export interface CountrySelectProps {
   label?: string;
@@ -54,7 +54,7 @@ const CountrySelect: React.FC<CountrySelectProps> = ({
       getOptionLabel={(c) => c.name}
       isOptionEqualToValue={(a, b) => a.code === b.code}
       filterOptions={(options, state) =>
-        state.inputValue && state.inputValue !== selected?.name ? options.filter((c) => matchesCountry(c, state.inputValue)) : baseFilter(options, { ...state, inputValue: "" })
+        state.inputValue && state.inputValue !== selected?.name ? searchCountries(options, state.inputValue) : baseFilter(options, { ...state, inputValue: "" })
       }
       renderOption={({ key, ...props }, c) => (
         <Box component="li" key={key} {...props} sx={{ display: "flex", alignItems: "center", gap: 1.25 }}>

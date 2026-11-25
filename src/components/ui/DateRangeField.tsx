@@ -63,7 +63,7 @@ const DateRangeField: React.FC<DateRangeFieldProps> = ({
               color={selected ? "primary" : "default"}
               variant={selected ? "filled" : "outlined"}
               aria-pressed={selected}
-              sx={{ height: 40, px: 0.5, fontSize: "0.875rem", fontWeight: selected ? 600 : 500, borderRadius: 2 }}
+              sx={{ height: 40, px: 0.5, fontSize: "0.875rem", fontWeight: selected ? 600 : 500, borderRadius: "8px" }}
             />
           );
         })}

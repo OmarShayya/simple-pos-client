@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { Autocomplete, Box, TextField, Typography } from "@mui/material";
 import { LEBANON_PLACES, findPlace, placeLabel, type LebanonPlace } from "@/data/lebanon-places";
 
@@ -48,6 +48,7 @@ const CityField: React.FC<CityFieldProps> = ({
   name,
 }) => {
   const isLebanon = (country ?? "LB").toUpperCase() === "LB";
+  const [query, setQuery] = useState("");
   const selected = useMemo<LebanonPlace | string | null>(() => {
     if (!value?.city) return null;
     return findPlace(value.city, value.area) ?? valueText(value);
@@ -83,26 +84,35 @@ const CityField: React.FC<CityFieldProps> = ({
         else onChange(placeToValue(next));
       }}
       onInputChange={(_, text, reason) => {
+        setQuery(reason === "input" ? text : "");
         // Typed text is kept as-is (spaces included); it snaps to a listed place on blur
         if (reason === "input") onChange(text ? { city: text } : null);
       }}
       disabled={disabled}
       fullWidth={fullWidth}
       size={size}
-      groupBy={(p) => p.governorate}
+      // Grouped by governorate when browsing; best matches first when searching
+      groupBy={query ? undefined : (p) => p.governorate}
       getOptionLabel={(p) => (typeof p === "string" ? p : placeLabel(p))}
       isOptionEqualToValue={(a, b) => typeof b !== "string" && a.name === b.name && a.district === b.district}
       filterOptions={(options, state) => {
         const q = norm(state.inputValue);
         if (!q || (typeof selected !== "string" && selected && q === norm(placeLabel(selected)))) return options;
-        const starts: LebanonPlace[] = [];
-        const contains: LebanonPlace[] = [];
-        for (const p of options) {
-          const names = [p.name, ...(p.aka ?? [])].map(norm);
-          if (names.some((n) => n.startsWith(q))) starts.push(p);
-          else if (names.some((n) => n.includes(q)) || norm(p.district).startsWith(q)) contains.push(p);
-        }
-        return [...starts, ...contains];
+        const rank = (p: LebanonPlace) => {
+          const name = norm(p.name);
+          const aka = (p.aka ?? []).map(norm);
+          if (name.startsWith(q)) return 0;
+          if (aka.some((n) => n.startsWith(q))) return 1;
+          if ([name, ...aka].some((n) => n.split(" ").some((w) => w.startsWith(q)))) return 2;
+          if ([name, ...aka].some((n) => n.includes(q))) return 3;
+          if (norm(p.district).startsWith(q)) return 4;
+          return -1;
+        };
+        return options
+          .map((p, i) => ({ p, i, r: rank(p) }))
+          .filter((x) => x.r >= 0)
+          .sort((a, b) => a.r - b.r || a.i - b.i)
+          .map((x) => x.p);
       }}
       renderOption={({ key, ...props }, p) => (
         <Box component="li" key={key} {...props} sx={{ display: "flex", flexDirection: "column", alignItems: "flex-start !important", py: "6px !important" }}>

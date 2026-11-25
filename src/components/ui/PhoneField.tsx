@@ -12,7 +12,7 @@ import {
 import { ArrowDropDownRounded, SearchRounded } from "@mui/icons-material";
 import { AsYouType, parsePhoneNumberFromString } from "libphonenumber-js";
 import CountryFlag from "./CountryFlag";
-import { COUNTRIES, getCountry, matchesCountry, type Country } from "@/data/countries";
+import { COUNTRIES, getCountry, searchCountries, type Country } from "@/data/countries";
 import { asCountryCode, dialCode, normalizePhone, type CountryCode } from "@/utils/phone";
 
 export interface PhoneValue {
@@ -69,7 +69,8 @@ const buildValue = (digits: string, country: CountryCode): PhoneValue => {
 const InlinePopper = (props: PopperProps) => {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { disablePortal, anchorEl, open, popperRef, popperOptions, placement, transition, modifiers, keepMounted, ...other } = props;
-  return <Box {...(other as React.HTMLAttributes<HTMLDivElement>)} sx={{ position: "relative" }} />;
+  const rest = other as React.HTMLAttributes<HTMLDivElement>;
+  return <div {...rest} style={{ ...rest.style, position: "static", width: "100%" }} />;
 };
 
 /**
@@ -99,6 +100,7 @@ const PhoneField: React.FC<PhoneFieldProps> = ({
   const [search, setSearch] = useState("");
   const lastEmitted = useRef<string>(normalizePhone(value ?? "", asCountryCode(countryProp))?.e164 ?? value ?? "");
   const inputRef = useRef<HTMLInputElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
 
   // Follow outside changes (form reset, editing another record) — not our own echoes
   useEffect(() => {
@@ -197,7 +199,7 @@ const PhoneField: React.FC<PhoneFieldProps> = ({
                     height: size === "small" ? 32 : 36,
                     pl: 0.75,
                     pr: 0.25,
-                    borderRadius: 1.5,
+                    borderRadius: "6px",
                     color: "text.primary",
                     fontSize: "0.9375rem",
                     fontVariantNumeric: "tabular-nums",
@@ -221,9 +223,13 @@ const PhoneField: React.FC<PhoneFieldProps> = ({
         open={Boolean(anchor)}
         anchorEl={anchor}
         onClose={() => setAnchor(null)}
+        disableAutoFocus
         anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
         transformOrigin={{ vertical: "top", horizontal: "left" }}
-        slotProps={{ paper: { sx: { width: 340, maxWidth: "calc(100vw - 24px)", mt: 0.5 } } }}
+        slotProps={{
+          paper: { sx: { width: 340, maxWidth: "calc(100vw - 24px)", mt: 0.5 } },
+          transition: { onEntered: () => searchRef.current?.focus() },
+        }}
       >
         <Autocomplete<Country, false, false, false>
           open
@@ -238,7 +244,7 @@ const PhoneField: React.FC<PhoneFieldProps> = ({
           groupBy={(c) => (c.common ? "Common" : "All countries")}
           getOptionLabel={(c) => c.name}
           isOptionEqualToValue={(a, b) => a.code === b.code}
-          filterOptions={(options, state) => options.filter((c) => matchesCountry(c, state.inputValue))}
+          filterOptions={(options, state) => searchCountries(options, state.inputValue)}
           noOptionsText="No country matches"
           slots={{ popper: InlinePopper }}
           slotProps={{
@@ -260,7 +266,7 @@ const PhoneField: React.FC<PhoneFieldProps> = ({
             <Box sx={{ p: 1, borderBottom: 1, borderColor: "divider" }}>
               <TextField
                 {...params}
-                autoFocus
+                inputRef={searchRef}
                 size="small"
                 placeholder="Search country or code"
                 InputProps={{

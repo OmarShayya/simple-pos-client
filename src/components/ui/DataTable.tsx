@@ -146,6 +146,11 @@ function renderCellContent<R>(col: DataTableColumn<R>, row: R): React.ReactNode 
   }
 }
 
+/* Placeholder rows for the first load: real headers, skeleton cells (never a spinner). */
+const SKELETON_ROWS = Array.from({ length: 6 }, (_, i) => ({ __skeleton: i }));
+const SKELETON_WIDTHS = ["72%", "54%", "84%", "46%", "64%", "58%", "40%"];
+const isSkeleton = (row: unknown): row is { __skeleton: number } => typeof (row as { __skeleton?: number })?.__skeleton === "number";
+
 const defaultRowId = (row: unknown) => {
   const r = row as { id?: string | number; _id?: string | number };
   return String(r.id ?? r._id ?? "");
@@ -216,7 +221,7 @@ function PhoneCards<R>({
 
   if (loading) {
     return (
-      <Box sx={{ border: 1, borderColor: "divider", borderRadius: 3, overflow: "hidden" }} aria-busy>
+      <Box sx={{ border: 1, borderColor: "divider", borderRadius: "12px", overflow: "hidden" }} aria-busy>
         {Array.from({ length: 5 }).map((_, i) => (
           <Box key={i} sx={{ p: 2, borderTop: i ? 1 : 0, borderColor: "divider" }}>
             <Stack direction="row" justifyContent="space-between" spacing={2}>
@@ -232,7 +237,7 @@ function PhoneCards<R>({
   }
 
   return (
-    <Box component="ul" sx={{ listStyle: "none", m: 0, p: 0, border: 1, borderColor: "divider", borderRadius: 3, overflow: "hidden", bgcolor: "background.paper" }}>
+    <Box component="ul" sx={{ listStyle: "none", m: 0, p: 0, border: 1, borderColor: "divider", borderRadius: "12px", overflow: "hidden", bgcolor: "background.paper" }}>
       {rows.map((row, i) => {
         const inner = (
           <Box sx={{ width: "100%", p: 2, textAlign: "left", display: "flex", flexDirection: "column", gap: 0.75 }}>
@@ -463,7 +468,7 @@ function DataTable<R>(props: DataTableProps<R>) {
   /* ------------------------------ grid columns */
   const gridColumns = useMemo<GridColDef[]>(
     () =>
-      columns.map((col) => {
+      columns.map((col, colIndex) => {
         const numeric = isNumericType(col.type);
         const isActions = col.type === "actions";
         const align = col.align ?? (numeric || isActions ? "right" : "left");
@@ -478,7 +483,16 @@ function DataTable<R>(props: DataTableProps<R>) {
           align,
           headerAlign: align,
           renderCell: (p) =>
-            isActions ? (
+            isSkeleton(p.row) ? (
+              isActions ? null : (
+                <Skeleton
+                  variant="rounded"
+                  height={12}
+                  width={SKELETON_WIDTHS[(colIndex + p.row.__skeleton) % SKELETON_WIDTHS.length]}
+                  sx={{ borderRadius: "4px", ml: align === "right" ? "auto" : 0, maxWidth: 160 }}
+                />
+              )
+            ) : isActions ? (
               <Box onClick={(e) => e.stopPropagation()} sx={{ display: "flex", gap: 0.5, justifyContent: "flex-end", width: "100%" }}>
                 {renderCellContent(col, p.row as R)}
               </Box>
@@ -540,7 +554,7 @@ function DataTable<R>(props: DataTableProps<R>) {
           <Box sx={{ position: "relative" }}>
             {progress}
             {!firstLoad && pageRows.length === 0 ? (
-              <Box sx={{ border: 1, borderColor: "divider", borderRadius: 3 }}>
+              <Box sx={{ border: 1, borderColor: "divider", borderRadius: "12px" }}>
                 <TableMessage {...overlayState} />
               </Box>
             ) : (
@@ -563,14 +577,14 @@ function DataTable<R>(props: DataTableProps<R>) {
             )}
           </Box>
         ) : (
-          <Box sx={{ position: "relative", minWidth: 0, borderRadius: 3, overflow: "hidden" }}>
+          <Box sx={{ position: "relative", minWidth: 0, borderRadius: "12px", overflow: "hidden" }}>
             {progress}
             <DataGrid
               aria-label={label}
-              rows={firstLoad ? [] : pageRows}
+              rows={firstLoad ? SKELETON_ROWS : pageRows}
               columns={gridColumns}
-              getRowId={(r) => getRowId(r as R)}
-              loading={firstLoad}
+              getRowId={(r) => (isSkeleton(r) ? `__skeleton-${r.__skeleton}` : getRowId(r as R))}
+              aria-busy={firstLoad || undefined}
               autoHeight
               rowHeight={rowHeight}
               columnHeaderHeight={44}
@@ -593,9 +607,9 @@ function DataTable<R>(props: DataTableProps<R>) {
               paginationModel={{ page, pageSize }}
               onPaginationModelChange={(m) => changePage(m.page, m.pageSize)}
               pageSizeOptions={pageSizeOptions}
-              hideFooter={total <= Math.min(...pageSizeOptions, pageSize) && page === 0}
+              hideFooter={firstLoad || (total <= Math.min(...pageSizeOptions, pageSize) && page === 0)}
               columnVisibilityModel={columnVisibilityModel}
-              onRowClick={onRowClick ? (p) => onRowClick(p.row as R) : undefined}
+              onRowClick={onRowClick && !firstLoad ? (p) => onRowClick(p.row as R) : undefined}
               checkboxSelection={Boolean(selection)}
               rowSelectionModel={selection ? ({ type: "include", ids: new Set(selection.selected) } as GridRowSelectionModel) : undefined}
               onRowSelectionModelChange={
@@ -607,10 +621,10 @@ function DataTable<R>(props: DataTableProps<R>) {
                   : undefined
               }
               slots={{ noRowsOverlay: NoRowsOverlay, noResultsOverlay: NoRowsOverlay }}
-              slotProps={{ loadingOverlay: { variant: "skeleton", noRowsVariant: "skeleton" } }}
               sx={{
-                "--DataGrid-overlayHeight": `${rowHeight * (firstLoad ? 6 : 4)}px`,
-                "& .MuiDataGrid-row": { cursor: onRowClick ? "pointer" : "default" },
+                "--DataGrid-overlayHeight": `${rowHeight * 5}px`,
+                "& .MuiDataGrid-row": { cursor: onRowClick && !firstLoad ? "pointer" : "default" },
+                ...(firstLoad ? { "& .MuiDataGrid-row:hover": { bgcolor: "transparent" } } : {}),
                 ...(isPhone ? { "& .MuiDataGrid-virtualScroller": { overflowX: "auto" } } : {}),
               }}
             />

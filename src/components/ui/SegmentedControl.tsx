@@ -68,7 +68,7 @@ function SegmentedControl<V extends string>({ value, onChange, options, size = "
                 px: 0.75,
                 minWidth: 20,
                 height: 20,
-                borderRadius: 10,
+                borderRadius: "10px",
                 display: "inline-flex",
                 alignItems: "center",
                 justifyContent: "center",

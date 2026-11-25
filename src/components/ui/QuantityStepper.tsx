@@ -65,7 +65,7 @@ const QuantityStepper: React.FC<QuantityStepperProps> = ({
         alignItems: "center",
         border: 1,
         borderColor: (t) => t.tokens.borderStrong,
-        borderRadius: 2,
+        borderRadius: "8px",
         overflow: "hidden",
         bgcolor: "background.paper",
         opacity: disabled ? 0.6 : 1,
