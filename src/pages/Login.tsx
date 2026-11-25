@@ -192,7 +192,7 @@ const Login: React.FC = () => {
               sx={{
                 fontSize: "4rem",
                 fontWeight: 900,
-                fontFamily: "Orbitron",
+                fontFamily: "inherit",
                 textTransform: "uppercase",
                 background:
                   "linear-gradient(135deg, #00CED1 0%, #9B51E0 50%, #FF00FF 100%)",
@@ -351,7 +351,7 @@ const Login: React.FC = () => {
                   <Typography
                     variant="h4"
                     sx={{
-                      fontFamily: "Orbitron",
+                      fontFamily: "inherit",
                       fontWeight: 700,
                       background:
                         "linear-gradient(135deg, #00CED1 0%, #9B51E0 100%)",
@@ -460,7 +460,7 @@ const Login: React.FC = () => {
                       sx={{
                         py: 1.8,
                         fontSize: "1.1rem",
-                        fontFamily: "Orbitron",
+                        fontFamily: "inherit",
                         fontWeight: 700,
                         background:
                           "linear-gradient(135deg, #00CED1 0%, #9B51E0 100%)",
