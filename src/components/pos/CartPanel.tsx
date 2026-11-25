@@ -11,6 +11,7 @@ import type { Discount } from "@/types/discount.types";
 import type { Money } from "@/types/sale.types";
 import type { CartState, DiscountLookup } from "./usePosCart";
 import type { CustomerChoice } from "@/components/orders/customerChoice";
+import DiscountPicker from "./DiscountPicker";
 
 export interface CartPanelProps {
   state: CartState;
@@ -120,16 +121,15 @@ const CartPanel: React.FC<CartPanelProps> = ({
                   </Box>
                   <MoneyText value={totals.gamingFinal[sessionId]?.usd ?? live.final.usd} sx={{ fontWeight: 600 }} />
                 </Box>
-                {discounts.gaming.length > 0 && sessionId && (
-                  <SelectField
-                    label="Gaming discount"
-                    size="small"
-                    value={state.gamingDiscounts[sessionId] ?? ""}
-                    onChange={(v) => onGamingDiscount(sessionId, v)}
-                    emptyOption="No discount"
-                    options={discountOptions(discounts.gaming)}
-                    sx={{ mt: 1.25 }}
-                  />
+                {sessionId && discounts.gaming.length > 0 && (
+                  <Box sx={{ mt: 0.75, pl: 4.25 }}>
+                    <DiscountPicker
+                      options={discounts.gaming}
+                      value={state.gamingDiscounts[sessionId] ?? ""}
+                      onChange={(v) => onGamingDiscount(sessionId, v)}
+                      target={g.station?.pcNumber ?? "station time"}
+                    />
+                  </Box>
                 )}
               </Box>
             );
@@ -156,15 +156,9 @@ const CartPanel: React.FC<CartPanelProps> = ({
                   </Box>
                 </Box>
                 {productDiscounts.length > 0 && (
-                  <SelectField
-                    label="Item discount"
-                    size="small"
-                    value={l.discountId}
-                    onChange={(v) => onLineDiscount(l.productId, v)}
-                    emptyOption="No discount"
-                    options={discountOptions(productDiscounts)}
-                    sx={{ mt: 1 }}
-                  />
+                  <Box sx={{ mt: 0.5 }}>
+                    <DiscountPicker options={productDiscounts} value={l.discountId} onChange={(v) => onLineDiscount(l.productId, v)} target={l.name} />
+                  </Box>
                 )}
               </Box>
             );
