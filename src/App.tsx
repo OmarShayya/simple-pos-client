@@ -1,4 +1,4 @@
-import React from "react";
+import React, { Suspense, lazy } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { ThemeProvider } from "@mui/material";
 import getTheme from "./theme/theme";
@@ -24,6 +24,9 @@ import Discounts from "./pages/Discounts";
 import Reservations from "./pages/Reservations";
 import ReservationSettings from "./pages/ReservationSettings";
 import Staff from "./pages/Staff";
+
+// Dev-only UI kit preview (not part of production builds)
+const UiKitPage = import.meta.env.DEV ? lazy(() => import("./dev/UiKitPage")) : null;
 
 // Sign-in screens are always dark (brand look), regardless of the app theme
 const authTheme = getTheme("dark");
@@ -57,6 +60,8 @@ const App: React.FC = () => {
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="sales" element={<Sales />} />
         <Route path="sales/history" element={<SalesHistory />} />
+        {/* One place for orders — the Orders page replaces this temporary mapping */}
+        <Route path="orders" element={<SalesHistory />} />
         <Route path="products" element={<Products />} />
         <Route path="categories" element={<Categories />} />
         <Route path="customers" element={<Customers />} />
@@ -70,6 +75,16 @@ const App: React.FC = () => {
         <Route path="reservations" element={<Reservations />} />
         <Route path="reservations/settings" element={<ReservationSettings />} />
         <Route path="staff" element={<Staff />} />
+        {UiKitPage && (
+          <Route
+            path="ui-kit"
+            element={
+              <Suspense fallback={null}>
+                <UiKitPage />
+              </Suspense>
+            }
+          />
+        )}
         <Route
           path="/gaming/pc-management"
           element={
