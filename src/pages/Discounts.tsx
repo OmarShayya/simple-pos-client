@@ -1,10 +1,10 @@
 import React, { useMemo, useState } from "react";
 import { Box, IconButton, Tooltip, Typography } from "@mui/material";
 import { DeleteOutlineRounded, EditOutlined } from "@mui/icons-material";
-import { DataTable, PageHeader, SegmentedControl, SelectField, StatusChip } from "@/components/ui";
+import { DataTable, PageHeader, SegmentedControl, SelectField } from "@/components/ui";
 import type { DataTableColumn } from "@/components/ui";
 import DiscountFormDialog from "@/components/discounts/DiscountFormDialog";
-import { STATE_INFO, TARGET_LABEL, TARGET_OPTIONS, appliesTo, discountState, validityText, type DiscountState } from "@/components/discounts/discountFormat";
+import { TARGET_LABEL, TARGET_OPTIONS, appliesTo, discountState, validityText } from "@/components/discounts/discountFormat";
 import { useAllDiscounts, useDiscountMutations } from "@/components/discounts/discountQueries";
 import { useConfirm } from "@/hooks/useConfirm";
 import { formatPercent } from "@/utils/format";
@@ -82,11 +82,9 @@ const Discounts: React.FC = () => {
     {
       field: "state",
       header: "Status",
-      value: (d) => STATE_INFO[discountState(d)].label,
-      render: (d) => {
-        const s: DiscountState = discountState(d);
-        return <StatusChip status={s} label={STATE_INFO[s].label} tone={STATE_INFO[s].tone} />;
-      },
+      type: "status",
+      statusKind: "discount",
+      value: (d) => discountState(d),
       width: 130,
       mobile: "end",
     },

@@ -46,8 +46,7 @@ card titles and labels render immediately; **only the data parts** show skeleton
 | Error | inline `ErrorState` / `DataTable error` with **Retry** — never a blank page |
 | Route change | the shell shows a 2px progress bar while the page chunk loads |
 
-No full-page `LoadingSpinner` / `CircularProgress` except app boot. (`components/common/LoadingSpinner`
-is legacy — delete its usages when you migrate a page.)
+No full-page spinners (`CircularProgress` only inside a busy button or field).
 
 ## 3. Data layer (React Query)
 
@@ -101,7 +100,7 @@ is legacy — delete its usages when you migrate a page.)
 | `DataTable` | **Every** list/table | see §5 |
 | `KpiCard` | One number + change vs previous period | `label`, `value`, `format` (`money` `number` `percent` `duration` `hours` `lbp` or fn), `previous?`, `previousLabel?` ("vs yesterday"), `goodDirection` (`"up"` revenue, `"down"` no-shows/discounts, `"neutral"`), `deltaFormat?`, `sparkline?`, `icon?`, `hint?`, `loading?`, `onClick?` |
 | `ChartCard` | Any chart | `title`, `subtitle?`, `action?`, `legend?` (`{label,color,value?,dashed?}`), `height?`, `loading?`, `error?`, `onRetry?`, `empty?` |
-| `StatusChip` | Any status | `status`, `kind` (`order` `payment` `session` `reservation` `station` `source` (`pos` Counter / `website` / `reservation` Booking) `stock` `role` `generic`), `label?`, `tone?`, `dot?` |
+| `StatusChip` | Any status | `status`, `kind` (`order` `payment` `session` `reservation` `station` `source` (`pos` Counter / `website` / `reservation` Booking) `stock` `discount` `role` `generic`), `label?`, `tone?`, `dot?` |
 | `MoneyText` | Every amount | `value`, `currency` (`USD`/`LBP`), `lbp?` (secondary LBP), `lbpLayout?`, `signed?`, `tone` (`default` `sign` `muted`), `strike?`, `compact?` |
 | `CodeText` | Invoice numbers, booking codes, SKUs | children |
 | `InfoList` | Read-only "label: value" pairs in detail panels (contact, address, notes) | `items` `{label, value, hideEmpty?}`, `loading?` (labels stay, values skeleton), `layout` (`rows` \| `stacked`) |
@@ -257,13 +256,12 @@ Shared fields that know about our data (they query the API), so they live outsid
 All dates/times are shown in **Asia/Beirut**; all helpers return "—" for missing values.
 Phones: `formatPhone`, `normalizePhone`, `isValidPhone`, `phoneHref` in `@/utils/phone`.
 
-## 7. Migrating a page (checklist)
+## 7. Checklist for a new or changed screen
 
-1. Imports from `@/components/ui` (the `components/common/*` files are re-exports kept only until
-   every page is migrated — `StatCard` → `KpiCard`).
-2. Replace `LoadingSpinner`/full-page spinners with component-level `loading` (§2).
-3. Tables → `DataTable`; native `type="date"` inputs → `DateField`/`DateRangeField`; phone inputs →
-   `PhoneField`; country/city text → `CountrySelect`/`CityField`/`AddressFields`; prices → `MoneyField`.
-4. Keys → `queryKeys.*`; `useMutation` → `useApiMutation` with `invalidates: affects.*`.
-5. Statuses → `StatusChip kind=…`; money → `MoneyText`/`formatUsd`; dates → `format.ts`.
+1. Compose it from `@/components/ui` (+ `@/components/pickers` for customers/products/photos).
+2. Loading follows §2: chrome renders at once, data parts skeleton, no full-page spinners.
+3. Every list is a `DataTable`; dates → `DateField`/`DateRangeField`/`TimeField`; phones → `PhoneField`;
+   country/city → `CountrySelect`/`CityField`/`AddressFields`; prices → `MoneyField`; numbers → `NumberField`.
+4. Keys → `queryKeys.*`; writes → `useApiMutation` with `invalidates: affects.*`.
+5. Statuses → `StatusChip kind=…` (labels/colours only in `statusConfig.ts`); money → `MoneyText`/`formatUsd`; dates → `format.ts`.
 6. No hard-coded colours, gradients, `secondary.50`-style palette keys or `brand.*` (deprecated).

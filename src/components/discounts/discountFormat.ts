@@ -1,4 +1,3 @@
-import type { StatusTone } from "@/components/ui";
 import { dayKey, formatDate, formatDateRange } from "@/utils/format";
 import { zonedToUtc } from "@/utils/zonedTime";
 import { DiscountTarget, type Discount } from "@/types/discount.types";
@@ -12,9 +11,6 @@ export const TARGET_LABEL: Record<DiscountTarget, string> = {
 
 export const TARGET_OPTIONS = (Object.keys(TARGET_LABEL) as DiscountTarget[]).map((value) => ({ value, label: TARGET_LABEL[value] }));
 
-/** Id of the product/category a discount targets (the list API populates `targetId`). */
-export const targetIdOf = (d: Discount): string | undefined =>
-  d.targetDetails?._id ?? (d.targetId && /^[a-f\d]{24}$/i.test(d.targetId) ? d.targetId : undefined);
 
 /** "Whole order" / "Red Bull" / "Snacks". */
 export const appliesTo = (d: Discount) =>
@@ -22,19 +18,12 @@ export const appliesTo = (d: Discount) =>
 
 export type DiscountState = "on" | "off" | "scheduled" | "ended";
 
-/** Whether the discount applies right now. */
+/** Whether the discount applies right now (labels/colours: StatusChip kind="discount"). */
 export const discountState = (d: Discount, now = Date.now()): DiscountState => {
   if (!d.isActive) return "off";
   if (d.startDate && new Date(d.startDate).getTime() > now) return "scheduled";
   if (d.endDate && new Date(d.endDate).getTime() < now) return "ended";
   return "on";
-};
-
-export const STATE_INFO: Record<DiscountState, { label: string; tone: StatusTone }> = {
-  on: { label: "Active", tone: "success" },
-  off: { label: "Turned off", tone: "neutral" },
-  scheduled: { label: "Scheduled", tone: "info" },
-  ended: { label: "Ended", tone: "neutral" },
 };
 
 /** "Always", "From 1 Dec 2026", "Until 31 Dec 2026", "1–31 Dec 2026". */
