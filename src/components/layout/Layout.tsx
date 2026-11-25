@@ -1,5 +1,5 @@
-import React, { useEffect } from "react";
-import { Box, useMediaQuery, useTheme } from "@mui/material";
+import React, { Suspense, useEffect } from "react";
+import { Box, LinearProgress, useMediaQuery, useTheme } from "@mui/material";
 import { Outlet, useLocation } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import TopBar from "./TopBar";
@@ -42,7 +42,10 @@ const Layout: React.FC = () => {
           id="main"
           sx={{ flex: 1, width: "100%", maxWidth: 1600, mx: "auto", px: { xs: 2, sm: 2.5, md: 3, lg: 4 }, py: { xs: 2, sm: 2.5, md: 3 } }}
         >
-          <Outlet />
+          {/* Page chunks load lazily; the shell stays put and a thin bar shows progress */}
+          <Suspense fallback={<LinearProgress aria-label="Loading page" sx={{ position: "fixed", top: 0, left: 0, right: 0, height: 2, zIndex: (t) => t.zIndex.appBar + 1, borderRadius: 0 }} />}>
+            <Outlet />
+          </Suspense>
         </Box>
       </Box>
     </Box>

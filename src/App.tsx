@@ -1,4 +1,4 @@
-import React, { Suspense, lazy } from "react";
+import React, { lazy } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { ThemeProvider } from "@mui/material";
 import getTheme from "./theme/theme";
@@ -6,24 +6,26 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Layout from "./components/layout/Layout";
 import ProtectedRoute from "./components/ProtectedRoute";
-import Dashboard from "./pages/Dashboard";
-import Products from "./pages/Products";
-import Sales from "./pages/Sales";
-import Categories from "./pages/Categories";
-import Customers from "./pages/Customers";
-import Reports from "./pages/Reports";
-import ExchangeRate from "./pages/ExchangeRate";
-import Settings from "./pages/Settings";
-import Profile from "./pages/Profile";
 import { useAuthStore } from "./store/authStore";
-import SalesHistory from "./pages/SalesHistory";
-import GamingStations from "./pages/GamingStations";
-import GamingHistory from "./pages/GamingHistory";
-import PCManagement from "./pages/PCManagement";
-import Discounts from "./pages/Discounts";
-import Reservations from "./pages/Reservations";
-import ReservationSettings from "./pages/ReservationSettings";
-import Staff from "./pages/Staff";
+
+// Screens are code-split: each page loads on first visit (the shell shows a thin progress bar meanwhile)
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Products = lazy(() => import("./pages/Products"));
+const Sales = lazy(() => import("./pages/Sales"));
+const Categories = lazy(() => import("./pages/Categories"));
+const Customers = lazy(() => import("./pages/Customers"));
+const Reports = lazy(() => import("./pages/Reports"));
+const ExchangeRate = lazy(() => import("./pages/ExchangeRate"));
+const Settings = lazy(() => import("./pages/Settings"));
+const Profile = lazy(() => import("./pages/Profile"));
+const SalesHistory = lazy(() => import("./pages/SalesHistory"));
+const GamingStations = lazy(() => import("./pages/GamingStations"));
+const GamingHistory = lazy(() => import("./pages/GamingHistory"));
+const PCManagement = lazy(() => import("./pages/PCManagement"));
+const Discounts = lazy(() => import("./pages/Discounts"));
+const Reservations = lazy(() => import("./pages/Reservations"));
+const ReservationSettings = lazy(() => import("./pages/ReservationSettings"));
+const Staff = lazy(() => import("./pages/Staff"));
 
 // Dev-only UI kit preview (not part of production builds)
 const UiKitPage = import.meta.env.DEV ? lazy(() => import("./dev/UiKitPage")) : null;
@@ -76,14 +78,7 @@ const App: React.FC = () => {
         <Route path="reservations/settings" element={<ReservationSettings />} />
         <Route path="staff" element={<Staff />} />
         {UiKitPage && (
-          <Route
-            path="ui-kit"
-            element={
-              <Suspense fallback={null}>
-                <UiKitPage />
-              </Suspense>
-            }
-          />
+          <Route path="ui-kit" element={<UiKitPage />} />
         )}
         <Route
           path="/gaming/pc-management"

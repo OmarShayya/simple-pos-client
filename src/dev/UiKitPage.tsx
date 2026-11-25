@@ -524,7 +524,7 @@ const UiKitPage: React.FC = () => {
         </Grid>
         <Box
           component="pre"
-          sx={{ mt: 2.5, p: 2, bgcolor: "action.hover", borderRadius: 2, fontSize: "0.8125rem", overflowX: "auto", maxWidth: 960 }}
+          sx={{ mt: 2.5, p: 2, bgcolor: "action.hover", borderRadius: "8px", fontSize: "0.8125rem", overflowX: "auto", maxWidth: 960 }}
         >
           {JSON.stringify({ date, dateTime, range, phone, country, city, address, price, lbp, qty }, null, 2)}
         </Box>
