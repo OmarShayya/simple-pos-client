@@ -7,6 +7,8 @@ import type { LowStockRow } from "@/types/dashboard.types";
 import { DashboardList, DashboardListRow, DashboardListSkeleton } from "./DashboardList";
 
 const MAX_ROWS = 6;
+/** Products with the "Low stock" filter on. */
+const LOW_STOCK_HREF = "/products?stock=low";
 
 /** Products at or under their reorder level, lowest first. */
 const LowStockCard: React.FC<{ rows: LowStockRow[] | undefined; loading: boolean; canManage: boolean }> = ({ rows, loading, canManage }) => (
@@ -17,7 +19,7 @@ const LowStockCard: React.FC<{ rows: LowStockRow[] | undefined; loading: boolean
     divider
     action={
       canManage && (
-        <Button component={RouterLink} to="/products" variant="text">
+        <Button component={RouterLink} to={LOW_STOCK_HREF} variant="text">
           Products
         </Button>
       )
@@ -32,13 +34,13 @@ const LowStockCard: React.FC<{ rows: LowStockRow[] | undefined; loading: boolean
         {rows.slice(0, MAX_ROWS).map((p) => (
           <DashboardListRow
             key={p.id}
-            to={canManage ? "/products" : undefined}
+            to={canManage ? LOW_STOCK_HREF : undefined}
             title={p.name}
             subtitle={`Reorder at ${p.threshold}`}
             trailing={p.stock <= 0 ? <StatusChip status="out" kind="stock" /> : <StatusChip status="low" kind="stock" label={`${p.stock} left`} />}
           />
         ))}
-        {rows.length > MAX_ROWS && <DashboardListRow to={canManage ? "/products" : undefined} title={`${rows.length - MAX_ROWS} more products low`} />}
+        {rows.length > MAX_ROWS && <DashboardListRow to={canManage ? LOW_STOCK_HREF : undefined} title={`${rows.length - MAX_ROWS} more products low`} />}
       </DashboardList>
     )}
   </SectionCard>
