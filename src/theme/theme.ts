@@ -204,13 +204,15 @@ const getTheme = (mode: ColorMode): Theme => {
         styleOverrides: {
           root: {
             borderRadius: radii.control,
-            color: t.textMuted,
-            "&:hover": { backgroundColor: t.hover, color: t.text },
+            variants: [
+              { props: { color: "default" }, style: { color: t.textMuted, "&:hover": { backgroundColor: t.hover, color: t.text } } },
+              { props: { color: "primary" }, style: { color: t.primaryText, "&:hover": { backgroundColor: t.primaryTint } } },
+              { props: { color: "error" }, style: { "&:hover": { backgroundColor: alpha(t.error, 0.08) } } },
+            ],
           },
           sizeMedium: { width: 44, height: 44 },
           sizeSmall: { width: 36, height: 36, "& .MuiSvgIcon-root": { fontSize: 20 } },
           sizeLarge: { width: 52, height: 52 },
-          colorPrimary: { color: t.primaryText, "&:hover": { backgroundColor: t.primaryTint } },
         },
       },
       MuiFab: {
@@ -311,7 +313,12 @@ const getTheme = (mode: ColorMode): Theme => {
       },
       MuiInputAdornment: {
         styleOverrides: {
-          root: { color: t.textMuted, "& .MuiTypography-root": { color: t.textMuted, fontSize: "0.9375rem" } },
+          root: {
+            color: t.textMuted,
+            "& .MuiTypography-root": { color: t.textMuted, fontSize: "0.9375rem" },
+            // Buttons inside fields (calendar, clear, show password) stay inside the 48px field
+            "& .MuiIconButton-root": { width: 36, height: 36 },
+          },
         },
       },
       MuiFormHelperText: {
@@ -676,7 +683,7 @@ const getTheme = (mode: ColorMode): Theme => {
       MuiAvatar: {
         styleOverrides: {
           root: { fontWeight: 600, fontSize: "0.9375rem" },
-          colorDefault: { backgroundColor: t.primaryTint, color: t.primaryText },
+          colorDefault: { backgroundColor: dark ? "#3F3F46" : "#A1A1AA", color: dark ? "#FAFAFA" : "#FFFFFF" },
         },
       },
       MuiTabs: {
@@ -769,9 +776,10 @@ const getTheme = (mode: ColorMode): Theme => {
             "& .MuiDataGrid-row:hover": { backgroundColor: t.surfaceSubtle },
             "& .MuiDataGrid-row.Mui-selected, & .MuiDataGrid-row.Mui-selected:hover": { backgroundColor: t.primaryTint },
           },
-          columnHeader: { paddingLeft: 16, paddingRight: 16 },
           columnHeaderTitle: { fontWeight: 600, fontSize: "0.8125rem", color: t.textMuted },
-          columnSeparator: { color: t.border },
+          // Column resize handles only appear on hover (no vertical lines between headers)
+          columnSeparator: { color: "transparent" },
+          columnHeader: { paddingLeft: 16, paddingRight: 16, "&:hover .MuiDataGrid-columnSeparator": { color: t.borderStrong } },
           cell: { paddingLeft: 16, paddingRight: 16, borderColor: t.border },
           footerContainer: { borderTop: `1px solid ${t.border}`, minHeight: 52 },
           overlay: { backgroundColor: "transparent", color: t.textMuted },
