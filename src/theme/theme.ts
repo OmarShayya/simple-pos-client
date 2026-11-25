@@ -813,14 +813,18 @@ const getTheme = (mode: ColorMode): Theme => {
             "&.Mui-focused": { boxShadow: ring },
             "&.Mui-focused .MuiPickersOutlinedInput-notchedOutline": { borderWidth: 1.5, borderColor: t.primary },
             "&.Mui-error.Mui-focused": { boxShadow: `0 0 0 3px ${alpha(t.error, 0.2)}` },
+            "&.Mui-disabled": { backgroundColor: dark ? "#141416" : "#FAFAFA" },
+          },
+          // Same height as every other field: 48px (44px small) — MUI X defaults to 56/40
+          sectionsContainer: {
+            padding: "12.5px 0",
+            ".MuiPickersInputBase-inputSizeSmall &": { padding: "10.5px 0" },
           },
         },
       },
       MuiPickersInputBase: {
         styleOverrides: {
           root: { fontSize: "0.9375rem" },
-          sectionsContainer: { padding: "12.5px 0" },
-          inputSizeSmall: { padding: "10.5px 0" },
         },
       },
       MuiPickersSectionList: {

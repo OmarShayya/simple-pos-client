@@ -479,7 +479,8 @@ function DataTable<R>(props: DataTableProps<R>) {
           sortable: !isActions && (col.sortable ?? true),
           flex: col.width ? undefined : col.flex ?? (isActions ? undefined : numeric || col.type === "status" ? 0.6 : 1),
           width: col.width ?? (isActions ? 120 : undefined),
-          minWidth: col.minWidth ?? (isActions ? 96 : col.type === "status" ? 120 : numeric ? 100 : 130),
+          // A fixed width is also the minimum, so narrow columns stay narrow
+          minWidth: col.minWidth ?? col.width ?? (isActions ? 96 : col.type === "status" ? 120 : numeric ? 100 : 130),
           align,
           headerAlign: align,
           renderCell: (p) =>

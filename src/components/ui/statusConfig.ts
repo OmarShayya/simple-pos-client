@@ -12,7 +12,7 @@ export type StatusKind =
   | "session" // gaming session: active | completed | cancelled
   | "reservation" // confirmed | checked_in | completed | cancelled | no_show
   | "station" // available | occupied | maintenance | reserved | offline
-  | "source" // order source: pos | website
+  | "source" // where an order / booking / customer came from: pos | website | reservation
   | "stock" // in_stock | low | out
   | "role" // admin | manager | cashier
   | "generic"; // active | inactive | yes | no
@@ -58,6 +58,7 @@ export const STATUS_MAP: Record<StatusKind, Record<string, StatusInfo>> = {
   source: {
     pos: { label: "Counter", tone: "neutral" },
     website: { label: "Website", tone: "info" },
+    reservation: { label: "Booking", tone: "primary" },
   },
   stock: {
     in_stock: { label: "In stock", tone: "success" },

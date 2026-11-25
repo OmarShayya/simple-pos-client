@@ -103,7 +103,7 @@ is legacy — delete its usages when you migrate a page.)
 | `DataTable` | **Every** list/table | see §5 |
 | `KpiCard` | One number + change vs previous period | `label`, `value`, `format` (`money` `number` `percent` `duration` `hours` `lbp` or fn), `previous?`, `previousLabel?` ("vs yesterday"), `goodDirection` (`"up"` revenue, `"down"` no-shows/discounts, `"neutral"`), `deltaFormat?`, `sparkline?`, `icon?`, `hint?`, `loading?`, `onClick?` |
 | `ChartCard` | Any chart | `title`, `subtitle?`, `action?`, `legend?` (`{label,color,value?,dashed?}`), `height?`, `loading?`, `error?`, `onRetry?`, `empty?` |
-| `StatusChip` | Any status | `status`, `kind` (`order` `payment` `session` `reservation` `station` `source` `stock` `role` `generic`), `label?`, `tone?`, `dot?` |
+| `StatusChip` | Any status | `status`, `kind` (`order` `payment` `session` `reservation` `station` `source` (`pos` Counter / `website` / `reservation` Booking) `stock` `role` `generic`), `label?`, `tone?`, `dot?` |
 | `MoneyText` | Every amount | `value`, `currency` (`USD`/`LBP`), `lbp?` (secondary LBP), `lbpLayout?`, `signed?`, `tone` (`default` `sign` `muted`), `strike?`, `compact?` |
 | `CodeText` | Invoice numbers, booking codes, SKUs | children |
 | `CountryFlag` | Flag next to a country name | `code`, `size?` |
@@ -181,8 +181,8 @@ Retry, skeleton rows on first load, progress bar on refetch.
 tooltip = exact time) · `duration` (minutes → "1h 30m") · `status` (`statusKind`) · `code` (mono) ·
 `actions` (right-aligned, never sorted/exported, clicks don't trigger the row click).
 
-Other column props: `value(row)` accessor, `render(row)` custom cell, `width` / `flex` /
-`minWidth`, `align`, `sortable`, `searchable`, `hideBelow: "md" | "lg"` (drop on tablets),
+Other column props: `value(row)` accessor, `render(row)` custom cell, `width` (fixed px — also the
+minimum, so narrow columns stay narrow) / `flex` / `minWidth`, `align`, `sortable`, `searchable`, `hideBelow: "md" | "lg"` (drop on tablets),
 `mobile: "title" | "subtitle" | "end" | "meta" | "hidden"` (role in the phone card), `csv`.
 
 ### Server-side example (orders)
