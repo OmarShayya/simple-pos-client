@@ -8,7 +8,7 @@ import {
   PrintOutlined,
   StopCircleOutlined,
 } from "@mui/icons-material";
-import { CodeText, DetailDrawer, ErrorState, StatusChip } from "@/components/ui";
+import { CodeText, DetailDrawer, ErrorState, MoneyText, StatusChip } from "@/components/ui";
 import { useConfirm } from "@/hooks/useConfirm";
 import { useNow } from "@/hooks/useNow";
 import { formatDateTime, formatLbp, formatUsd } from "@/utils/format";
@@ -27,8 +27,9 @@ export interface OrderDrawerProps {
   onPrint: (orderId: string) => void;
 }
 
+/** Section heading — same style as the kit's SectionCard titles (e.g. the customer panel). */
 const Label: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <Typography variant="overline" component="h3" color="text.secondary" sx={{ display: "block", mb: 0.75, lineHeight: 1.5 }}>
+  <Typography variant="subtitle1" component="h3" sx={{ mb: 1 }}>
     {children}
   </Typography>
 );
@@ -146,7 +147,8 @@ const OrderDrawer: React.FC<OrderDrawerProps> = ({ orderId, onClose, onTakePayme
           <Box sx={{ width: "100%", display: "flex", flexDirection: "column", gap: 1 }}>
             {pending && (
               <Button variant="contained" size="large" startIcon={<PaymentsOutlined />} onClick={() => onTakePayment(order.id)} fullWidth>
-                Take payment
+                {/* The amount on the button: on phones the totals may be scrolled out of view */}
+                Take payment <MoneyText value={liveOrderTotals(order, now).total.usd} sx={{ ml: 0.75 }} />
               </Button>
             )}
             <Box sx={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 1 }}>

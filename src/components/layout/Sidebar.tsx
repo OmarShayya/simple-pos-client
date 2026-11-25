@@ -234,7 +234,7 @@ const UserBlock: React.FC<{ collapsed: boolean; onNavigate?: () => void }> = ({ 
         component="button"
         type="button"
         onClick={goProfile}
-        aria-label="My account"
+        aria-label={user?.name ? `My account — ${user.name}` : "My account"}
         sx={{
           flex: 1,
           minWidth: 0,
