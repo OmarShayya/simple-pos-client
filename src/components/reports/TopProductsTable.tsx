@@ -2,6 +2,7 @@ import React, { useMemo } from "react";
 import { DataTable, SectionCard } from "@/components/ui";
 import type { TopProductRow } from "@/types/report.types";
 import { topProductColumns, type RankedProduct } from "./reportColumns";
+import { SECTION_COPY } from "./reportPeriods";
 
 export interface TopProductsTableProps {
   rows: TopProductRow[] | undefined;
@@ -15,7 +16,7 @@ const TopProductsTable: React.FC<TopProductsTableProps> = ({ rows, productRevenu
   const ranked = useMemo<RankedProduct[] | undefined>(() => rows?.map((r, i) => ({ ...r, rank: i + 1 })), [rows]);
   const columns = useMemo(() => topProductColumns(productRevenue), [productRevenue]);
   return (
-    <SectionCard variant="plain" title="Top products" subtitle="Best sellers by revenue">
+    <SectionCard variant="plain" {...SECTION_COPY.topProducts}>
       <DataTable<RankedProduct>
         label="Top products"
         rows={ranked}

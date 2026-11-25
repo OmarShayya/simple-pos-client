@@ -119,6 +119,16 @@ export const drillDown = (period: ReportPeriod, p: ReportSeriesPoint): { period:
 /** Blocks a report view is built from (rendered by ReportView in the order a period lists them). */
 export type ReportSectionId = "timeline" | "busiestHours" | "payments" | "categories" | "topProducts" | "cashiers" | "stations";
 
+/** Section titles, shared by the screen and the printed report (timeline titles are per period). */
+export const SECTION_COPY: Record<Exclude<ReportSectionId, "timeline">, { title: string; subtitle?: string }> = {
+  payments: { title: "How customers paid", subtitle: "Revenue by payment method" },
+  categories: { title: "Product sales by category", subtitle: "Drinks, snacks and food (gaming time not included)" },
+  topProducts: { title: "Top products", subtitle: "Best sellers by revenue" },
+  cashiers: { title: "Staff", subtitle: "Payments taken by each staff member" },
+  stations: { title: "Stations" },
+  busiestHours: { title: "Busiest hours" },
+};
+
 export interface PeriodConfig {
   value: ReportPeriod;
   /** Period switch label. */

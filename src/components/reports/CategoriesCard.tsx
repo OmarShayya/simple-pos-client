@@ -5,12 +5,13 @@ import { useChartDefaults } from "@/theme/charts";
 import { formatUsd, plural } from "@/utils/format";
 import type { CategoryRow } from "@/types/report.types";
 import ShareList from "./ShareList";
+import { SECTION_COPY } from "./reportPeriods";
 
 /** Product revenue by category (drinks, snacks, food…). Gaming time is not a category. */
 const CategoriesCard: React.FC<{ rows: CategoryRow[] | undefined; loading: boolean }> = ({ rows, loading }) => {
   const chart = useChartDefaults();
   return (
-    <SectionCard title="Product sales by category" subtitle="Drinks, snacks and food (gaming time not included)">
+    <SectionCard {...SECTION_COPY.categories}>
       {!loading && rows && rows.length === 0 ? (
         <EmptyState compact icon={<CategoryOutlined />} title="No products sold in this period" />
       ) : (

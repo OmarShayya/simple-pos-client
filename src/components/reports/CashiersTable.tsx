@@ -2,6 +2,7 @@ import React from "react";
 import { DataTable, SectionCard } from "@/components/ui";
 import type { CashierRow } from "@/types/report.types";
 import { cashierColumns } from "./reportColumns";
+import { SECTION_COPY } from "./reportPeriods";
 
 export interface CashiersTableProps {
   rows: CashierRow[] | undefined;
@@ -11,7 +12,7 @@ export interface CashiersTableProps {
 /** Revenue per staff member — credited to whoever took the payment. */
 const CashiersTable: React.FC<CashiersTableProps> = ({ rows, loading }) => {
   return (
-    <SectionCard variant="plain" title="Staff" subtitle="Payments taken by each staff member">
+    <SectionCard variant="plain" {...SECTION_COPY.cashiers}>
       <DataTable<CashierRow>
         label="Revenue by staff member"
         rows={rows}

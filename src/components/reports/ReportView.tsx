@@ -2,11 +2,11 @@ import React from "react";
 import { Box, Button, Grid, Stack } from "@mui/material";
 import { EventBusyOutlined } from "@mui/icons-material";
 import { EmptyState, ErrorState, SectionCard } from "@/components/ui";
-import { dayKey, formatNumber, formatUsd, plural } from "@/utils/format";
 import type { ReportPeriod, ReportSummary } from "@/types/report.types";
 import ReportKpis from "./ReportKpis";
+import { moreNumbers } from "./reportKpiItems";
 import RevenueChart from "./RevenueChart";
-import StatList, { type StatItem } from "./StatList";
+import StatList from "./StatList";
 import PaymentsCard from "./PaymentsCard";
 import CategoriesCard from "./CategoriesCard";
 import TopProductsTable from "./TopProductsTable";
@@ -14,8 +14,8 @@ import CashiersTable from "./CashiersTable";
 import StationsSection from "./StationsSection";
 import BusiestHoursStrip from "./BusiestHoursStrip";
 import TimelineTable from "./TimelineTable";
-import { PERIODS, bucketStarted, periodLabel, type ReportSectionId } from "./reportPeriods";
-import { isEmptyReport, reportHighlights } from "./reportInsights";
+import { PERIODS, periodLabel, type ReportSectionId } from "./reportPeriods";
+import { isEmptyReport, reportHighlights, startedBuckets } from "./reportInsights";
 
 export interface ReportViewProps {
   period: ReportPeriod;
@@ -29,30 +29,6 @@ export interface ReportViewProps {
   previousLabel: string;
   onSelect: (next: { period?: ReportPeriod; date?: string }) => void;
 }
-
-const money = (v: number) => formatUsd(v);
-const count = (v: number) => formatNumber(v);
-
-const moreNumbers = (data: ReportSummary | undefined): StatItem[] => {
-  const k = data?.kpis;
-  return [
-    { label: "Gaming revenue", value: k?.gamingRevenue.value, previous: k?.gamingRevenue.previous, format: money },
-    { label: "Product revenue", value: k?.productRevenue.value, previous: k?.productRevenue.previous, format: money, note: "Drinks, snacks and food" },
-    { label: "Sessions started", value: k?.sessions.value, previous: k?.sessions.previous, format: count },
-    { label: "Discounts given", value: k?.discounts.value, previous: k?.discounts.previous, format: money, goodDirection: "down" },
-    { label: "New customers", value: k?.newCustomers.value, previous: k?.newCustomers.previous, format: count },
-    { label: "Website orders", value: k?.websiteOrders.value, previous: k?.websiteOrders.previous, format: count, note: "Placed from the online menu" },
-    { label: "Bookings", value: k?.reservations.value, previous: k?.reservations.previous, format: count },
-    {
-      label: "No-shows",
-      value: k?.noShows.value,
-      previous: k?.noShows.previous,
-      format: count,
-      goodDirection: "down",
-      note: k && k.reservations.value ? `of ${plural(k.reservations.value, "booking")}` : undefined,
-    },
-  ];
-};
 
 /**
  * One layout for every period: KPIs → main chart with "more numbers" beside it → the sections the
@@ -72,11 +48,10 @@ const ReportView: React.FC<ReportViewProps> = ({ period, date, today, data, load
 
   const empty = data && !loading && isEmptyReport(data);
   const k = data?.kpis;
-  // Tables list only buckets that have started (no rows of zeros for the rest of the week)
-  const startedBuckets = data?.series.filter((p) => bucketStarted(period, p, dayKey(data.range.start), today));
+  const started = data && startedBuckets(data, today);
 
   const sections: Record<ReportSectionId, React.ReactNode> = {
-    timeline: <TimelineTable period={period} rows={startedBuckets} loading={loading} />,
+    timeline: <TimelineTable period={period} rows={started} loading={loading} />,
     busiestHours: <BusiestHoursStrip rows={data?.busiestHours} loading={loading} />,
     payments: <PaymentsCard rows={data?.byPaymentMethod} loading={loading} />,
     categories: <CategoriesCard rows={data?.byCategory} loading={loading} />,
@@ -87,7 +62,7 @@ const ReportView: React.FC<ReportViewProps> = ({ period, date, today, data, load
 
   return (
     <Stack spacing={{ xs: 2, md: 3 }}>
-      <ReportKpis data={data} trend={startedBuckets?.map((p) => p.revenue)} loading={loading} previousLabel={previousLabel} />
+      <ReportKpis data={data} trend={started?.map((p) => p.revenue)} loading={loading} previousLabel={previousLabel} />
 
       {empty ? (
         <SectionCard>
@@ -120,13 +95,13 @@ const ReportView: React.FC<ReportViewProps> = ({ period, date, today, data, load
             </Grid>
             <Grid size={{ xs: 12, lg: 4 }}>
               <SectionCard title="More numbers" subtitle={previousLabel.replace(/^vs/, "Change vs")}>
-                <StatList items={moreNumbers(data)} previousLabel={previousLabel} loading={loading} />
+                <StatList items={moreNumbers(k)} previousLabel={previousLabel} loading={loading} />
               </SectionCard>
             </Grid>
           </Grid>
 
           {config.layout.map((row) => (
-            <Grid container spacing={{ xs: 2, md: 3 }} key={row.join("-")} sx={{ breakInside: "avoid" }}>
+            <Grid container spacing={{ xs: 2, md: 3 }} key={row.join("-")}>
               {row.map((id) => (
                 <Grid key={id} size={{ xs: 12, lg: 12 / row.length }}>
                   <Box sx={{ height: "100%" }}>{sections[id]}</Box>

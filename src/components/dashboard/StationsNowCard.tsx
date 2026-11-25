@@ -73,7 +73,7 @@ const StationsNowCard: React.FC<{ data: DashboardOverview | undefined; loading: 
       flush
       action={
         <Button component={RouterLink} to="/gaming" variant="text">
-          Open stations
+          Stations
         </Button>
       }
     >

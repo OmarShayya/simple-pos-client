@@ -4,20 +4,17 @@ import { ComputerOutlined, SportsEsportsOutlined } from "@mui/icons-material";
 import { BarChart } from "@mui/x-charts/BarChart";
 import { ChartCard, DataTable, KpiCard, SectionCard } from "@/components/ui";
 import { useChartDefaults } from "@/theme/charts";
-import { formatNumber, formatRatio, formatUsd, plural } from "@/utils/format";
+import { formatNumber, formatUsd } from "@/utils/format";
 import type { ReportSummary, StationRow } from "@/types/report.types";
 import type { StationType } from "@/types/reservation.types";
 import { stationColumns } from "./reportColumns";
+import { SECTION_COPY } from "./reportPeriods";
+import { averageBusy, busyScaleMax, stationTypeSummary, stationsSubtitle } from "./reportInsights";
 
 export interface StationsSectionProps {
   data: ReportSummary | undefined;
   loading: boolean;
 }
-
-const averageBusy = (rows: StationRow[], type: StationType) => {
-  const values = rows.filter((r) => r.type === type && r.utilization !== null).map((r) => r.utilization as number);
-  return values.length ? values.reduce((a, b) => a + b, 0) / values.length : null;
-};
 
 /**
  * PCs vs PS5 rooms side by side, then how busy each station was (share of opening hours in use)
@@ -28,9 +25,7 @@ const StationsSection: React.FC<StationsSectionProps> = ({ data, loading }) => {
   const rows = useMemo(() => data?.stations ?? [], [data]);
   const split = data?.byStationType;
   const typeColor = (t: StationType) => (t === "playstation" ? chart.colors.playstation : chart.colors.pc);
-  const openHours = data?.openHours ?? 0;
-  // Scale to the busiest station (in 25% steps) so quiet weeks don't squash every bar to the left
-  const axisMax = Math.min(100, Math.max(25, Math.ceil((Math.max(0, ...rows.map((r) => r.utilization ?? 0)) * 100) / 25) * 25));
+  const axisMax = busyScaleMax(rows) * 100;
 
   const tile = (type: StationType) => {
     const totals = split?.[type];
@@ -42,17 +37,13 @@ const StationsSection: React.FC<StationsSectionProps> = ({ data, loading }) => {
         value={totals?.revenue}
         format="money"
         loading={loading}
-        hint={totals && `${plural(totals.sessions, "session")} · ${formatNumber(totals.hours, 1)} h · ${busy === null ? "closed" : `${formatRatio(busy)} busy`}`}
+        hint={totals && stationTypeSummary(totals, busy)}
       />
     );
   };
 
   return (
-    <SectionCard
-      variant="plain"
-      title="Stations"
-      subtitle={openHours > 0 ? `"Busy" = share of the ${formatNumber(openHours)} opening hours a station was in use` : "Gaming time and revenue per station"}
-    >
+    <SectionCard variant="plain" title={SECTION_COPY.stations.title} subtitle={stationsSubtitle(data?.openHours ?? 0)}>
       <Grid container spacing={{ xs: 1.5, md: 2 }}>
         <Grid size={{ xs: 12, sm: 6 }}>{tile("pc")}</Grid>
         <Grid size={{ xs: 12, sm: 6 }}>{tile("playstation")}</Grid>
