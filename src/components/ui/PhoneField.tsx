@@ -12,7 +12,7 @@ import {
 import { ArrowDropDownRounded, SearchRounded } from "@mui/icons-material";
 import { AsYouType, parsePhoneNumberFromString } from "libphonenumber-js";
 import CountryFlag from "./CountryFlag";
-import { COUNTRIES, getCountry, searchCountries, type Country } from "@/data/countries";
+import { COUNTRIES, countryForCallingCode, getCountry, searchCountries, type Country } from "@/data/countries";
 import { asCountryCode, dialCode, normalizePhone, type CountryCode } from "@/utils/phone";
 
 export interface PhoneValue {
@@ -121,16 +121,31 @@ const PhoneField: React.FC<PhoneFieldProps> = ({
 
   const handleInput = (raw: string) => {
     const trimmed = raw.trim();
-    // Pasted/typed an international number: switch country automatically
-    if (trimmed.startsWith("+") || (trimmed.startsWith("00") && digitsOf(trimmed).length > 6)) {
-      const intl = trimmed.startsWith("+") ? `+${digitsOf(trimmed)}` : `+${digitsOf(trimmed).slice(2)}`;
-      const parsed = parsePhoneNumberFromString(intl);
-      if (parsed?.country) {
+    // International input ("+44 7911 123456", "0044…"): pick the country from the calling code
+    // and keep only the national part in the box, so the flag always matches the number.
+    if (trimmed.startsWith("+") || (trimmed.startsWith("00") && digitsOf(trimmed).length > 4)) {
+      const intlDigits = trimmed.startsWith("+") ? digitsOf(trimmed) : digitsOf(trimmed).slice(2);
+      const parsed = parsePhoneNumberFromString(`+${intlDigits}`);
+      if (parsed?.country && parsed.isValid()) {
         setCountry(parsed.country);
-        setText(new AsYouType(parsed.country).input(parsed.nationalNumber));
-        emit(parsed.nationalNumber, parsed.country);
+        setText(parsed.formatNational());
+        emit(digitsOf(parsed.formatNational()), parsed.country);
         return;
       }
+      const typing = new AsYouType();
+      typing.input(`+${intlDigits}`);
+      const callingCode = typing.getCallingCode();
+      const detected = (typing.getCountry() as CountryCode | undefined) ?? (callingCode ? countryForCallingCode(callingCode) : undefined);
+      if (callingCode && detected) {
+        const national = intlDigits.slice(callingCode.length);
+        setCountry(detected);
+        setText(national ? new AsYouType(detected).input(national) : "");
+        emit(national, detected);
+        return;
+      }
+      // Calling code not complete yet ("+9"): keep what was typed
+      setText(`+${intlDigits}`);
+      return;
     }
     let digits = digitsOf(raw);
     // Backspace over a space/dash: also remove the digit before it

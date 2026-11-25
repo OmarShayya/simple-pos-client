@@ -53,6 +53,10 @@ export const COUNTRIES: Country[] = [
 export const getCountry = (code: string | null | undefined): Country | undefined =>
   code ? byCode.get(code.toUpperCase() as CountryCode) : undefined;
 
+/** Main country for a calling code ("1" → US, "961" → LB). Common countries win ties. */
+export const countryForCallingCode = (callingCode: string): CountryCode | undefined =>
+  COUNTRIES.find((c) => c.dialCode === `+${callingCode}`)?.code;
+
 export const countryName = (code: string | null | undefined): string => getCountry(code)?.name ?? code ?? "";
 
 const fold = (s: string) => s.toLowerCase().normalize("NFD").replace(/\p{M}/gu, "");
