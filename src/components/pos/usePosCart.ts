@@ -2,7 +2,7 @@ import { useReducer } from "react";
 import type { Product } from "@/types/product.types";
 import type { Discount } from "@/types/discount.types";
 import type { GamingLine, Money, Order } from "@/types/sale.types";
-import { choiceFromOrder, type CustomerChoice } from "@/components/orders/customerChoice";
+import { choiceFromOrder, type CustomerChoice } from "@/components/pickers/customerChoice";
 import { addMoney, liveGamingLine, percentOf, roundMoney, ZERO, type LiveTotals } from "@/components/orders/orderMath";
 
 export interface CartLine {

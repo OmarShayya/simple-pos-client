@@ -82,7 +82,9 @@ const OpenOrdersPanel: React.FC<OpenOrdersPanelProps> = ({ onOpen, onTakePayment
 
   const subtitle = open.isLoading
     ? "Loading…"
-    : rows.length
+    : open.error && !rows.length
+      ? "Couldn't load the open orders"
+      : rows.length
       ? `${plural(rows.length, "unpaid order")}${website ? ` · ${website} from the website` : ""}`
       : "Nothing waiting for payment";
 

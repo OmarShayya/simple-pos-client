@@ -148,7 +148,7 @@ export const findSidebarItem = (pathname: string): SidebarItem | undefined =>
 
 const EXTRA_TITLES: Record<string, string> = {
   "/sales": "New sale",
-  "/profile": "Profile",
+  "/profile": "My account",
   "/reservations/settings": "Booking rules",
   "/ui-kit": "UI kit",
 };

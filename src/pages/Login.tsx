@@ -3,12 +3,12 @@ import { Alert, Box, Button, CircularProgress, Link, Stack, TextField } from "@m
 import { LoginRounded } from "@mui/icons-material";
 import { useNavigate, Link as RouterLink } from "react-router-dom";
 import AuthLayout from "@/components/auth/AuthLayout";
-import PasswordField from "@/components/auth/PasswordField";
 import { useSetupStatus } from "@/components/auth/useSetupStatus";
 import { authApi } from "@/api/auth.api";
 import { useApiMutation } from "@/hooks/useApiMutation";
 import { useAuthStore } from "@/store/authStore";
 import { friendlyError } from "@/utils/apiError";
+import { PasswordField } from "@/components/ui";
 
 /** Staff sign-in. The first-run link to create the owner account only shows while no account exists. */
 const Login: React.FC = () => {

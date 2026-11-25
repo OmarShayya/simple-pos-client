@@ -15,7 +15,8 @@ const OPTIONS: { value: LastVisitPreset; label: string }[] = [
 
 /** "Last visit" filter: a short list of plain choices, with From/To calendars for "Pick dates…". */
 const LastVisitFilter: React.FC<{ value: LastVisitValue; onChange: (v: LastVisitValue) => void }> = ({ value, onChange }) => (
-  <Stack direction={{ xs: "column", sm: "row" }} spacing={1} useFlexGap flexWrap="wrap" sx={{ minWidth: 0 }}>
+  // No minWidth: 0 here — on phones the filter wraps to its own row instead of running off the screen
+  <Stack direction={{ xs: "column", sm: "row" }} spacing={1} useFlexGap flexWrap="wrap">
     <SelectField<LastVisitPreset>
       label="Last visit"
       value={value.preset}
@@ -24,6 +25,7 @@ const LastVisitFilter: React.FC<{ value: LastVisitValue; onChange: (v: LastVisit
       size="small"
       fullWidth={false}
       minWidth={200}
+      sx={{ width: { xs: "100%", sm: "auto" } }}
     />
     {value.preset === "custom" && (
       <>

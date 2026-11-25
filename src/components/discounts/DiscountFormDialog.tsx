@@ -1,13 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { Box, FormControlLabel, Stack, Switch, TextField, Typography } from "@mui/material";
-import { DateField, FormDialog, SelectField } from "@/components/ui";
-import { NumberField } from "@/components/kit-extras";
-import ProductPicker from "@/components/products/ProductPicker";
+import { DateField, FormDialog, NumberField, SelectField } from "@/components/ui";
+import ProductPicker from "@/components/pickers/ProductPicker";
 import { useAllProducts, useCategories } from "@/components/products/productQueries";
 import { dayKey } from "@/utils/format";
 import { todayKey } from "@/utils/dateRanges";
 import { DiscountTarget, type CreateDiscountRequest, type Discount } from "@/types/discount.types";
-import { TARGET_OPTIONS, dayEndIso, dayStartIso, targetIdOf } from "./discountFormat";
+import { TARGET_OPTIONS, dayEndIso, dayStartIso } from "./discountFormat";
 import { useDiscountMutations } from "./discountQueries";
 
 export interface DiscountFormDialogProps {
@@ -32,7 +31,7 @@ const initial = (d?: Discount | null): FormState => ({
   description: d?.description ?? "",
   value: d?.value ?? null,
   target: d?.target ?? DiscountTarget.SALE,
-  targetId: d ? targetIdOf(d) ?? null : null,
+  targetId: d?.targetId || null,
   from: d?.startDate ? dayKey(d.startDate) : null,
   until: d?.endDate ? dayKey(d.endDate) : null,
   isActive: d?.isActive ?? true,

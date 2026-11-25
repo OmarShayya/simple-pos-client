@@ -40,6 +40,7 @@ export interface DataTableColumn<R> {
   currency?: Currency;
   /** status: which status family (order, session, reservation, station…). */
   statusKind?: StatusKind;
+  /** Fixed width in px (also the minimum width). */
   width?: number;
   minWidth?: number;
   /** Share of the remaining width (like CSS flex-grow). Default 1 for text columns. */

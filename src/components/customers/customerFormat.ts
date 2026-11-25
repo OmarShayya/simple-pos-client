@@ -1,6 +1,6 @@
 import { countryName } from "@/data/countries";
 import { shiftDay, todayKey } from "@/utils/dateRanges";
-import type { StatusTone } from "@/components/ui";
+import { getStatusInfo } from "@/components/ui";
 import type { CustomerAddress, CustomerSource } from "@/types/customer.types";
 
 /** "Hamra, Beirut" + ", France" for other countries. Street is shown separately. */
@@ -20,16 +20,16 @@ export const formatAddress = (address?: CustomerAddress | null): string => {
 /** A placeholder name the API gives customers created from a phone only ("Guest 1234"). */
 export const isPlaceholderName = (name?: string | null) => /^Guest \d{2,4}$/.test(name ?? "");
 
-/** How each first-contact channel reads to staff. */
-export const CUSTOMER_SOURCE: Record<CustomerSource, { label: string; long: string; tone: StatusTone }> = {
-  pos: { label: "Counter", long: "Added at the counter", tone: "neutral" },
-  website: { label: "Website", long: "First ordered on the website", tone: "info" },
-  reservation: { label: "Booking", long: "First booked a station", tone: "primary" },
+/** How each first-contact channel reads to staff (the short label comes from the `source` status). */
+export const CUSTOMER_SOURCE: Record<CustomerSource, { long: string }> = {
+  pos: { long: "Added at the counter" },
+  website: { long: "First ordered on the website" },
+  reservation: { long: "First booked a station" },
 };
 
 export const CUSTOMER_SOURCE_OPTIONS = (Object.keys(CUSTOMER_SOURCE) as CustomerSource[]).map((value) => ({
   value,
-  label: CUSTOMER_SOURCE[value].label,
+  label: getStatusInfo(value, "source").label,
 }));
 
 export type LastVisitPreset = "any" | "today" | "7" | "30" | "90" | "custom";

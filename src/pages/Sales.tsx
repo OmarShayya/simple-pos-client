@@ -19,7 +19,7 @@ import OpenOrderPicker from "@/components/pos/OpenOrderPicker";
 import { cartTotals, stockOf, usePosCart } from "@/components/pos/usePosCart";
 import { useDiscountLookup } from "@/components/pos/useDiscountLookup";
 import PaymentDialog from "@/components/orders/PaymentDialog";
-import { customerChoiceError, useResolveCustomer } from "@/components/orders/customerChoice";
+import { customerChoiceError, useResolveCustomer } from "@/components/pickers/customerChoice";
 import { useCreateOrder, useExchangeRate, useOpenOrders, useUpdateOrder } from "@/components/orders/useOrderData";
 
 const PRODUCT_FILTERS = { limit: 1000 };

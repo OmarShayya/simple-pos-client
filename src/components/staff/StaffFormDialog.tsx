@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { IconButton, InputAdornment, Stack, TextField, Tooltip } from "@mui/material";
-import { VisibilityOffOutlined, VisibilityOutlined } from "@mui/icons-material";
-import { FormDialog, SelectField } from "@/components/ui";
+import { Stack, TextField } from "@mui/material";
+import { FormDialog, PasswordField, SelectField } from "@/components/ui";
 import type { StaffMember } from "@/api/staff.api";
 import type { UserRole } from "@/types/auth.types";
 import { ROLE_INFO } from "./roles";
@@ -26,7 +25,6 @@ const StaffFormDialog: React.FC<StaffFormDialogProps> = ({ open, onClose, member
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<UserRole>("cashier");
-  const [showPw, setShowPw] = useState(false);
   const [touched, setTouched] = useState(false);
 
   useEffect(() => {
@@ -35,7 +33,6 @@ const StaffFormDialog: React.FC<StaffFormDialogProps> = ({ open, onClose, member
     setEmail(member?.email ?? "");
     setPassword("");
     setRole(member?.role ?? "cashier");
-    setShowPw(false);
     setTouched(false);
   }, [open, member]);
 
@@ -71,28 +68,14 @@ const StaffFormDialog: React.FC<StaffFormDialogProps> = ({ open, onClose, member
         {!editing && (
           <>
             <TextField label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required error={Boolean(show("email"))} helperText={show("email")} slotProps={{ htmlInput: { autoComplete: "off", inputMode: "email" } }} />
-            <TextField
+            <PasswordField
               label="Temporary password"
-              type={showPw ? "text" : "password"}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
               error={Boolean(show("password"))}
               helperText={show("password") ?? "At least 8 characters — give it to them in person"}
-              slotProps={{
-                htmlInput: { autoComplete: "new-password" },
-                input: {
-                  endAdornment: (
-                    <InputAdornment position="end">
-                      <Tooltip title={showPw ? "Hide password" : "Show password"}>
-                        <IconButton onClick={() => setShowPw((v) => !v)} edge="end" aria-label={showPw ? "Hide password" : "Show password"}>
-                          {showPw ? <VisibilityOffOutlined /> : <VisibilityOutlined />}
-                        </IconButton>
-                      </Tooltip>
-                    </InputAdornment>
-                  ),
-                },
-              }}
+              slotProps={{ htmlInput: { autoComplete: "new-password" } }}
             />
           </>
         )}

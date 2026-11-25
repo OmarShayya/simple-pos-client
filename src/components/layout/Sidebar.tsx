@@ -215,7 +215,7 @@ const UserBlock: React.FC<{ collapsed: boolean; onNavigate?: () => void }> = ({ 
             <ListItemIcon>
               <PersonOutline fontSize="small" />
             </ListItemIcon>
-            Profile
+            My account
           </MenuItem>
           <MenuItem onClick={signOut}>
             <ListItemIcon>
@@ -234,7 +234,7 @@ const UserBlock: React.FC<{ collapsed: boolean; onNavigate?: () => void }> = ({ 
         component="button"
         type="button"
         onClick={goProfile}
-        aria-label="Open your profile"
+        aria-label={user?.name ? `My account — ${user.name}` : "My account"}
         sx={{
           flex: 1,
           minWidth: 0,
@@ -328,7 +328,7 @@ const Sidebar: React.FC<SidebarProps> = ({ variant, open, collapsed = false, onC
         sx={{ flex: 1, overflowY: "auto", overflowX: "hidden", px: rail ? 1 : 1.5, pb: 2 }}
       >
         {groups.map((group, gi) => (
-          <Box key={group.id} component="section" aria-label={group.label || undefined} sx={{ mt: gi === 0 ? 0.5 : rail ? 1 : 2 }}>
+          <Box key={group.id} component="section" aria-label={group.label || undefined} sx={{ mt: gi === 0 ? 0.5 : rail ? 1 : 1.25 }}>
             {group.label &&
               (rail ? (
                 <Box aria-hidden sx={{ height: "1px", bgcolor: "divider", mx: 1.5, mb: 1 }} />
@@ -342,8 +342,8 @@ const Sidebar: React.FC<SidebarProps> = ({ variant, open, collapsed = false, onC
                     fontWeight: 500,
                     letterSpacing: "0.06em",
                     textTransform: "uppercase",
-                    color: theme.palette.mode === "dark" ? "#71717A" : "#71717A",
-                    lineHeight: "28px",
+                    color: "#71717A", // zinc-500: readable on both sidebar surfaces, quieter than the items
+                    lineHeight: "24px",
                   }}
                 >
                   {group.label}

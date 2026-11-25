@@ -1,7 +1,5 @@
 import React, { lazy } from "react";
 import { Routes, Route, Navigate, useSearchParams } from "react-router-dom";
-import { ThemeProvider } from "@mui/material";
-import getTheme from "./theme/theme";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Layout from "./components/layout/Layout";
@@ -30,12 +28,6 @@ const Staff = lazy(() => import("./pages/Staff"));
 // Dev-only UI kit preview (not part of production builds)
 const UiKitPage = import.meta.env.DEV ? lazy(() => import("./dev/UiKitPage")) : null;
 
-// Sign-in screens are always dark (brand look), regardless of the app theme
-const authTheme = getTheme("dark");
-const AuthScreen: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <ThemeProvider theme={authTheme}>{children}</ThemeProvider>
-);
-
 /** Old "Sales history" links (incl. `?paymentFor=<id>`) now open the Orders page. */
 const SalesHistoryRedirect: React.FC = () => {
   const [params] = useSearchParams();
@@ -51,14 +43,8 @@ const App: React.FC = () => {
       {/* Website orders arrive live while someone is signed in */}
       {isAuthenticated && <LiveOrderNotifications />}
       <Routes>
-        <Route
-          path="/login"
-          element={isAuthenticated ? <Navigate to="/dashboard" /> : <AuthScreen><Login /></AuthScreen>}
-        />
-        <Route
-          path="/register"
-          element={isAuthenticated ? <Navigate to="/dashboard" /> : <AuthScreen><Register /></AuthScreen>}
-        />
+        <Route path="/login" element={isAuthenticated ? <Navigate to="/dashboard" /> : <Login />} />
+        <Route path="/register" element={isAuthenticated ? <Navigate to="/dashboard" /> : <Register />} />
 
         <Route
           path="/"

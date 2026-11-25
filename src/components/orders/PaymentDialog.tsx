@@ -40,9 +40,6 @@ const quickAmounts = (due: number, currency: Currency): number[] => {
   return [...out].sort((a, b) => a - b).slice(0, 4);
 };
 
-/** Equal-width segments across the dialog (the kit's `fullWidth` makes each segment 100% wide). */
-const STRETCH = { width: "100%", "& .MuiToggleButton-root": { flex: "1 1 0", minWidth: 0 } } as const;
-
 const dueIn = (totals: Money, currency: Currency) => (currency === Currency.USD ? totals.usd : totals.lbp);
 
 const AmountDue: React.FC<{ totals?: Money; label?: string }> = ({ totals, label = "Amount due" }) => (
@@ -245,7 +242,7 @@ const PaymentDialog: React.FC<PaymentDialogProps> = ({ orderId, open, onClose, o
           <Typography variant="subtitle2" sx={{ mb: 1 }}>
             How is the customer paying?
           </Typography>
-          <SegmentedControl aria-label="Payment method" size="large" sx={STRETCH} value={method} onChange={setMethod} options={METHOD_OPTIONS} />
+          <SegmentedControl aria-label="Payment method" size="large" fullWidth value={method} onChange={setMethod} options={METHOD_OPTIONS} />
         </Box>
 
         <Box>
@@ -255,7 +252,7 @@ const PaymentDialog: React.FC<PaymentDialogProps> = ({ orderId, open, onClose, o
           <SegmentedControl
             aria-label="Currency"
             size="large"
-            sx={STRETCH}
+            fullWidth
             value={currency}
             onChange={(c) => {
               setCurrency(c);

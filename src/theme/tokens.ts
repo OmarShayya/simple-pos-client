@@ -142,7 +142,7 @@ const dark: ModeTokens = {
   focusRing: "rgba(44, 197, 199, 0.35)",
   shadowPopover: "0 8px 24px -4px rgba(0, 0, 0, 0.6)",
   shadowDialog: "0 24px 48px -12px rgba(0, 0, 0, 0.7)",
-  series: { pc: "#2CC5C7", playstation: "#60A5FA", products: "#F59E0B", other: "#94A3B8" },
+  series: { pc: "#2CC5C7", playstation: "#3B82F6", products: "#F59E0B", other: "#94A3B8" },
 };
 
 export const getTokens = (mode: ColorMode): ModeTokens => (mode === "dark" ? dark : light);

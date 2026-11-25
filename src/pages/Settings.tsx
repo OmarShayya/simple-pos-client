@@ -2,8 +2,7 @@ import React from "react";
 import { Box, Button, Switch, Typography } from "@mui/material";
 import { DarkModeOutlined, LightModeOutlined, LogoutRounded } from "@mui/icons-material";
 import { useNavigate } from "react-router-dom";
-import { PageHeader, SectionCard, SegmentedControl, StatusChip } from "@/components/ui";
-import { SettingRow } from "@/components/kit-extras";
+import { PageHeader, SectionCard, SegmentedControl, SettingRow, StatusChip } from "@/components/ui";
 import { useCurrentRate } from "@/components/exchange/exchangeQueries";
 import { useThemeStore } from "@/store/themeStore";
 import { useUIStore } from "@/store/uiStore";
@@ -37,7 +36,7 @@ const Settings: React.FC = () => {
             />
           </SettingRow>
           <SettingRow label="Compact menu" description="Show only icons in the side menu on big screens (hover an icon to see its name).">
-            <Switch checked={sidebarCollapsed} onChange={toggleSidebar} inputProps={{ "aria-label": "Compact menu" }} />
+            <Switch checked={sidebarCollapsed} onChange={toggleSidebar} slotProps={{ input: { role: "switch", "aria-label": "Compact menu" } }} />
           </SettingRow>
         </SectionCard>
 

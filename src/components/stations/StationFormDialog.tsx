@@ -1,8 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Box, FormControlLabel, Stack, Switch, TextField, Typography } from "@mui/material";
 import { Computer, SportsEsports } from "@mui/icons-material";
-import { FormDialog, MoneyField, SegmentedControl } from "@/components/ui";
-import { CreatableSelect } from "@/components/kit-extras";
+import { CreatableSelect, FormDialog, MoneyField, SegmentedControl } from "@/components/ui";
 import { PCStatus, type PC } from "@/types/gaming.types";
 import type { StationType } from "@/types/reservation.types";
 import { distinctValues, nextStationNumber } from "./stationFormat";

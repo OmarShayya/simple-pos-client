@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from "react";
-import { Box, IconButton, Stack, Tooltip, Typography, useTheme } from "@mui/material";
-import { Computer, DeleteOutlineRounded, EditOutlined, SportsEsports } from "@mui/icons-material";
-import { DataTable, MoneyText, PageHeader, SegmentedControl, SelectField, StatusChip } from "@/components/ui";
+import { Box, Button, Stack, Typography, useTheme } from "@mui/material";
+import { AddRounded, Computer, DeleteOutlineRounded, EditOutlined, SportsEsports } from "@mui/icons-material";
+import { DataTable, IconAction, MoneyText, PageHeader, SegmentedControl, SelectField, StatusChip } from "@/components/ui";
 import type { DataTableColumn } from "@/components/ui";
 import StationFormDialog from "@/components/stations/StationFormDialog";
 import { useAllStations, useStationMutations } from "@/components/stations/stationQueries";
@@ -88,18 +88,8 @@ const PCManagement: React.FC = () => {
       width: 112,
       render: (s) => (
         <>
-          <Tooltip title="Edit station">
-            <IconButton aria-label={`Edit ${s.pcNumber}`} onClick={() => setForm({ station: s })}>
-              <EditOutlined />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title={s.status === PCStatus.OCCUPIED ? "Someone is playing — end the session first" : "Delete station"}>
-            <span>
-              <IconButton aria-label={`Delete ${s.pcNumber}`} onClick={() => askDelete(s)} disabled={s.status === PCStatus.OCCUPIED} sx={{ color: "error.main" }}>
-                <DeleteOutlineRounded />
-              </IconButton>
-            </span>
-          </Tooltip>
+          <IconAction title="Edit station" label={`Edit ${s.pcNumber}`} icon={<EditOutlined />} onClick={() => setForm({ station: s })} />
+          <IconAction title={s.status === PCStatus.OCCUPIED ? "Someone is playing — end the session first" : "Delete station"} label={`Delete ${s.pcNumber}`} icon={<DeleteOutlineRounded />} onClick={() => askDelete(s)} disabled={s.status === PCStatus.OCCUPIED} tone="danger" />
         </>
       ),
     },
@@ -107,7 +97,15 @@ const PCManagement: React.FC = () => {
 
   return (
     <Box>
-      <PageHeader title="Manage stations" subtitle="PCs and PlayStation rooms: numbers, hourly prices, zones and specs. Start sessions from the Stations screen." />
+      <PageHeader
+        title="Manage stations"
+        subtitle="PCs and PlayStation rooms: numbers, hourly prices, zones and specs. Start sessions from the Stations screen."
+        actions={
+          <Button variant="contained" startIcon={<AddRounded />} onClick={() => setForm({ station: null })}>
+            Add station
+          </Button>
+        }
+      />
       <DataTable<PC>
         label="Stations"
         rows={rows}
@@ -141,7 +139,6 @@ const PCManagement: React.FC = () => {
           setZone("");
         }}
         initialSort={{ field: "pcNumber", direction: "asc" }}
-        primaryAction={{ label: "Add station", onClick: () => setForm({ station: null }) }}
         onRowClick={(s) => setForm({ station: s })}
         exportCsv={{ filename: "stations" }}
         empty={{ title: "No stations yet", description: "Add your gaming PCs and PlayStation rooms to start sessions and take bookings." }}

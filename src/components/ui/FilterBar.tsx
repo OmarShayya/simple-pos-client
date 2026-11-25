@@ -35,7 +35,21 @@ const FilterBar: React.FC<FilterBarProps> = ({ search, children, actions, active
   >
     {search && <Box sx={{ flex: "1 1 260px", maxWidth: { md: 420 }, width: { xs: "100%", sm: "auto" } }}>{search}</Box>}
     {children && (
-      <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 1.5, flex: { xs: "1 1 100%", md: "0 1 auto" }, "& > *": { flex: { xs: "1 1 160px", md: "0 0 auto" } } }}>
+      <Box
+        sx={{
+          display: "flex",
+          flexWrap: "wrap",
+          alignItems: "center",
+          gap: 1.5,
+          flex: { xs: "1 1 100%", md: "0 1 auto" },
+          "& > *": { flex: { xs: "1 1 160px", md: "0 0 auto" } },
+          // Phones: a segmented filter gets its own row and its options share it (none cut off at the edge)
+          "& > .MuiToggleButtonGroup-root": {
+            flex: { xs: "1 1 100%", md: "0 0 auto" },
+            "& .MuiToggleButton-root": { flex: { xs: "1 1 auto", md: "0 0 auto" }, px: { xs: 1.25, md: 1.75 } },
+          },
+        }}
+      >
         {children}
       </Box>
     )}

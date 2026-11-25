@@ -146,6 +146,12 @@ function renderCellContent<R>(col: DataTableColumn<R>, row: R): React.ReactNode 
   }
 }
 
+const VISUALLY_HIDDEN = { position: "absolute", width: 1, height: 1, p: 0, m: -1, overflow: "hidden", clip: "rect(0 0 0 0)", whiteSpace: "nowrap", border: 0 } as const;
+/** Header cell width: 13px semibold title (~7.4px a character) + 16px padding each side + 32px sort arrow. */
+const headerWidth = (header: string, sortable: boolean) => Math.ceil(header.length * 7.4 + 32 + (sortable ? 32 : 0));
+
+const NATURAL = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
+
 /* Placeholder rows for the first load: real headers, skeleton cells (never a spinner). */
 const SKELETON_ROWS = Array.from({ length: 6 }, (_, i) => ({ __skeleton: i }));
 const SKELETON_WIDTHS = ["72%", "54%", "84%", "46%", "64%", "58%", "40%"];
@@ -377,6 +383,8 @@ function DataTable<R>(props: DataTableProps<R>) {
         list = [...list].sort((a, b) => {
           const va = sortValue(col, a);
           const vb = sortValue(col, b);
+          // Text sorts the way people count: "PC-2" before "PC-10"
+          if (typeof va === "string" && typeof vb === "string") return dir * NATURAL.compare(va, vb);
           return va < vb ? -dir : va > vb ? dir : 0;
         });
       }
@@ -471,17 +479,23 @@ function DataTable<R>(props: DataTableProps<R>) {
       columns.map((col, colIndex) => {
         const numeric = isNumericType(col.type);
         const isActions = col.type === "actions";
+        const sortable = !isActions && (col.sortable ?? true);
         const align = col.align ?? (numeric || isActions ? "right" : "left");
+        // Room for the whole header (+ the sort arrow on sortable columns) so "Revenue" never becomes "Reven…"
+        const headerMin = isActions ? 0 : headerWidth(col.header, sortable);
         return {
           field: col.field,
           headerName: col.header,
           description: isActions ? undefined : col.header,
-          sortable: !isActions && (col.sortable ?? true),
+          sortable,
           flex: col.width ? undefined : col.flex ?? (isActions ? undefined : numeric || col.type === "status" ? 0.6 : 1),
-          width: col.width ?? (isActions ? 120 : undefined),
-          minWidth: col.minWidth ?? (isActions ? 96 : col.type === "status" ? 120 : numeric ? 100 : 130),
+          width: col.width ? Math.max(col.width, headerMin) : isActions ? 120 : undefined,
+          // A fixed width is also the minimum, so narrow columns stay narrow
+          minWidth: Math.max(col.minWidth ?? col.width ?? (isActions ? 96 : col.type === "status" ? 120 : numeric ? 100 : 130), headerMin),
           align,
           headerAlign: align,
+          // Row buttons explain themselves (tooltips); the "Actions" header is for screen readers only
+          renderHeader: isActions ? () => <Box component="span" sx={VISUALLY_HIDDEN}>{col.header || "Actions"}</Box> : undefined,
           renderCell: (p) =>
             isSkeleton(p.row) ? (
               isActions ? null : (

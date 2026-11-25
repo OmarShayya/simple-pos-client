@@ -1,16 +1,15 @@
 import React from "react";
 import { Box, Button, CircularProgress, Divider, IconButton, Stack, Tooltip, Typography } from "@mui/material";
 import { ComputerOutlined, DeleteSweepOutlined, PaymentsOutlined, SaveOutlined, ShoppingCartOutlined, SportsEsportsOutlined } from "@mui/icons-material";
-import { CodeText, EmptyState, MoneyText, QuantityStepper, SelectField } from "@/components/ui";
+import { CodeText, EmptyState, MoneyText, QuantityStepper } from "@/components/ui";
 import { formatDuration, formatTime } from "@/utils/format";
-import CustomerPicker from "@/components/orders/CustomerPicker";
+import CustomerPicker from "@/components/pickers/CustomerPicker";
 import { RunningChip } from "@/components/orders/OrderBadges";
 import { OrderTotals } from "@/components/orders/OrderLines";
 import { liveGamingLine, type LiveTotals } from "@/components/orders/orderMath";
-import type { Discount } from "@/types/discount.types";
 import type { Money } from "@/types/sale.types";
 import type { CartState, DiscountLookup } from "./usePosCart";
-import type { CustomerChoice } from "@/components/orders/customerChoice";
+import type { CustomerChoice } from "@/components/pickers/customerChoice";
 import DiscountPicker from "./DiscountPicker";
 
 export interface CartPanelProps {
@@ -30,8 +29,6 @@ export interface CartPanelProps {
   onSave: () => void;
   onClear: () => void;
 }
-
-const discountOptions = (list: Discount[]) => list.map((d) => ({ value: d.id, label: `${d.name} (${d.value}% off)` }));
 
 /** The cart: customer, station time on a loaded order, products with quantities, discounts, totals, Charge. */
 const CartPanel: React.FC<CartPanelProps> = ({
@@ -87,7 +84,7 @@ const CartPanel: React.FC<CartPanelProps> = ({
         )}
       </Box>
 
-      <Box sx={{ px: 2, pb: 1.5 }}>
+      <Box sx={{ px: 2, pt: 1, pb: 1.5 }}>
         <CustomerPicker value={state.customer} onChange={onCustomer} size="small" />
         {!state.customer && state.orderCustomerName && (
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
@@ -168,7 +165,9 @@ const CartPanel: React.FC<CartPanelProps> = ({
 
       <Box sx={{ p: 2, pt: 1.5, display: "flex", flexDirection: "column", gap: 1.5 }}>
         {discounts.sale.length > 0 && !empty && (
-          <SelectField label="Order discount" size="small" value={state.saleDiscountId} onChange={onSaleDiscount} emptyOption="No order discount" options={discountOptions(discounts.sale)} />
+          <Box>
+            <DiscountPicker options={discounts.sale} value={state.saleDiscountId} onChange={onSaleDiscount} target="the whole order" addLabel="Add order discount" />
+          </Box>
         )}
         <OrderTotals totals={totals} running={running} />
         {blocker && (

@@ -1,7 +1,7 @@
 import React, { useMemo } from "react";
-import { Box, Button, IconButton, Stack, Tooltip, Typography } from "@mui/material";
+import { Box, Button, Stack, Tooltip, Typography } from "@mui/material";
 import { EditOutlined, EventBusyOutlined, LoginRounded, PersonOffOutlined } from "@mui/icons-material";
-import { CodeText, DataTable, StatusChip } from "@/components/ui";
+import { CodeText, DataTable, IconAction, StatusChip } from "@/components/ui";
 import type { DataTableColumn, DataTableProps } from "@/components/ui";
 import { formatDate, formatTime } from "@/utils/format";
 import { formatPhone } from "@/utils/phone";
@@ -120,23 +120,11 @@ const ReservationTable: React.FC<ReservationTableProps> = ({ rows, now, showDate
                   </Button>
                 </span>
               </Tooltip>
-              <Tooltip title="Edit booking">
-                <IconButton aria-label={`Edit booking ${r.code}`} onClick={() => onOpen(r)}>
-                  <EditOutlined />
-                </IconButton>
-              </Tooltip>
+              <IconAction title="Edit booking" label={`Edit booking ${r.code}`} icon={<EditOutlined />} onClick={() => onOpen(r)} />
               {t.isLate && (
-                <Tooltip title="Mark as no-show">
-                  <IconButton aria-label={`Mark ${r.customerName} as no-show`} onClick={() => onNoShow(r)}>
-                    <PersonOffOutlined />
-                  </IconButton>
-                </Tooltip>
+                <IconAction title="Mark as no-show" label={`Mark ${r.customerName} as no-show`} icon={<PersonOffOutlined />} onClick={() => onNoShow(r)} />
               )}
-              <Tooltip title="Cancel booking">
-                <IconButton aria-label={`Cancel booking ${r.code}`} onClick={() => onCancel(r)} sx={{ color: "error.main" }}>
-                  <EventBusyOutlined />
-                </IconButton>
-              </Tooltip>
+              <IconAction title="Cancel booking" label={`Cancel booking ${r.code}`} icon={<EventBusyOutlined />} onClick={() => onCancel(r)} tone="danger" />
             </Stack>
           );
         },

@@ -23,16 +23,11 @@ const domain = <D extends string>(name: D) => ({
 
 export const queryKeys = {
   /** Orders = sales (counter, gaming and website orders). */
-  orders: {
-    ...domain("orders"),
-    invoice: (invoiceNumber: string) => ["orders", "invoice", invoiceNumber] as const,
-  },
+  orders: domain("orders"),
   /** Gaming sessions. */
   sessions: {
     ...domain("sessions"),
     active: () => ["sessions", "active"] as const,
-    cost: (id: string) => ["sessions", "cost", id] as const,
-    todayStats: () => ["sessions", "today-stats"] as const,
   },
   /** Gaming stations (PCs + PlayStation rooms). */
   stations: domain("stations"),
@@ -44,7 +39,6 @@ export const queryKeys = {
   customers: {
     ...domain("customers"),
     activity: (id: string) => ["customers", "activity", id] as const,
-    lookup: (phone: string) => ["customers", "lookup", phone] as const,
   },
   products: domain("products"),
   categories: domain("categories"),
@@ -73,26 +67,6 @@ export const queryKeys = {
 export type QueryDomain = keyof typeof queryKeys;
 
 /**
- * Keys still used by pages that haven't moved to `queryKeys` yet. Invalidating a domain also
- * invalidates these, so migrated and unmigrated screens stay in sync during the migration.
- * Page agents: when you migrate a page, delete its legacy keys from this map.
- */
-export const LEGACY_KEYS: Partial<Record<QueryDomain, string[]>> = {
-  orders: ["sales", "pending-sales", "daily-transactions", "sale"],
-  sessions: ["gaming-sessions", "active-gaming-sessions", "gaming-today-stats", "gaming-revenue", "gaming-revenue-by-pc"],
-  stations: ["gaming-pcs", "gaming-pcs-management", "stations-all"],
-  reservations: ["reservations", "reservation-settings", "reservation-availability"],
-  customers: ["customers", "customers-all", "customer-lookup"],
-  products: ["products", "products-list", "products-all", "products-for-discount", "product-sales"],
-  categories: ["categories", "categories-list", "category-sales"],
-  discounts: ["discounts"],
-  reports: ["daily-report", "weekly-report", "monthly-report", "yearly-report", "daily-transactions", "product-sales", "category-sales", "gaming-revenue", "gaming-revenue-by-pc"],
-  dashboard: ["dashboard"],
-  staff: ["staff"],
-  exchangeRate: ["exchange-rate", "exchange-rate-history", "convert"],
-};
-
-/**
  * What a write affects. Pass one of these (or a custom list) as `invalidates` to `useApiMutation`
  * so every screen showing affected data refreshes. When in doubt, invalidate more — refetches are
  * cheap, stale screens at the counter are not.
@@ -103,31 +77,24 @@ export const affects = {
   /** Start / end / pay / cancel a gaming session. */
   session: ["sessions", "stations", "orders", "counts", "dashboard", "reports", "customers", "reservations"],
   /** Create / edit / check in / cancel / no-show a reservation. */
-  reservation: ["reservations", "stations", "sessions", "orders", "dashboard", "counts", "customers"],
-  /** Add / edit / delete / lock a station. */
-  station: ["stations", "sessions", "reservations", "dashboard"],
-  customer: ["customers", "orders", "reservations", "dashboard"],
+  reservation: ["reservations", "stations", "sessions", "orders", "dashboard", "counts", "customers", "reports"],
+  /** Add / edit / delete a station, or take it in/out of service. */
+  station: ["stations", "sessions", "reservations", "dashboard", "reports"],
+  customer: ["customers", "orders", "reservations", "dashboard", "reports"],
   product: ["products", "categories", "dashboard", "reports"],
   category: ["categories", "products", "reports"],
   discount: ["discounts", "orders", "products"],
-  staff: ["staff"],
+  /** Names show on orders (cashier) and in reports. */
+  staff: ["staff", "orders", "reports"],
   exchangeRate: ["exchangeRate", "products", "orders", "dashboard", "reports"],
 } satisfies Record<string, QueryDomain[]>;
 
 /** A domain name ("orders") or an explicit key (`queryKeys.orders.detail(id)`). */
 export type Invalidation = QueryDomain | QueryKey;
 
-/** Expand domains (+ their legacy keys) into concrete query-key prefixes. */
+/** Expand domains into concrete query-key prefixes (deduplicated). */
 export const expandInvalidations = (items: readonly Invalidation[]): QueryKey[] => {
-  const out: QueryKey[] = [];
-  for (const item of items) {
-    if (typeof item === "string") {
-      out.push(queryKeys[item].all);
-      for (const legacy of LEGACY_KEYS[item] ?? []) out.push([legacy]);
-    } else {
-      out.push(item);
-    }
-  }
+  const out: QueryKey[] = items.map((item) => (typeof item === "string" ? queryKeys[item].all : item));
   const seen = new Set<string>();
   return out.filter((k) => {
     const id = JSON.stringify(k);

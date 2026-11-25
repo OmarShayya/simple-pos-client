@@ -3,13 +3,13 @@ import { Alert, Box, Button, CircularProgress, Link, Skeleton, Stack, TextField 
 import { PersonAddAlt1Outlined } from "@mui/icons-material";
 import { useNavigate, Link as RouterLink } from "react-router-dom";
 import AuthLayout from "@/components/auth/AuthLayout";
-import PasswordField from "@/components/auth/PasswordField";
 import { useSetupStatus } from "@/components/auth/useSetupStatus";
 import { authApi } from "@/api/auth.api";
 import { affects } from "@/api/queryKeys";
 import { useApiMutation } from "@/hooks/useApiMutation";
 import { useAuthStore } from "@/store/authStore";
 import { friendlyError } from "@/utils/apiError";
+import { PasswordField } from "@/components/ui";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 

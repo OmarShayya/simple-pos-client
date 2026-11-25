@@ -73,17 +73,6 @@ export const gamingApi = {
     return handleApiResponse(response.data);
   },
 
-  /** Admin buttons on Manage stations: start / end a real (billed) session. */
-  lockPC: async (id: string, data?: { customerId?: string; customerName?: string }): Promise<PC> => {
-    const response = await apiClient.post<ApiResponse<PC>>(`/gaming/pcs/${id}/lock`, data);
-    return handleApiResponse(response.data);
-  },
-
-  unlockPC: async (id: string): Promise<PC> => {
-    const response = await apiClient.post<ApiResponse<PC>>(`/gaming/pcs/${id}/unlock`);
-    return handleApiResponse(response.data);
-  },
-
   /* ---------------------------------------------------------------- sessions */
   /** Starts the clock and ALWAYS opens (or joins, with `saleId`) an order. */
   startSession: async (data: StartSessionRequest): Promise<GamingSession> => {
