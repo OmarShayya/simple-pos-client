@@ -97,7 +97,8 @@ const KpiCard: React.FC<KpiCardProps> = ({
     const Arrow = direction === "up" ? NorthEastRounded : direction === "down" ? SouthEastRounded : null;
     delta = (
       <Tooltip title={`${previousLabel.replace(/^vs /, "")}: ${formatValue(previous, format)}`} placement="bottom-start">
-        <Box sx={{ display: "inline-flex", alignItems: "center", gap: 0.75, minWidth: 0 }}>
+        {/* Wraps on narrow (half-width phone) tiles instead of cutting "vs yesterday" off */}
+        <Box sx={{ display: "inline-flex", alignItems: "center", flexWrap: "wrap", columnGap: 0.75, rowGap: 0, minWidth: 0 }}>
           <Box
             component="span"
             sx={{ display: "inline-flex", alignItems: "center", gap: 0.25, color, fontWeight: 600, fontSize: "0.8125rem", whiteSpace: "nowrap" }}
@@ -108,7 +109,7 @@ const KpiCard: React.FC<KpiCardProps> = ({
               {text}
             </span>
           </Box>
-          <Typography component="span" variant="caption" color="text.secondary" noWrap>
+          <Typography component="span" variant="caption" color="text.secondary">
             {previousLabel}
           </Typography>
         </Box>
