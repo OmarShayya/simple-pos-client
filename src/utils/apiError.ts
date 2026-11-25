@@ -1,5 +1,11 @@
 import { AxiosError } from "axios";
-import { handleApiError } from "./errorHandler";
+
+/** The raw message of an error (server `message`, else the JS error message). */
+const rawMessage = (error: unknown): string => {
+  if (error instanceof AxiosError) return (error.response?.data as { message?: string } | undefined)?.message || error.message || "Something went wrong.";
+  if (error instanceof Error) return error.message;
+  return "Something went wrong.";
+};
 
 /**
  * A plain-language message for any API error (toasts, ErrorState). Server validation messages
@@ -15,15 +21,14 @@ export const friendlyError = (error: unknown): string => {
     }
     const status = error.response.status;
     const message = (error.response.data as { message?: string } | undefined)?.message;
-    if (status >= 500 && (!message || /internal server error/i.test(message))) {
-      return "Something went wrong on the server. Please try again in a moment.";
-    }
+    // Server crashes say nothing useful to a cashier ("Internal error", stack names…)
+    if (status >= 500) return "Something went wrong on the server. Please try again in a moment.";
     if (status === 403 && !message) return "You don't have permission to do this.";
     if (status === 404 && !message) return "This item no longer exists. Refresh and try again.";
-    return message || handleApiError(error);
+    return message || rawMessage(error);
   }
   if (error instanceof Error && /network error/i.test(error.message)) {
     return "Can't reach the server. Check the internet connection and try again.";
   }
-  return handleApiError(error);
+  return rawMessage(error);
 };

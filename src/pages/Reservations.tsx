@@ -134,13 +134,14 @@ const Reservations: React.FC = () => {
         }
       >
         <FilterBar search={<SearchField value={search} onChange={setSearch} placeholder="Name, phone or booking code" />}>
-          <Stack direction="row" alignItems="center" spacing={0.5} sx={{ opacity: searching ? 0.45 : 1, flex: "0 0 auto" }}>
+          <Stack direction="row" alignItems="center" spacing={0.5} sx={{ opacity: searching ? 0.45 : 1, flex: { xs: "1 1 100%", md: "0 0 auto" }, minWidth: 0 }}>
             <Tooltip title="Previous night">
               <IconButton aria-label="Previous night" onClick={() => setDate((d) => addDays(d, -1))} disabled={searching}>
                 <ChevronLeftRounded />
               </IconButton>
             </Tooltip>
-            <Box sx={{ width: 170 }}>
+            {/* Phones: the date takes what's left so the whole row fits */}
+            <Box sx={{ width: { xs: "auto", md: 170 }, flex: { xs: "1 1 0", md: "0 0 auto" }, minWidth: 0 }}>
               <DateField label="Night of" size="small" value={date} onChange={(d) => d && setDate(d)} clearable={false} disabled={searching} />
             </Box>
             <Tooltip title="Next night">
@@ -148,7 +149,7 @@ const Reservations: React.FC = () => {
                 <ChevronRightRounded />
               </IconButton>
             </Tooltip>
-            <Button variant="outlined" startIcon={<TodayOutlined />} onClick={() => setDate(tonight)} disabled={searching || date === tonight}>
+            <Button variant="outlined" startIcon={<TodayOutlined />} onClick={() => setDate(tonight)} disabled={searching || date === tonight} sx={{ flexShrink: 0 }}>
               Tonight
             </Button>
           </Stack>
